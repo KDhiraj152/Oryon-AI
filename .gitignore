@@ -1,0 +1,123 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+
+# Environment Variables
+.env
+.env.local
+.env.production
+.env.*.local
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Sensitive Credentials (CRITICAL - Never commit!)
+*password*
+*secret*
+*credentials.json
+*.pem
+*.key
+id_rsa*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/*.log
+
+# Backup files
+*.bak
+*.backup
+
+# Data & Models (Large files - should not be in git)
+data/audio/*
+data/cache/*
+data/uploads/*
+data/models/*
+data/test_results/*
+!data/audio/.gitkeep
+!data/cache/.gitkeep
+!data/uploads/.gitkeep
+!data/models/.gitkeep
+
+# ML Models (Downloaded from HuggingFace - can be GBs)
+*.bin
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+model_index.json
+pytorch_model.bin
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Alembic
+alembic/versions/*.pyc
+
+# Node modules (frontend)
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.next/
+frontend/out/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+*.pid
+
+# Temporary files
+*.tmp
+*.temp
+.DS_Store
+
+# Test data (keep structure, not actual files)
+data/uploads/*.txt
+data/uploads/*.pdf
+data/uploads/*.docx
+
+# Supabase local
+.supabase/

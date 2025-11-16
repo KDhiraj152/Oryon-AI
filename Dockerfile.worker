@@ -1,0 +1,39 @@
+# Multi-stage Dockerfile for Celery workers
+FROM python:3.11-slim AS base
+
+# Install system dependencies (alphabetically sorted)
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    libsndfile1 \
+    libtesseract-dev \
+    tesseract-ocr \
+    tesseract-ocr-ben \
+    tesseract-ocr-guj \
+    tesseract-ocr-hin \
+    tesseract-ocr-kan \
+    tesseract-ocr-mal \
+    tesseract-ocr-mar \
+    tesseract-ocr-pan \
+    tesseract-ocr-tam \
+    tesseract-ocr-tel \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy requirements
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application
+COPY . .
+
+# Worker stage
+FROM base AS worker
+
+# Set environment
+ENV CELERY_BROKER_URL=redis://redis:6379/1
+ENV CELERY_RESULT_BACKEND=redis://redis:6379/1
+ENV C_FORCE_ROOT=true
+
+# Run worker
+CMD ["celery", "-A", "src.tasks.celery_app", "worker", "--loglevel=info", "--concurrency=2"]
