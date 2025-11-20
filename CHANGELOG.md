@@ -1,6 +1,6 @@
 # ShikshaSetu Changelog
 
-## [2.0.0] - January 2025
+## [2.0.0] - December 2025
 
 ### 🆕 Added
 - **Q&A System with RAG**: Intelligent document question answering using Retrieval-Augmented Generation
@@ -86,7 +86,7 @@ New tables added:
 
 ---
 
-## [1.0.0] - November 2024
+## [1.0.0] - November 2025
 
 ### Initial Release
 - Text simplification using Flan-T5
