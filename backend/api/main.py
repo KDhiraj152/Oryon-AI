@@ -29,6 +29,7 @@ from ..cache import get_redis
 from .routes import health_router, auth_router, content_router, qa_router, streaming_router
 from .routes.experiments import router as experiments_router
 from .routes.admin import router as admin_router
+from .routes.quantization import router as quantization_router
 from .metrics import metrics_endpoint
 
 # Initialize logging
@@ -92,6 +93,7 @@ app.include_router(qa_router)
 app.include_router(streaming_router)
 app.include_router(experiments_router)
 app.include_router(admin_router)
+app.include_router(quantization_router)
 
 # Add Prometheus metrics endpoint
 @app.get("/metrics", include_in_schema=False)

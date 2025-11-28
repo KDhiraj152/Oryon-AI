@@ -3,11 +3,11 @@ Unified Model Client for all AI/ML inference tasks.
 
 Consolidates FlanT5Client, IndicTrans2Client, BERTClient, VITSClient into
 a single async-first implementation with:
+- Dynamic quantization (FP16/INT8/INT4/INT2) based on load
 - Lazy loading + LRU caching
-- Quantization support (4-bit/8-bit)
 - MPS/CUDA/CPU optimization
 - Circuit breaker + API fallback
-- Model tier routing
+- Model tier routing with on-demand resource allocation
 """
 import asyncio
 import logging
@@ -20,6 +20,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, AutoModelForSeq2Se
 from ..core.config import settings
 from ..core.model_loader import LazyModelLoader
 from ..core.model_tier_router import get_router, ModelTier
+from ..core.dynamic_quantization import get_quantization_manager
 from ..utils.device_manager import get_device_manager
 from ..utils.circuit_breaker import circuit_breaker
 

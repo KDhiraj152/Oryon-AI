@@ -2,7 +2,8 @@
 Lazy Model Loader for Optimized Models.
 
 This module provides lazy loading of optimized models to minimize memory usage
-and improve startup time. Supports quantization (4-bit/8-bit) and MPS optimization.
+and improve startup time. Supports dynamic quantization (FP16/INT8/INT4/INT2) based on
+available resources and current system load.
 """
 import logging
 from typing import Dict, Any, Optional, Callable
@@ -13,6 +14,8 @@ import threading
 import time
 import torch
 from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+
+from .dynamic_quantization import get_quantization_manager, QuantizationLevel, QuantizationConfig
 
 logger = logging.getLogger(__name__)
 
@@ -211,20 +214,39 @@ class LazyModelLoader:
         }
         logger.info(f"Registered loader for {model_name} ({size_mb:.1f}MB)")
     
-    def load_model(self, model_name: str) -> LoadedModel:
+    def load_model(
+        self,
+        model_name: str,
+        model_size_params: float = 7.0,
+        task_priority: str = "balanced",
+        force_quantization: Optional[str] = None
+    ) -> LoadedModel:
         """
-        Load a model (lazy loading with caching).
+        Load a model with dynamic quantization (lazy loading with caching).
         
         Args:
             model_name: Name of the model to load
+            model_size_params: Model size in billions of parameters
+            task_priority: "quality", "balanced", or "speed"
+            force_quantization: Force specific quantization level (overrides dynamic)
         
         Returns:
-            LoadedModel instance
+            LoadedModel instance with optimal quantization
         """
         # Check cache first
         cached = self.cache.get(model_name)
         if cached and cached.status == ModelStatus.LOADED:
-            return cached
+            # Check if we should reoptimize quantization
+            quant_manager = get_quantization_manager()
+            
+            current_config = cached.metadata.get('quantization_config')
+            if current_config and quant_manager.should_reoptimize(current_config):
+                logger.info(f"Reoptimizing quantization for {model_name}")
+                # Evict and reload with new quantization
+                self.cache.remove(model_name)
+            else:
+                quant_manager.register_request_start()
+                return cached
         
         # Get or create lock for this model
         with self.global_lock:
@@ -240,6 +262,30 @@ class LazyModelLoader:
             if cached and cached.status == ModelStatus.LOADED:
                 return cached
             
+            # Calculate optimal quantization
+            quant_manager = get_quantization_manager()
+            quant_manager.register_request_start()
+            
+            if force_quantization:
+                logger.info(f"Loading {model_name} with forced quantization: {force_quantization}")
+                # Create forced config
+                quant_config = QuantizationConfig(
+                    level=QuantizationLevel(force_quantization),
+                    precision=force_quantization,
+                    compression_ratio=1.0,
+                    estimated_memory_gb=model_size_params * 2.0,
+                    config={}
+                )
+            else:
+                quant_config = quant_manager.calculate_optimal_quantization(
+                    model_size_params=model_size_params,
+                    task_priority=task_priority
+                )
+                logger.info(
+                    f"Loading {model_name} with dynamic quantization: {quant_config.level.value} "
+                    f"(estimated {quant_config.estimated_memory_gb:.1f}GB)"
+                )
+            
             logger.info(f"Loading model: {model_name}")
             
             # Check if loader is registered
@@ -247,6 +293,7 @@ class LazyModelLoader:
                 raise ValueError(f"No loader registered for {model_name}")
             
             loader_info = self.model_loaders[model_name]
+            loader_info['quantization_config'] = quant_config
             
             # Create loading placeholder
             loading_model = LoadedModel(
