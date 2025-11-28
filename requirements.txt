@@ -149,6 +149,7 @@ pytest-asyncio==0.24.0
 pytest-cov==6.0.0
 pytest-mock==3.14.0
 httpx==0.28.1  # For testing async clients
+psutil==6.1.0  # For memory profiling in tests
 
 # ============================================================================
 # CODE QUALITY
