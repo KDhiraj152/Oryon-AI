@@ -38,10 +38,12 @@ sentence-transformers==3.3.1
 # Quantization & Optimization
 bitsandbytes==0.42.0
 auto-gptq==0.7.1
+llama-cpp-python==0.2.90  # Cross-platform quantization (GGUF support)
 
 # Model-Specific Dependencies
 tiktoken==0.8.0
 einops==0.8.0
+accelerate==0.35.0  # For model loading optimizations
 
 # Model Serving (Production)
 vllm==0.6.3.post1

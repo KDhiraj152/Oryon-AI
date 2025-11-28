@@ -2,7 +2,7 @@
 Lazy Model Loader for Optimized Models.
 
 This module provides lazy loading of optimized models to minimize memory usage
-and startup time for offline deployment.
+and improve startup time. Supports quantization (4-bit/8-bit) and MPS optimization.
 """
 import logging
 from typing import Dict, Any, Optional, Callable
@@ -11,6 +11,8 @@ from enum import Enum
 from pathlib import Path
 import threading
 import time
+import torch
+from transformers import AutoModel, AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
 logger = logging.getLogger(__name__)
 
@@ -293,7 +295,94 @@ class LazyModelLoader:
             model_name: Name of the model to unload
         """
         self.cache.remove(model_name)
+        
+        # Clear GPU cache if available
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+            torch.mps.empty_cache()
+        
         logger.info(f"Unloaded model: {model_name}")
+    
+    def load_quantized_model(
+        self,
+        model_id: str,
+        quantization: str = "4bit",
+        device: str = "auto"
+    ) -> Any:
+        """
+        Load a quantized transformer model.
+        
+        Args:
+            model_id: HuggingFace model ID
+            quantization: Quantization type (4bit, 8bit, none)
+            device: Device to load on (auto, cuda, mps, cpu)
+        
+        Returns:
+            Loaded model
+        """
+        logger.info(f"Loading {model_id} with {quantization} quantization on {device}")
+        
+        # Detect device if auto
+        if device == "auto":
+            if torch.cuda.is_available():
+                device = "cuda"
+            elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+                device = "mps"
+            else:
+                device = "cpu"
+        
+        # Configure quantization
+        if quantization == "4bit" and device == "cuda":
+            # BitsAndBytes 4-bit (CUDA only)
+            try:
+                import bitsandbytes as bnb
+                quantization_config = BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_compute_dtype=torch.float16,
+                    bnb_4bit_use_double_quant=True,
+                    bnb_4bit_quant_type="nf4"
+                )
+                model = AutoModelForCausalLM.from_pretrained(
+                    model_id,
+                    quantization_config=quantization_config,
+                    device_map="auto",
+                    torch_dtype=torch.float16
+                )
+                logger.info(f"Loaded {model_id} in 4-bit (BitsAndBytes)")
+            except ImportError:
+                logger.warning("bitsandbytes not available, loading in FP16")
+                quantization = "none"
+        
+        elif quantization == "8bit" and device == "cuda":
+            # BitsAndBytes 8-bit (CUDA only)
+            try:
+                import bitsandbytes as bnb
+                model = AutoModelForCausalLM.from_pretrained(
+                    model_id,
+                    load_in_8bit=True,
+                    device_map="auto"
+                )
+                logger.info(f"Loaded {model_id} in 8-bit (BitsAndBytes)")
+            except ImportError:
+                logger.warning("bitsandbytes not available, loading in FP16")
+                quantization = "none"
+        
+        if quantization in ["none", "4bit", "8bit"] and device in ["mps", "cpu"]:
+            # Load in FP16 or FP32 for MPS/CPU
+            # For MPS, use FP16 for better performance
+            dtype = torch.float16 if device == "mps" else torch.float32
+            
+            model = AutoModelForCausalLM.from_pretrained(
+                model_id,
+                torch_dtype=dtype,
+                low_cpu_mem_usage=True
+            )
+            model = model.to(device)
+            
+            logger.info(f"Loaded {model_id} in {dtype} on {device}")
+        
+        return model
     
     def get_model_status(self, model_name: str) -> ModelStatus:
         """

@@ -65,7 +65,9 @@ class Settings:
     
     # Memory Management
     MAX_GPU_MEMORY_GB: float = float(os.getenv("MAX_GPU_MEMORY_GB", "16.0"))
+    MAX_MODEL_MEMORY_GB: float = float(os.getenv("MAX_MODEL_MEMORY_GB", "8.0"))  # For M4
     ENABLE_MODEL_OFFLOADING: bool = os.getenv("ENABLE_MODEL_OFFLOADING", "true").lower() == "true"
+    MODEL_IDLE_TIMEOUT_MINUTES: int = int(os.getenv("MODEL_IDLE_TIMEOUT_MINUTES", "5"))
     
     # vLLM Production Settings
     VLLM_ENABLED: bool = os.getenv("VLLM_ENABLED", "false").lower() == "true"
