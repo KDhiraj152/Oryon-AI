@@ -299,21 +299,14 @@ class SelfOptimizingRetrievalLoop:
                     all_results.append(r)
                     seen_ids.add(r_id)
 
-            # Early exit: if first iteration already high-quality, skip
-            # reformulation overhead entirely (saves 1-2 network round-trips).
+            # Exit when we have both sufficient coverage AND quality.
+            # The 0.85 early-exit (regardless of count) was removed because
+            # exiting before min_results undermines RAG recall — comparative/
+            # analytical queries need breadth, not just one excellent chunk.
             if (
                 len(all_results) >= min_results
                 and attempt.relevance_score >= self.MIN_RELEVANCE_THRESHOLD
             ):
-                break
-
-            # High-confidence early exit: first-iteration score so high that
-            # further reformulation cannot meaningfully improve results.
-            if iteration == 0 and attempt.relevance_score >= 0.85:
-                logger.debug(
-                    f"Early-exit retrieval: first-pass relevance "
-                    f"{attempt.relevance_score:.2f} ≥ 0.85"
-                )
                 break
 
             # Reformulate query for next iteration

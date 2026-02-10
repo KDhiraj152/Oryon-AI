@@ -258,13 +258,6 @@ class SafetyPipeline:
                 pass_results.append(result)
                 all_issues.extend(result.issues)
 
-                # Early exit: if Pass 3 (safety_shield) blocks, skip remaining analysis
-                if (
-                    result.pass_name == "safety_shield"
-                    and result.safety_level == SafetyLevel.BLOCKED
-                ):
-                    break
-
         # Determine overall result based on mode
         overall_safe, overall_level, rejection_reason = self._determine_overall_result(
             pass_results, all_issues

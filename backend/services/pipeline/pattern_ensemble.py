@@ -145,27 +145,25 @@ Respond with just the score (0-10):"""
             scores["validator_score"] = validator_score
             models_used.append("gemma-2b")
 
-        # Confidence-weighted arbitration
-        # ─────────────────────────────────────────────────────────
-        # Instead of fixed weights, each model's base weight is
-        # *scaled by its own score* so high-confidence judgements
-        # naturally dominate.  This replaces majority voting with
-        # an evidence-strength model: w_i = base_i * score_i
+        # Weighted average with fixed base weights.
+        # Self-weighting (w_i = base_i * score_i) was rejected because
+        # a score of 0.0 would get zero influence — exactly wrong when
+        # e.g. semantic similarity = 0 means processing destroyed meaning.
+        # Fixed weights ensure every participating model's signal counts.
         total_weight = 0.0
         weighted_sum = 0.0
 
         for key, score in scores.items():
-            base = base_weights.get(key, 0.33)
-            effective_weight = base * score  # self-weighting
-            weighted_sum += score * effective_weight
-            total_weight += effective_weight
+            weight = base_weights.get(key, 0.33)
+            weighted_sum += score * weight
+            total_weight += weight
 
         confidence = weighted_sum / total_weight if total_weight > 0 else 0.5
 
-        # Weighted-confidence consensus: instead of requiring ALL models
-        # above the threshold (brittle), we check whether the
-        # confidence-weighted mean itself clears the bar.
-        # A single high-confidence model can carry a borderline one.
+        # Consensus: use the aggregated confidence score instead of
+        # requiring ALL individual models above threshold (too brittle —
+        # one borderline model vetoes two strong ones).  The weighted
+        # mean already reflects each model's contribution.
         consensus = confidence >= self.config.consensus_threshold  # type: ignore
 
         if consensus:

@@ -800,40 +800,35 @@ class AIEngine:
         rag_empty = False
         retrieval_iterations = 0
 
-        # Use adaptive context allocation for dynamic context sizing
-        # AND schedule resources — these are independent, run concurrently.
+        # Context allocation and resource scheduling are both synchronous
+        # (no I/O await inside), so asyncio.gather would not provide real
+        # concurrency on a single-threaded event loop.  Keep sequential.
         context_allocator = self._get_context_allocator()
-        resource_scheduler = self._get_resource_scheduler()
         context_allocation = None
+        if context_allocator:
+            try:
+                context_allocation = context_allocator.allocate(message, intent.value)
+                logger.debug(
+                    f"Context allocation: {context_allocation.total_tokens} tokens, priority={context_allocation.priority}"
+                )
+            except Exception as e:
+                logger.debug(f"Context allocation failed: {e}")
 
-        async def _alloc_context():
-            nonlocal context_allocation
-            if context_allocator:
-                try:
-                    context_allocation = context_allocator.allocate(message, intent.value)
+        resource_scheduler = self._get_resource_scheduler()
+        if resource_scheduler:
+            try:
+                est_tokens = config.max_tokens
+                prediction = resource_scheduler.predict_resources(
+                    queue_length=1,
+                    avg_tokens=est_tokens,
+                    current_memory_pressure=0.5,
+                )
+                if prediction and hasattr(prediction, "optimal_batch_size"):
                     logger.debug(
-                        f"Context allocation: {context_allocation.total_tokens} tokens, priority={context_allocation.priority}"
+                        f"Resource prediction: batch_size={prediction.optimal_batch_size}"
                     )
-                except Exception as e:
-                    logger.debug(f"Context allocation failed: {e}")
-
-        async def _schedule_resources():
-            if resource_scheduler:
-                try:
-                    est_tokens = config.max_tokens
-                    prediction = resource_scheduler.predict_resources(
-                        queue_length=1,
-                        avg_tokens=est_tokens,
-                        current_memory_pressure=0.5,
-                    )
-                    if prediction and hasattr(prediction, "optimal_batch_size"):
-                        logger.debug(
-                            f"Resource prediction: batch_size={prediction.optimal_batch_size}"
-                        )
-                except Exception as e:
-                    logger.debug(f"Resource scheduling failed: {e}")
-
-        await asyncio.gather(_alloc_context(), _schedule_resources())
+            except Exception as e:
+                logger.debug(f"Resource scheduling failed: {e}")
 
         if use_rag and self._rag_service:
             rag_attempted = True
@@ -959,10 +954,12 @@ class AIEngine:
         try:
             response_text = await self._run_generation(llm, prompt, config)
 
-            # NOTE: SafetyGuard.filter_response() removed — its regex checks
-            # (os.system/subprocess/eval removal) are a strict subset of Pass 3
-            # toxicity patterns in SafetyPipeline.verify() called below.
-            # Running both was duplicated reasoning with no quality benefit.
+            # SafetyGuard: proactively scrubs code-execution patterns
+            # (os.system/subprocess/eval/exec) from responses.  This is NOT
+            # duplicated by SafetyPipeline — Pass 3 covers hate-speech/PII/
+            # hallucination, not code injection.  Both layers are required.
+            if self._should_block_harmful(config) and self._safety_guard:
+                response_text = self._safety_guard.filter_response(response_text)
 
             # Calculate confidence based on RAG sources
             confidence = 0.7  # Base confidence
