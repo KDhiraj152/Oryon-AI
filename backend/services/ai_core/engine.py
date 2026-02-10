@@ -50,6 +50,7 @@ from .context import (  # New optimizers
 )
 from .formatter import FormattedResponse, Intent, ResponseFormatter, SourceReference
 from .router import ModelRouter, TaskType
+from .compute_budget import ComputeBudget, ComputeClass, classify_compute, get_budget
 
 # Import policy module for centralized configuration
 try:
@@ -643,10 +644,19 @@ class AIEngine:
         # Detect intent and route to appropriate handler
         intent = self.formatter.detect_intent(message)
 
-        # For simple queries, use minimal config for faster response
-        if self._is_simple_query(message, intent):
-            config.max_tokens = min(config.max_tokens, 256)
-            config.use_rag = False  # Skip RAG for simple queries
+        # Classify compute class and get immutable budget
+        compute_class = classify_compute(message, intent)
+        budget = get_budget(compute_class)
+        logger.debug(
+            "Compute budget: class=%s max_tokens=%d rag=%s safety=%s tier_ceil=%s",
+            budget.compute_class.value, budget.max_tokens,
+            budget.use_rag, budget.run_safety, budget.model_tier_ceiling.value,
+        )
+
+        # Apply budget ceilings to config
+        config.max_tokens = min(config.max_tokens, budget.max_tokens)
+        if budget.use_rag is not None:
+            config.use_rag = budget.use_rag
 
         # Build prompt with conversation history
         history = context.get_context_messages(max_messages=10)
@@ -659,6 +669,7 @@ class AIEngine:
                 intent=intent,
                 config=config,
                 context_data=context_data,  # Pass through context (subject, language, etc.)
+                budget=budget,
             )
         except Exception as e:
             logger.error(f"Generation failed: {e}")
@@ -729,10 +740,12 @@ class AIEngine:
         history = context.get_context_messages(max_messages=10)
         intent = self.formatter.detect_intent(message)
 
-        # For simple queries, use minimal config for faster response
-        if self._is_simple_query(message, intent):
-            config.max_tokens = min(config.max_tokens, 256)
-            config.use_rag = False
+        # Classify compute and apply budget ceilings
+        compute_class = classify_compute(message, intent)
+        budget = get_budget(compute_class)
+        config.max_tokens = min(config.max_tokens, budget.max_tokens)
+        if budget.use_rag is not None:
+            config.use_rag = budget.use_rag
 
         # Stream response
         full_response = ""
@@ -744,6 +757,7 @@ class AIEngine:
                 intent=intent,
                 config=config,
                 context_data=context_data,
+                budget=budget,
             ):
                 full_response += token
                 yield self._format_sse_chunk(token)
@@ -760,49 +774,13 @@ class AIEngine:
             logger.error(f"Streaming failed: {e}")
             yield self._format_sse_error(str(e))
 
-    async def _generate_response(
-        self,
-        message: str,
-        history: list[dict[str, str]],
-        intent: Intent,
-        config: GenerationConfig,
-        context_data: dict[str, Any] | None = None,
-    ) -> GenerationResult:
-        """Generate a complete response with self-optimization and safety verification."""
-        start_time = time.perf_counter()
+    def _allocate_compute_resources(
+        self, message: str, intent: Intent, config: GenerationConfig
+    ) -> Any:
+        """Allocate context tokens and predict resource requirements.
 
-        # Apply self-optimized parameters
-        config = self._apply_optimized_params(config)
-
-        # Route to appropriate model
-        task_type = self._intent_to_task_type(intent)
-        routing = self.router.route(message, task_type)
-
-        # Use dynamic token allocation from routing (unless config explicitly sets lower)
-        # This ensures the output is as long as needed for the prompt type
-        dynamic_max_tokens = routing.estimated_max_tokens
-        if config.max_tokens < dynamic_max_tokens:
-            logger.debug(
-                f"Upgrading max_tokens from {config.max_tokens} to {dynamic_max_tokens} "
-                f"based on prompt analysis"
-            )
-            config.max_tokens = dynamic_max_tokens
-
-        # Check if RAG is needed - respect config.use_rag if explicitly set
-        if config.use_rag is not None:
-            use_rag = config.use_rag
-        else:
-            use_rag = self._should_use_rag(message, intent)
-
-        sources: list[dict[str, Any]] = []
-        augmented_context = ""
-        rag_attempted = False
-        rag_empty = False
-        retrieval_iterations = 0
-
-        # Context allocation and resource scheduling are both synchronous
-        # (no I/O await inside), so asyncio.gather would not provide real
-        # concurrency on a single-threaded event loop.  Keep sequential.
+        Returns the context allocation object (or None).
+        """
         context_allocator = self._get_context_allocator()
         context_allocation = None
         if context_allocator:
@@ -817,10 +795,9 @@ class AIEngine:
         resource_scheduler = self._get_resource_scheduler()
         if resource_scheduler:
             try:
-                est_tokens = config.max_tokens
                 prediction = resource_scheduler.predict_resources(
                     queue_length=1,
-                    avg_tokens=est_tokens,
+                    avg_tokens=config.max_tokens,
                     current_memory_pressure=0.5,
                 )
                 if prediction and hasattr(prediction, "optimal_batch_size"):
@@ -830,95 +807,218 @@ class AIEngine:
             except Exception as e:
                 logger.debug(f"Resource scheduling failed: {e}")
 
+        return context_allocation
+
+    async def _retrieve_rag_sources(
+        self, message: str
+    ) -> tuple[list, str, bool, int]:
+        """Retrieve RAG sources using self-optimizing loop with standard fallback.
+
+        Returns: (sources, augmented_context, rag_empty, retrieval_iterations)
+        """
+        sources: list = []
+        augmented_context = ""
+        rag_empty = False
+        retrieval_iterations = 0
+
+        retrieval_loop = self._get_retrieval_loop()
+
+        if retrieval_loop:
+            try:
+                def search_fn(query: str, top_k: int = 5):
+                    return self._rag_service.search(query, top_k=top_k, rerank=True)
+
+                loop_result = await retrieval_loop.retrieve_with_refinement(
+                    query=message,
+                    search_fn=search_fn,
+                    min_quality=0.7,
+                    max_iterations=3,
+                )
+
+                if loop_result and loop_result.chunks:
+                    retrieval_iterations = loop_result.iterations
+                    sources = [
+                        SourceReference(
+                            source_id=r.chunk_id
+                            if hasattr(r, "chunk_id")
+                            else str(i),
+                            source_type="document",
+                            title=r.metadata.get("title", "Document")
+                            if hasattr(r, "metadata")
+                            else "Document",
+                            location=r.metadata.get("location")
+                            if hasattr(r, "metadata")
+                            else None,
+                            confidence=r.score if hasattr(r, "score") else 0.8,
+                            quote=r.text[:200]
+                            if hasattr(r, "text") and len(r.text) > 200
+                            else (r.text if hasattr(r, "text") else str(r)),
+                            is_inferred=(r.score if hasattr(r, "score") else 0.8)
+                            < 0.8,
+                        )
+                        for i, r in enumerate(loop_result.chunks[:3])
+                    ]
+                    augmented_context = "\n\n".join(
+                        [
+                            r.text if hasattr(r, "text") else str(r)
+                            for r in loop_result.chunks[:3]
+                        ]
+                    )
+                    logger.debug(
+                        f"Retrieval loop completed in {retrieval_iterations} iterations"
+                    )
+                else:
+                    rag_empty = True
+            except Exception as e:
+                logger.warning(
+                    f"Self-optimizing retrieval failed, falling back: {e}"
+                )
+                retrieval_loop = None  # Fall back to standard retrieval
+
+        # Fallback to standard RAG if loop not available or failed
+        if not retrieval_loop or (not sources and not rag_empty):
+            try:
+                rag_result = self._rag_service.search(message, top_k=5, rerank=True)
+                if rag_result:
+                    sources = [
+                        SourceReference(
+                            source_id=r.chunk_id,
+                            source_type="document",
+                            title=r.metadata.get("title", "Document"),
+                            location=r.metadata.get("location"),
+                            confidence=r.score,
+                            quote=r.text[:200] if len(r.text) > 200 else r.text,
+                            is_inferred=r.score < 0.8,
+                        )
+                        for r in rag_result[:3]
+                    ]
+                    augmented_context = "\n\n".join(
+                        [r.text for r in rag_result[:3]]
+                    )
+                else:
+                    rag_empty = True
+                    logger.info(f"RAG returned no results for: {message[:50]}...")
+            except Exception as e:
+                logger.warning(f"RAG search failed: {e}")
+                rag_empty = True
+
+        return sources, augmented_context, rag_empty, retrieval_iterations
+
+    def _calculate_response_confidence(
+        self,
+        response_text: str,
+        sources: list,
+        rag_attempted: bool,
+        rag_empty: bool,
+        is_unrestricted: bool,
+    ) -> tuple[float, int]:
+        """Calculate confidence score and uncertainty count for a response.
+
+        Returns: (confidence, uncertainty_count)
+        """
+        confidence = 0.7  # Base confidence
+
+        if sources:
+            avg_source_score = sum(s.confidence for s in sources) / len(sources)
+            confidence = 0.75 + (avg_source_score * 0.2)  # 0.75-0.95 range
+        elif rag_attempted and rag_empty:
+            confidence = 0.6
+
+        # Common uncertainty phrases that reduce confidence
+        uncertainty_phrases = [
+            "i'm not sure",
+            "i don't know",
+            "i'm not certain",
+            "might be",
+            "could be",
+            "possibly",
+            "perhaps",
+            "i think",
+            "i believe",
+            "it seems",
+            "general knowledge",
+        ]
+        if not is_unrestricted:
+            uncertainty_phrases.extend(
+                ["verify with your teacher", "check your textbook"]
+            )
+
+        response_lower = response_text.lower()
+        uncertainty_count = sum(
+            1 for phrase in uncertainty_phrases if phrase in response_lower
+        )
+        if uncertainty_count >= 2:
+            confidence = min(confidence, 0.5)
+        elif uncertainty_count == 1:
+            confidence = min(confidence, 0.6)
+
+        # Specific factual claims without sources = lower confidence
+        factual_indicators = [
+            "in 1", "in 2", "was born", "died in", "founded in",
+            "discovered in", "invented in", "established in",
+            "population of", "capital of", "president of", "prime minister of",
+        ]
+        if not sources and any(ind in response_lower for ind in factual_indicators):
+            confidence = min(confidence, 0.55)
+
+        return confidence, uncertainty_count
+
+    async def _generate_response(
+        self,
+        message: str,
+        history: list[dict[str, str]],
+        intent: Intent,
+        config: GenerationConfig,
+        context_data: dict[str, Any] | None = None,
+        budget: ComputeBudget | None = None,
+    ) -> GenerationResult:
+        """Generate a complete response with self-optimization and safety verification."""
+        start_time = time.perf_counter()
+
+        # Apply self-optimized parameters
+        config = self._apply_optimized_params(config)
+
+        # Route to appropriate model — enforce budget tier ceiling
+        task_type = self._intent_to_task_type(intent)
+        routing = self.router.route(
+            message,
+            task_type,
+            max_latency_ms=budget.max_latency_ms if budget else None,
+            model_tier_ceiling=budget.model_tier_ceiling if budget else None,
+        )
+
+        # Compute token ceiling: router estimate capped by budget
+        dynamic_max_tokens = routing.estimated_max_tokens
+        if budget:
+            # Budget is a hard ceiling — over-computation is a failure
+            config.max_tokens = min(budget.max_tokens, dynamic_max_tokens)
+        elif config.max_tokens < dynamic_max_tokens:
+            config.max_tokens = dynamic_max_tokens
+
+        # Check if RAG is needed - respect config.use_rag if explicitly set
+        if config.use_rag is not None:
+            use_rag = config.use_rag
+        else:
+            use_rag = self._should_use_rag(message, intent)
+
+        sources: list[dict[str, Any]] = []
+        augmented_context = ""
+        rag_attempted = False
+        rag_empty = False
+        retrieval_iterations = 0
+
+        # Allocate compute resources (context tokens + resource scheduling)
+        context_allocation = self._allocate_compute_resources(message, intent, config)
+
         if use_rag and self._rag_service:
             rag_attempted = True
-
-            # Try self-optimizing retrieval loop for iterative refinement
-            retrieval_loop = self._get_retrieval_loop()
-
-            if retrieval_loop:
-                try:
-                    # Use iterative retrieval with quality thresholds
-                    async def search_fn(query: str, top_k: int = 5):
-                        return self._rag_service.search(query, top_k=top_k, rerank=True)
-
-                    loop_result = await retrieval_loop.retrieve_with_refinement(
-                        query=message,
-                        search_fn=search_fn,
-                        min_quality=0.7,
-                        max_iterations=3,
-                    )
-
-                    if loop_result and loop_result.chunks:
-                        retrieval_iterations = loop_result.iterations
-                        sources = [
-                            SourceReference(
-                                source_id=r.chunk_id
-                                if hasattr(r, "chunk_id")
-                                else str(i),
-                                source_type="document",
-                                title=r.metadata.get("title", "Document")
-                                if hasattr(r, "metadata")
-                                else "Document",
-                                location=r.metadata.get("location")
-                                if hasattr(r, "metadata")
-                                else None,
-                                confidence=r.score if hasattr(r, "score") else 0.8,
-                                quote=r.text[:200]
-                                if hasattr(r, "text") and len(r.text) > 200
-                                else (r.text if hasattr(r, "text") else str(r)),
-                                is_inferred=(r.score if hasattr(r, "score") else 0.8)
-                                < 0.8,
-                            )
-                            for i, r in enumerate(loop_result.chunks[:3])
-                        ]
-                        augmented_context = "\n\n".join(
-                            [
-                                r.text if hasattr(r, "text") else str(r)
-                                for r in loop_result.chunks[:3]
-                            ]
-                        )
-                        logger.debug(
-                            f"Retrieval loop completed in {retrieval_iterations} iterations"
-                        )
-                    else:
-                        rag_empty = True
-                except Exception as e:
-                    logger.warning(
-                        f"Self-optimizing retrieval failed, falling back: {e}"
-                    )
-                    retrieval_loop = None  # Fall back to standard retrieval
-
-            # Fallback to standard RAG if loop not available or failed
-            if not retrieval_loop or (not sources and not rag_empty):
-                try:
-                    rag_result = self._rag_service.search(message, top_k=5, rerank=True)
-                    if rag_result:
-                        sources = [
-                            SourceReference(
-                                source_id=r.chunk_id,
-                                source_type="document",
-                                title=r.metadata.get("title", "Document"),
-                                location=r.metadata.get("location"),
-                                confidence=r.score,
-                                quote=r.text[:200] if len(r.text) > 200 else r.text,
-                                is_inferred=r.score < 0.8,
-                            )
-                            for r in rag_result[:3]
-                        ]
-                        augmented_context = "\n\n".join(
-                            [r.text for r in rag_result[:3]]
-                        )
-                    else:
-                        rag_empty = True
-                        logger.info(f"RAG returned no results for: {message[:50]}...")
-                except Exception as e:
-                    logger.warning(f"RAG search failed: {e}")
-                    rag_empty = True
+            sources, augmented_context, rag_empty, retrieval_iterations = (
+                await self._retrieve_rag_sources(message)
+            )
 
         # Build prompt with RAG context if available
-        # Detect if this is a simple query for optimized prompting
-        is_simple = self._is_simple_query(message, intent)
+        # Use compute budget to determine prompt complexity
+        is_simple = budget.compute_class == ComputeClass.TRIVIAL if budget else self._is_simple_query(message, intent)
         system_prompt = self._build_system_prompt(
             intent, context_data, is_simple_query=is_simple
         )
@@ -961,78 +1061,27 @@ class AIEngine:
             if self._should_block_harmful(config) and self._safety_guard:
                 response_text = self._safety_guard.filter_response(response_text)
 
-            # Calculate confidence based on RAG sources
-            confidence = 0.7  # Base confidence
-
-            if sources:
-                # Higher confidence with verified sources
-                avg_source_score = sum(s.confidence for s in sources) / len(sources)
-                confidence = 0.75 + (avg_source_score * 0.2)  # 0.75-0.95 range
-            elif rag_attempted and rag_empty:
-                # Lower confidence when RAG found nothing
-                confidence = 0.6
-
-            # Common uncertainty phrases that reduce confidence
-            uncertainty_phrases = [
-                "i'm not sure",
-                "i don't know",
-                "i'm not certain",
-                "might be",
-                "could be",
-                "possibly",
-                "perhaps",
-                "i think",
-                "i believe",
-                "it seems",
-                "general knowledge",
-            ]
-            # Add educational phrases only in restricted mode
-            if not is_unrestricted:
-                uncertainty_phrases.extend(
-                    ["verify with your teacher", "check your textbook"]
-                )
-
-            response_lower = response_text.lower()
-            uncertainty_count = sum(
-                1 for phrase in uncertainty_phrases if phrase in response_lower
+            # Calculate confidence based on multiple factors
+            confidence, uncertainty_count = self._calculate_response_confidence(
+                response_text, sources, rag_attempted, rag_empty, is_unrestricted
             )
-            if uncertainty_count >= 2:
-                confidence = min(
-                    confidence, 0.5
-                )  # Model is being appropriately cautious
-            elif uncertainty_count == 1:
-                confidence = min(confidence, 0.6)
-
-            # Factor 4: Response contains specific factual claims without sources
-            factual_indicators = [
-                "in 1",
-                "in 2",
-                "was born",
-                "died in",
-                "founded in",
-                "discovered in",
-                "invented in",
-                "established in",
-                "population of",
-                "capital of",
-                "president of",
-                "prime minister of",
-            ]
-            if not sources and any(ind in response_lower for ind in factual_indicators):
-                # Specific factual claims without sources = lower confidence
-                confidence = min(confidence, 0.55)
 
             # 3-Pass Safety Pipeline Verification
-            rag_chunks = list(sources) if sources else []
-            (
-                verified_response,
-                is_safe,
-                safety_result,
-            ) = await self._verify_response_safety(
-                query=message,
-                response=response_text,
-                context_chunks=rag_chunks,
-            )
+            # Budget gates whether safety runs — TRIVIAL queries skip entirely
+            skip_safety = budget is not None and not budget.run_safety
+            if skip_safety:
+                verified_response, is_safe, safety_result = response_text, True, None
+            else:
+                rag_chunks = list(sources) if sources else []
+                (
+                    verified_response,
+                    is_safe,
+                    safety_result,
+                ) = await self._verify_response_safety(
+                    query=message,
+                    response=response_text,
+                    context_chunks=rag_chunks,
+                )
 
             if not is_safe:
                 response_text = verified_response
@@ -1044,6 +1093,17 @@ class AIEngine:
             spec_decoder = self._get_speculative_decoder()
             spec_stats = spec_decoder.get_stats() if spec_decoder else None
 
+            spec_decoding_meta = None
+            if spec_stats:
+                spec_decoding_meta = {
+                    "used": spec_stats.total_generations > 0,
+                    "acceptance_rate": spec_stats.acceptance_rate,
+                    "speedup": spec_stats.avg_speedup,
+                }
+
+            alloc_tokens = context_allocation.total_tokens if context_allocation else None
+            safety_level = safety_result.overall_level.value if safety_result else "unknown"
+
             result = GenerationResult(
                 content=response_text,
                 tokens_prompt=_count_tokens(prompt),
@@ -1053,27 +1113,17 @@ class AIEngine:
                 sources=sources,
                 confidence=confidence,
                 metadata={
+                    "compute_class": budget.compute_class.value if budget else "unclassified",
+                    "compute_budget_max_tokens": budget.max_tokens if budget else None,
                     "rag_attempted": rag_attempted,
                     "rag_found_sources": len(sources) > 0,
                     "retrieval_iterations": retrieval_iterations,
-                    "context_allocation": context_allocation.total_tokens
-                    if context_allocation
-                    else None,
+                    "context_allocation": alloc_tokens,
                     "uncertainty_detected": uncertainty_count > 0,
                     "safety_verified": safety_result is not None,
-                    "safety_level": safety_result.overall_level.value
-                    if safety_result
-                    else "unknown",
-                    "speculative_decoding": {
-                        "used": spec_stats is not None
-                        and spec_stats.total_generations > 0,
-                        "acceptance_rate": spec_stats.acceptance_rate
-                        if spec_stats
-                        else 0.0,
-                        "speedup": spec_stats.avg_speedup if spec_stats else 1.0,
-                    }
-                    if spec_stats
-                    else None,
+                    "safety_skipped": skip_safety,
+                    "safety_level": safety_level,
+                    "speculative_decoding": spec_decoding_meta,
                 },
             )
 
@@ -1086,6 +1136,19 @@ class AIEngine:
             logger.error(f"LLM generation failed: {e}")
             raise
 
+    def _fetch_stream_rag_context(self, message: str, use_rag: bool) -> tuple[str, bool]:
+        """Fetch RAG context for streaming. Returns (augmented_context, rag_empty)."""
+        if not (use_rag and self._rag_service):
+            return "", False
+        try:
+            rag_result = self._rag_service.search(message, top_k=3, rerank=True)
+            if rag_result:
+                return "\n\n".join([r.text for r in rag_result[:3]]), False
+            return "", True
+        except Exception as e:
+            logger.warning(f"RAG search failed in streaming: {e}")
+            return "", True
+
     async def _stream_generate(
         self,
         message: str,
@@ -1093,39 +1156,32 @@ class AIEngine:
         intent: Intent,
         config: GenerationConfig,
         context_data: dict[str, Any] | None = None,
+        budget: ComputeBudget | None = None,
     ) -> AsyncGenerator[str, None]:
         """Stream tokens from the LLM with RAG support."""
         # Get dynamic token allocation for streaming too
         task_type = self._intent_to_task_type(intent)
-        routing = self.router.route(message, task_type)
+        routing = self.router.route(
+            message,
+            task_type,
+            max_latency_ms=budget.max_latency_ms if budget else None,
+            model_tier_ceiling=budget.model_tier_ceiling if budget else None,
+        )
 
-        # Use dynamic token allocation from routing
+        # Token ceiling: router estimate capped by budget
         dynamic_max_tokens = routing.estimated_max_tokens
-        if config.max_tokens < dynamic_max_tokens:
+        if budget:
+            config.max_tokens = min(budget.max_tokens, dynamic_max_tokens)
+        elif config.max_tokens < dynamic_max_tokens:
             config.max_tokens = dynamic_max_tokens
 
         # Check if RAG is needed - respect config.use_rag if explicitly set
-        if config.use_rag is not None:
-            use_rag = config.use_rag
-        else:
-            use_rag = self._should_use_rag(message, intent)
+        use_rag = config.use_rag if config.use_rag is not None else self._should_use_rag(message, intent)
 
-        augmented_context = ""
-        rag_empty = False
-
-        if use_rag and self._rag_service:
-            try:
-                rag_result = self._rag_service.search(message, top_k=3, rerank=True)
-                if rag_result:
-                    augmented_context = "\n\n".join([r.text for r in rag_result[:3]])
-                else:
-                    rag_empty = True
-            except Exception as e:
-                logger.warning(f"RAG search failed in streaming: {e}")
-                rag_empty = True
+        augmented_context, rag_empty = self._fetch_stream_rag_context(message, use_rag)
 
         # Build system prompt with RAG awareness
-        is_simple = self._is_simple_query(message, intent)
+        is_simple = budget.compute_class == ComputeClass.TRIVIAL if budget else self._is_simple_query(message, intent)
         system_prompt = self._build_system_prompt(
             intent, context_data, is_simple_query=is_simple
         )
@@ -1573,6 +1629,29 @@ class AIEngine:
             return None
 
     @staticmethod
+    def _eval_math_node(node, ops: dict):
+        """Recursively evaluate a single AST math node.
+
+        Returns the numeric result, or None for unsupported nodes.
+        """
+        import ast
+
+        if isinstance(node, ast.Expression):
+            return AIEngine._eval_math_node(node.body, ops)
+        if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+            return node.value
+        if isinstance(node, ast.BinOp) and type(node.op) in ops:
+            left = AIEngine._eval_math_node(node.left, ops)
+            right = AIEngine._eval_math_node(node.right, ops)
+            if left is None or right is None:
+                return None
+            return ops[type(node.op)](left, right)
+        if isinstance(node, ast.UnaryOp) and type(node.op) in ops:
+            val = AIEngine._eval_math_node(node.operand, ops)
+            return ops[type(node.op)](val) if val is not None else None
+        return None  # Unsupported node type
+
+    @staticmethod
     def _safe_math_eval(expr: str):
         """Safely evaluate a math expression using AST parsing.
 
@@ -1582,8 +1661,7 @@ class AIEngine:
         import ast
         import operator
 
-        # Supported binary operators
-        _ops = {
+        ops = {
             ast.Add: operator.add,
             ast.Sub: operator.sub,
             ast.Mult: operator.mul,
@@ -1592,28 +1670,9 @@ class AIEngine:
             ast.USub: operator.neg,
         }
 
-        def _eval_node(node):
-            if isinstance(node, ast.Expression):
-                return _eval_node(node.body)
-            elif isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
-                return node.value
-            elif isinstance(node, ast.BinOp) and type(node.op) in _ops:
-                left = _eval_node(node.left)
-                right = _eval_node(node.right)
-                if left is None or right is None:
-                    return None
-                return _ops[type(node.op)](left, right)
-            elif isinstance(node, ast.UnaryOp) and type(node.op) in _ops:
-                val = _eval_node(node.operand)
-                if val is None:
-                    return None
-                return _ops[type(node.op)](val)
-            else:
-                return None  # Unsupported node type
-
         try:
             tree = ast.parse(expr.strip(), mode='eval')
-            return _eval_node(tree)
+            return AIEngine._eval_math_node(tree, ops)
         except (SyntaxError, ValueError):
             return None
 
@@ -1673,6 +1732,14 @@ class AIEngine:
             else None
         )
 
+        spec_decoding_stats = None
+        if spec_stats:
+            spec_decoding_stats = {
+                "total_generations": spec_stats.total_generations,
+                "acceptance_rate": spec_stats.acceptance_rate,
+                "avg_speedup": spec_stats.avg_speedup,
+            }
+
         return {
             "request_count": self._request_count,
             "avg_latency_ms": self._total_latency_ms / max(1, self._request_count),
@@ -1680,22 +1747,12 @@ class AIEngine:
             "active_contexts": self.context_manager.get_active_count(),
             "models": self.router.get_stats(),
             "optimization": {
-                "speculative_decoding": {
-                    "total_generations": spec_stats.total_generations
-                    if spec_stats
-                    else 0,
-                    "acceptance_rate": spec_stats.acceptance_rate
-                    if spec_stats
-                    else 0.0,
-                    "avg_speedup": spec_stats.avg_speedup if spec_stats else 1.0,
-                }
-                if spec_stats
-                else None,
+                "speculative_decoding": spec_decoding_stats,
                 "resource_scheduler": scheduler_stats,
             },
         }
 
-    async def record_feedback(
+    def record_feedback(
         self,
         query: str,
         response_id: str,

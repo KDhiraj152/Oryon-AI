@@ -26,6 +26,15 @@ class ModelTier(str, Enum):
     SPECIALIZED = "specialized"  # Domain-specific models
 
 
+# Numeric ordering for tier-ceiling enforcement
+TIER_ORDER: dict[ModelTier, int] = {
+    ModelTier.LIGHTWEIGHT: 0,
+    ModelTier.STANDARD: 1,
+    ModelTier.STRONG: 2,
+    ModelTier.SPECIALIZED: 2,  # domain-specific, same cost level as STRONG
+}
+
+
 class TaskType(str, Enum):
     """Types of tasks for routing."""
 
@@ -279,6 +288,7 @@ class ModelRouter:
         max_latency_ms: float | None = None,
         require_streaming: bool = False,
         preferred_tier: ModelTier | None = None,
+        model_tier_ceiling: ModelTier | None = None,
     ) -> RoutingDecision:
         """
         Route a request to the appropriate model.
@@ -319,6 +329,7 @@ class ModelRouter:
             complexity=complexity,
             max_latency_ms=max_latency_ms,
             preferred_tier=preferred_tier,
+            model_tier_ceiling=model_tier_ceiling,
         )
 
         # Ensure estimated tokens don't exceed model's max
@@ -484,6 +495,7 @@ class ModelRouter:
         complexity: str,
         max_latency_ms: float | None,
         preferred_tier: ModelTier | None,
+        model_tier_ceiling: ModelTier | None = None,
     ) -> ModelConfig:
         """Select the best model from candidates."""
         # Map complexity to preferred tiers
@@ -497,13 +509,29 @@ class ModelRouter:
         if preferred_tier:
             preferred_tiers.insert(0, preferred_tier)
 
-        # Filter by latency constraint
-        if max_latency_ms:
-            candidates = [c for c in candidates if c.avg_latency_ms <= max_latency_ms]
+        # Enforce hard model tier ceiling from compute budget
+        if model_tier_ceiling is not None:
+            ceiling_order = TIER_ORDER.get(model_tier_ceiling, 2)
+            candidates = [
+                c for c in candidates
+                if TIER_ORDER.get(c.tier, 2) <= ceiling_order
+            ]
 
         if not candidates:
-            # Return first available if no candidates match constraints
-            return next(iter(self.models.values()))
+            # No models within ceiling for this task — best-effort: pick
+            # the smallest available model overall (minimise over-computation)
+            all_sorted = sorted(
+                self.models.values(),
+                key=lambda c: TIER_ORDER.get(c.tier, 2),
+            )
+            return all_sorted[0]
+
+        # Latency filter — keep ceiling-compliant set as fallback
+        if max_latency_ms:
+            latency_ok = [c for c in candidates if c.avg_latency_ms <= max_latency_ms]
+            if latency_ok:
+                candidates = latency_ok
+            # else: keep all ceiling-compliant candidates, ignoring latency
 
         # Sort by tier preference
         def tier_score(config: ModelConfig) -> int:
