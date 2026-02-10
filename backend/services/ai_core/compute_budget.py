@@ -81,9 +81,9 @@ COMPUTE_BUDGETS: dict[ComputeClass, ComputeBudget] = {
         model_count_ceiling=1,
         max_latency_ms=500.0,
         acceptable_approximation_error=0.5,
-        max_tokens=128,
+        max_tokens=256,
         use_rag=False,
-        run_safety=False,
+        run_safety=True,  # Safety is never optional — even LLMs for greetings can emit PII/toxicity
         model_tier_ceiling=ModelTier.LIGHTWEIGHT,
     ),
     ComputeClass.STANDARD: ComputeBudget(
@@ -204,17 +204,19 @@ def classify_compute(message: str, intent: Intent) -> ComputeClass:
     if msg_len < 20 and "?" not in message:
         return ComputeClass.TRIVIAL
 
-    # Greetings / acknowledgments — only if the message is short enough
-    # to be PRIMARILY a greeting AND not a real question
-    if msg_len < 50 and "?" not in message and any(msg_lower.startswith(g) or msg_lower == g for g in _TRIVIAL_GREETINGS):
-        return ComputeClass.TRIVIAL
+    # Greetings / acknowledgments — only if the message is genuinely
+    # just a greeting (short, no question mark, few words).
+    # "hey tell me about World War 2" starts with "hey" but is 7 words → not a greeting.
+    if msg_len < 50 and "?" not in message and len(msg_lower.split()) <= 4:
+        if any(msg_lower.startswith(g) or msg_lower == g for g in _TRIVIAL_GREETINGS):
+            return ComputeClass.TRIVIAL
 
     if intent == Intent.SMALL_TALK:
-        return ComputeClass.TRIVIAL
-
-    # Short yes/no questions
-    if msg_lower.startswith(("is ", "are ", "can ", "do ", "does ", "will ")):
-        if msg_len < 40:
+        # Only TRIVIAL if the message is genuinely just small talk,
+        # not "hello can you explain quantum physics?" or "hey tell me about X".
+        # Guard: short, no question mark, and few words (greetings are ≤4 words).
+        word_count = len(msg_lower.split())
+        if msg_len < 50 and "?" not in message and word_count <= 4:
             return ComputeClass.TRIVIAL
 
     # ── COMPLEX ───────────────────────────────────────────────────────

@@ -1067,21 +1067,20 @@ class AIEngine:
             )
 
             # 3-Pass Safety Pipeline Verification
-            # Budget gates whether safety runs — TRIVIAL queries skip entirely
-            skip_safety = budget is not None and not budget.run_safety
-            if skip_safety:
-                verified_response, is_safe, safety_result = response_text, True, None
-            else:
-                rag_chunks = list(sources) if sources else []
-                (
-                    verified_response,
-                    is_safe,
-                    safety_result,
-                ) = await self._verify_response_safety(
-                    query=message,
-                    response=response_text,
-                    context_chunks=rag_chunks,
-                )
+            # Safety is never optional — even TRIVIAL queries run through it.
+            # The budget.run_safety flag is preserved for future use but
+            # currently always True (see quality audit: PII/toxicity can
+            # appear in any LLM response regardless of query complexity).
+            rag_chunks = list(sources) if sources else []
+            (
+                verified_response,
+                is_safe,
+                safety_result,
+            ) = await self._verify_response_safety(
+                query=message,
+                response=response_text,
+                context_chunks=rag_chunks,
+            )
 
             if not is_safe:
                 response_text = verified_response
@@ -1121,7 +1120,6 @@ class AIEngine:
                     "context_allocation": alloc_tokens,
                     "uncertainty_detected": uncertainty_count > 0,
                     "safety_verified": safety_result is not None,
-                    "safety_skipped": skip_safety,
                     "safety_level": safety_level,
                     "speculative_decoding": spec_decoding_meta,
                 },
