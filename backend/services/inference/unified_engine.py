@@ -133,7 +133,10 @@ For code: Use proper code blocks with language tags"""
         self._memory_pool = get_memory_pool()
 
         # Backends (lazy loaded)
-        self._mlx_engine: Any = None
+        # Model pool: multiple MLX engines keyed by model short name
+        self._mlx_engines: dict[str, Any] = {}  # model_key -> MLXInferenceEngine
+        self._mlx_load_order: list[str] = []  # LRU eviction order
+        self._max_loaded_models: int = 2  # Memory budget for 16GB unified RAM
         self._mps_engine: Any = None
         self._coreml_embeddings: Any = None
         self._hf_embeddings: Any = None
@@ -166,17 +169,39 @@ For code: Use proper code blocks with language tags"""
             "[UnifiedEngine] M4 Optimizations: GPU Pipeline, Core Affinity, Memory Pool"
         )
 
-    def _ensure_llm_loaded(self) -> None:
-        """Ensure LLM backend is loaded."""
+    def _ensure_llm_loaded(self, model_id: str | None = None) -> None:
+        """Ensure LLM backend is loaded for the given model.
+
+        Args:
+            model_id: Short model name (e.g. 'qwen2.5-3b'). Uses default if None.
+        """
+        model_key = model_id or self.llm_model
+
         with self._lock:
             routing = self.device_router.route(TaskType.LLM_INFERENCE)
 
             if routing.backend == ComputeBackend.MLX:
-                if self._mlx_engine is None:
-                    from .mlx_backend import MLXInferenceEngine
+                if model_key in self._mlx_engines:
+                    # Move to end (most recently used)
+                    if model_key in self._mlx_load_order:
+                        self._mlx_load_order.remove(model_key)
+                        self._mlx_load_order.append(model_key)
+                    return
 
-                    self._mlx_engine = MLXInferenceEngine(model_id=self.llm_model)
-                    self._mlx_engine.load()
+                # Evict LRU model if at capacity
+                while len(self._mlx_engines) >= self._max_loaded_models:
+                    oldest = self._mlx_load_order.pop(0)
+                    logger.info(f"[UnifiedEngine] Evicting model '{oldest}' to load '{model_key}'")
+                    self._mlx_engines[oldest].unload()
+                    del self._mlx_engines[oldest]
+
+                from .mlx_backend import MLXInferenceEngine
+
+                engine = MLXInferenceEngine(model_id=model_key)
+                engine.load()
+                self._mlx_engines[model_key] = engine
+                self._mlx_load_order.append(model_key)
+                logger.info(f"[UnifiedEngine] Loaded model '{model_key}' (pool: {list(self._mlx_engines.keys())})")
 
             elif routing.backend in (ComputeBackend.MPS, ComputeBackend.CUDA):
                 if self._mps_engine is None:
@@ -186,6 +211,12 @@ For code: Use proper code blocks with language tags"""
                 # CPU fallback
                 if self._mps_engine is None:
                     self._mps_engine = self._create_pytorch_engine(device="cpu")
+
+    def _get_mlx_engine(self, model_id: str | None = None) -> Any:
+        """Get MLX engine for a specific model, loading if needed."""
+        model_key = model_id or self.llm_model
+        self._ensure_llm_loaded(model_key)
+        return self._mlx_engines.get(model_key)
 
     def _ensure_embedding_loaded(self) -> None:
         """Ensure embedding backend is loaded."""
@@ -207,7 +238,12 @@ For code: Use proper code blocks with language tags"""
                     self._hf_embeddings = self._create_hf_embeddings()
 
     def _create_pytorch_engine(self, device: str | None = None):
-        """Create PyTorch-based LLM engine."""
+        """Create PyTorch-based LLM engine.
+
+        NOTE: This path is a fallback for non-Apple-Silicon platforms. On macOS/M4,
+        MLX is always preferred. The CUDA/BitsAndBytes paths below are dead code on
+        Apple Silicon but are kept for future Linux/NVIDIA deployment support.
+        """
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -217,7 +253,7 @@ For code: Use proper code blocks with language tags"""
         if device is None:
             if torch.backends.mps.is_available():
                 device = "mps"
-            elif torch.cuda.is_available():
+            elif torch.cuda.is_available():  # pragma: no cover — dead on macOS
                 device = "cuda"
             else:
                 device = "cpu"
@@ -272,6 +308,7 @@ For code: Use proper code blocks with language tags"""
         self,
         prompt: str,
         config: GenerationConfig | None = None,
+        model_id: str | None = None,
     ) -> str:
         """
         Generate text from prompt.
@@ -281,6 +318,7 @@ For code: Use proper code blocks with language tags"""
         Args:
             prompt: User prompt
             config: Generation configuration
+            model_id: Short model name to use (e.g. 'qwen2.5-3b'). Uses default if None.
 
         Returns:
             Generated text
@@ -300,7 +338,7 @@ For code: Use proper code blocks with language tags"""
                 return cached
 
         # Ensure model is loaded
-        self._ensure_llm_loaded()
+        self._ensure_llm_loaded(model_id)
 
         start = time.perf_counter()
 
@@ -308,7 +346,8 @@ For code: Use proper code blocks with language tags"""
         routing = self.device_router.route(TaskType.LLM_INFERENCE)
 
         try:
-            if routing.backend == ComputeBackend.MLX and self._mlx_engine:
+            mlx_engine = self._get_mlx_engine(model_id)
+            if routing.backend == ComputeBackend.MLX and mlx_engine:
                 from .mlx_backend import MLXGenerationConfig
 
                 mlx_config = MLXGenerationConfig(
@@ -318,7 +357,7 @@ For code: Use proper code blocks with language tags"""
                     repetition_penalty=config.repetition_penalty,
                 )
 
-                response: str = await self._mlx_engine.generate(
+                response: str = await mlx_engine.generate(
                     prompt,
                     config=mlx_config,
                     system_prompt=config.system_prompt or self.DEFAULT_SYSTEM_PROMPT,
@@ -355,6 +394,7 @@ For code: Use proper code blocks with language tags"""
         temperature: float = 0.7,
         top_p: float = 0.9,
         system_prompt: str | None = None,
+        model_id: str | None = None,
         **kwargs,
     ) -> str:
         """
@@ -366,6 +406,7 @@ For code: Use proper code blocks with language tags"""
             temperature: Sampling temperature
             top_p: Top-p sampling
             system_prompt: Optional system prompt
+            model_id: Short model name (e.g. 'qwen2.5-3b')
             **kwargs: Additional arguments (ignored for compatibility)
 
         Returns:
@@ -377,15 +418,19 @@ For code: Use proper code blocks with language tags"""
             top_p=top_p,
             system_prompt=system_prompt or self.DEFAULT_SYSTEM_PROMPT,
         )
-        return await self.generate(prompt, config)
+        return await self.generate(prompt, config, model_id=model_id)
 
     async def generate_stream(
         self,
         prompt: str,
         config: GenerationConfig | None = None,
+        model_id: str | None = None,
     ) -> AsyncGenerator[str, None]:
         """
         Stream generated text.
+
+        Args:
+            model_id: Short model name (e.g. 'qwen2.5-3b')
 
         Yields:
             Text chunks as they are generated
@@ -394,11 +439,12 @@ For code: Use proper code blocks with language tags"""
         config.stream = True
         self._stats["llm_requests"] += 1
 
-        self._ensure_llm_loaded()
+        self._ensure_llm_loaded(model_id)
 
         routing = self.device_router.route(TaskType.LLM_INFERENCE)
 
-        if routing.backend == ComputeBackend.MLX and self._mlx_engine:
+        mlx_engine = self._get_mlx_engine(model_id)
+        if routing.backend == ComputeBackend.MLX and mlx_engine:
             from .mlx_backend import MLXGenerationConfig
 
             mlx_config = MLXGenerationConfig(
@@ -407,7 +453,7 @@ For code: Use proper code blocks with language tags"""
                 top_p=config.top_p,
             )
 
-            async for chunk in self._mlx_engine.generate_stream(
+            async for chunk in mlx_engine.generate_stream(
                 prompt,
                 config=mlx_config,
                 system_prompt=config.system_prompt or self.DEFAULT_SYSTEM_PROMPT,
@@ -416,7 +462,7 @@ For code: Use proper code blocks with language tags"""
 
         else:
             # Fallback to non-streaming
-            response = await self.generate(prompt, config)
+            response = await self.generate(prompt, config, model_id=model_id)
             yield response
 
     async def _generate_pytorch(
@@ -614,14 +660,15 @@ For code: Use proper code blocks with language tags"""
         stats = {
             **self._stats,
             "device": self.device_router.capabilities.chip_name,
-            "llm_backend": "mlx" if self._mlx_engine else "pytorch",
+            "llm_backend": "mlx" if self._mlx_engines else "pytorch",
+            "llm_loaded_models": list(self._mlx_engines.keys()),
             "embedding_backend": "coreml" if self._coreml_embeddings else "pytorch",
             "response_cache": self._response_cache.get_stats(),
             "embedding_cache": self._embedding_cache.get_stats(),
         }
 
-        if self._mlx_engine:
-            stats["mlx_stats"] = self._mlx_engine.get_stats()
+        for key, engine in self._mlx_engines.items():
+            stats[f"mlx_stats_{key}"] = engine.get_stats()
 
         if self._coreml_embeddings:
             stats["coreml_stats"] = self._coreml_embeddings.get_stats()

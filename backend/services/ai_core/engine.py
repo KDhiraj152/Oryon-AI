@@ -1142,7 +1142,7 @@ class AIEngine:
 
         # Build prompt with RAG context if available
         # Use compute budget to determine prompt complexity
-        is_simple = budget.compute_class == ComputeClass.TRIVIAL if budget else self._is_simple_query(message, intent)
+        is_simple = budget.compute_class == ComputeClass.TRIVIAL if budget else False
         system_prompt = self._build_system_prompt(
             intent, context_data, is_simple_query=is_simple
         )
@@ -1162,7 +1162,7 @@ class AIEngine:
         llm = self._get_llm_client()
 
         try:
-            response_text = await self._run_generation(llm, prompt, config)
+            response_text = await self._run_generation(llm, prompt, config, model_key=routing.model_key)
 
             # SafetyGuard: proactively scrubs code-execution patterns
             # (os.system/subprocess/eval/exec) from responses.  This is NOT
@@ -1269,7 +1269,7 @@ class AIEngine:
         augmented_context, rag_empty = self._fetch_stream_rag_context(message, use_rag)
 
         # Build system prompt with RAG awareness
-        is_simple = budget.compute_class == ComputeClass.TRIVIAL if budget else self._is_simple_query(message, intent)
+        is_simple = budget.compute_class == ComputeClass.TRIVIAL if budget else False
         system_prompt = self._build_system_prompt(
             intent, context_data, is_simple_query=is_simple
         )
@@ -1290,15 +1290,30 @@ class AIEngine:
 
         # Check if LLM supports streaming
         if hasattr(llm, "generate_stream"):
-            async for token in llm.generate_stream(
-                prompt,
+            # Build config for the streaming backend
+            from ..inference.unified_engine import GenerationConfig as InferenceGenConfig
+
+            stream_config = InferenceGenConfig(
                 max_tokens=config.max_tokens,
                 temperature=config.temperature,
+            )
+            # Streaming with per-token timeout protection
+            timeout = config.timeout_seconds
+            last_token_time = time.perf_counter()
+            async for token in llm.generate_stream(
+                prompt,
+                config=stream_config,
+                model_id=routing.model_key,
             ):
+                now = time.perf_counter()
+                if now - last_token_time > timeout:
+                    logger.warning(f"Stream generation timed out after {timeout}s between tokens")
+                    break
+                last_token_time = now
                 yield token
         else:
             # Fallback: generate full response and simulate streaming
-            response = await self._run_generation(llm, prompt, config)
+            response = await self._run_generation(llm, prompt, config, model_key=routing.model_key)
             # Chunk the response for pseudo-streaming
             chunk_size = 4
             for i in range(0, len(response), chunk_size):
@@ -1311,6 +1326,7 @@ class AIEngine:
         prompt: str,
         config: GenerationConfig,
         use_speculative: bool = True,
+        model_key: str | None = None,
     ) -> str:
         """Run LLM generation with timeout and optional speculative decoding.
 
@@ -1319,6 +1335,7 @@ class AIEngine:
             prompt: The prompt to generate from
             config: Generation configuration
             use_speculative: Whether to try speculative decoding (Metal/ANE)
+            model_key: Short model name for multi-model routing (e.g. 'qwen2.5-3b')
         """
         # Try speculative decoding for Metal/ANE acceleration
         speculative_decoder = (
@@ -1352,6 +1369,7 @@ class AIEngine:
                         prompt,
                         max_tokens=config.max_tokens,
                         temperature=config.temperature,
+                        model_id=model_key,
                     ),
                     timeout=config.timeout_seconds,
                 )
@@ -1364,18 +1382,21 @@ class AIEngine:
                     temperature=config.temperature,
                 )
                 result = await asyncio.wait_for(
-                    llm.generate(prompt, inf_config), timeout=config.timeout_seconds
+                    llm.generate(prompt, inf_config, model_id=model_key), timeout=config.timeout_seconds
                 )
             elif hasattr(llm, "generate"):
-                # Run sync method in thread pool
+                # Run sync method in thread pool — enforce timeout
                 loop = asyncio.get_running_loop()
-                result = await loop.run_in_executor(
-                    None,
-                    lambda: llm.generate(
-                        prompt,
-                        max_tokens=config.max_tokens,
-                        temperature=config.temperature,
+                result = await asyncio.wait_for(
+                    loop.run_in_executor(
+                        None,
+                        lambda: llm.generate(
+                            prompt,
+                            max_tokens=config.max_tokens,
+                            temperature=config.temperature,
+                        ),
                     ),
+                    timeout=config.timeout_seconds,
                 )
             else:
                 # Direct call fallback
@@ -1764,36 +1785,10 @@ class AIEngine:
         except (SyntaxError, ValueError):
             return None
 
-    def _is_simple_query(self, message: str, intent: Intent) -> bool:
-        """
-        Detect if query is simple enough to use fast path settings.
-
-        Simple queries get:
-        - Reduced max_tokens (256 instead of 512+)
-        - RAG disabled
-        - Minimal system prompt
-
-        Returns:
-            True if query should use fast path
-        """
-        msg_lower = message.lower().strip()
-
-        # Very short messages are simple
-        if len(message) < 30:
-            return True
-
-        # Greetings and small talk
-        greetings = ["hello", "hi", "hey", "thanks", "thank you", "bye", "ok", "okay"]
-        if any(msg_lower.startswith(g) or msg_lower == g for g in greetings):
-            return True
-
-        # Simple questions (yes/no, definitions)
-        if msg_lower.startswith(("is ", "are ", "can ", "do ", "does ", "will ")):
-            if len(message) < 50:
-                return True
-
-        # Intent-based detection
-        return intent in [Intent.SMALL_TALK]
+    # NOTE: _is_simple_query() has been removed. Its functionality is now
+    # fully absorbed by classify_compute() in compute_budget.py.
+    # The budget is always set (never None) via classify_compute() → get_budget(),
+    # so the fallback path that called _is_simple_query() was unreachable dead code.
 
     def _format_sse_chunk(self, text: str) -> str:
         """Format text chunk as SSE event."""

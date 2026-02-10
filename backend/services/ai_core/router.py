@@ -16,6 +16,9 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
+# Default model key used for standard chat fallbacks
+_STANDARD_MODEL_KEY = "qwen2.5-3b"
+
 
 class ModelTier(str, Enum):
     """Model tiers by capability."""
@@ -79,6 +82,7 @@ class RoutingDecision:
     estimated_cost: float
     fallback_model_id: str | None = None
     estimated_max_tokens: int = 4096  # Dynamic token allocation based on prompt
+    model_key: str = ""  # Internal short name (e.g. "qwen2.5-3b") for inference backend
 
 
 # Token allocation based on prompt type and complexity
@@ -182,7 +186,7 @@ class ModelRouter:
             task_types=[TaskType.SYSTEM, TaskType.CHAT],
         ),
         # Standard (general chat) - PRIMARY MODEL
-        "qwen2.5-3b": ModelConfig(
+        _STANDARD_MODEL_KEY: ModelConfig(
             model_id="Qwen/Qwen2.5-3B-Instruct",
             tier=ModelTier.STANDARD,
             max_tokens=4096,  # Increased from 2048 - full potential
@@ -315,12 +319,13 @@ class ModelRouter:
         if not candidates:
             # Fallback to standard chat model
             return RoutingDecision(
-                model_id=self.models["qwen2.5-3b"].model_id,
+                model_id=self.models[_STANDARD_MODEL_KEY].model_id,
                 tier=ModelTier.STANDARD,
                 reason="No specialized model available, using standard chat model",
                 estimated_latency_ms=200,
                 estimated_cost=0.0,
                 estimated_max_tokens=estimated_tokens,
+                model_key=_STANDARD_MODEL_KEY,
             )
 
         # Select based on complexity and constraints
@@ -343,6 +348,12 @@ class ModelRouter:
             f"{selected.model_id} with {final_tokens} tokens"
         )
 
+        # Resolve model key (internal short name) for inference backend
+        selected_key = next(
+            (k for k, v in self.models.items() if v.model_id == selected.model_id),
+            _STANDARD_MODEL_KEY,
+        )
+
         return RoutingDecision(
             model_id=selected.model_id,
             tier=selected.tier,
@@ -351,6 +362,7 @@ class ModelRouter:
             estimated_cost=self._estimate_cost(len(query), selected),
             fallback_model_id=fallback.model_id if fallback else None,
             estimated_max_tokens=final_tokens,
+            model_key=selected_key,
         )
 
     def _assess_complexity(self, query: str) -> str:
@@ -471,7 +483,7 @@ class ModelRouter:
 
         for name, config in self.models.items():
             # Check task type support
-            if task_type not in config.task_types:
+            if config.task_types is not None and task_type not in config.task_types:
                 continue
 
             # Check streaming requirement
@@ -581,7 +593,7 @@ class ModelRouter:
         for name, config in self.models.items():
             if not self._availability.get(name, True):
                 continue
-            if task_type and task_type not in config.task_types:
+            if task_type and config.task_types is not None and task_type not in config.task_types:
                 continue
             result.append(name)
         return result

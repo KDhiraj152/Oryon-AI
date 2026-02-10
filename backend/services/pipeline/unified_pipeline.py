@@ -298,7 +298,7 @@ Format: SCORE: X/10 | FEEDBACK: [your feedback]"""
         self._memory_pool = get_memory_pool()
 
         # Model Collaboration System (multi-model orchestration)
-        self._collaborator = None  # Lazy-loaded
+        self._collaborator: ModelCollaborator | None = None  # Lazy-loaded
 
         # Specialized services (all lazy-loaded)
         self._translation_engine = None  # IndicTrans2-1B
@@ -478,6 +478,46 @@ Format: SCORE: X/10 | FEEDBACK: [your feedback]"""
                 logger.warning(f"[UnifiedPipeline] Could not load OCR: {e}")
         return self._ocr_service
 
+    async def _run_parallel_tasks(
+        self,
+        request: ProcessingRequest,
+        result: ProcessingResult,
+        stage_times: dict[str, float],
+    ) -> None:
+        """Run translation and validation tasks in parallel."""
+        translation_task = self._create_translation_task(request, result)
+        validation_task = self._create_validation_task(request, result)
+
+        tasks_to_await = []
+        task_names: list[str] = []
+
+        if translation_task:
+            tasks_to_await.append(translation_task)
+            task_names.append("translate")
+        if validation_task:
+            tasks_to_await.append(validation_task)
+            task_names.append("validate")
+
+        if not tasks_to_await:
+            return
+
+        parallel_start = time.perf_counter()
+        task_results = await asyncio.gather(*tasks_to_await, return_exceptions=True)
+        parallel_time = (time.perf_counter() - parallel_start) * 1000
+
+        for _i, (name, task_result) in enumerate(
+            zip(task_names, task_results, strict=False)
+        ):
+            if isinstance(task_result, Exception):
+                logger.warning(f"[Pipeline] {name} task failed: {task_result}")
+                continue
+            if name == "translate":
+                self._apply_translation_result(request, result, task_result)
+                stage_times["translate"] = parallel_time
+            elif name == "validate":
+                self._apply_validation_result(request, result, task_result)
+                stage_times["validate"] = parallel_time
+
     async def process(
         self,
         request: ProcessingRequest,
@@ -498,7 +538,7 @@ Format: SCORE: X/10 | FEEDBACK: [your feedback]"""
             ProcessingResult with all outputs
         """
         start_time = time.perf_counter()
-        stage_times = {}
+        stage_times: dict[str, float] = {}
         cache_hits = 0
 
         result = ProcessingResult(
@@ -508,7 +548,6 @@ Format: SCORE: X/10 | FEEDBACK: [your feedback]"""
         )
 
         try:
-            # Stage 1: Check cache for complete result
             cache_key = self._build_pipeline_cache_key(request)
 
             cached = await self.cache.get(cache_key)
@@ -518,57 +557,21 @@ Format: SCORE: X/10 | FEEDBACK: [your feedback]"""
                 cached["cache_hits"] = 1
                 return ProcessingResult(**cached)
 
-            # FAST PATH: Simple requests (simplify-only or no processing)
             if self._is_fast_path_eligible(request):
                 return await self._process_fast_path(
                     request, result, stage_times, cache_key
                 )
 
-            # FULL PATH: Stage 2: Simplification
+            # FULL PATH: Simplification
             if request.simplify:
                 stage_start = time.perf_counter()
                 await self._process_simplification(request, result)
                 stage_times["simplify"] = (time.perf_counter() - stage_start) * 1000
 
-            # Stage 3 & 4: Translation and Validation (TRUE parallel execution)
-            translation_task = self._create_translation_task(request, result)
-            validation_task = self._create_validation_task(request, result)
+            # Translation + Validation in parallel
+            await self._run_parallel_tasks(request, result, stage_times)
 
-            # Gather both tasks together for true parallelism
-            parallel_start = time.perf_counter()
-            tasks_to_await = []
-            task_names = []
-
-            if translation_task:
-                tasks_to_await.append(translation_task)
-                task_names.append("translate")
-            if validation_task:
-                tasks_to_await.append(validation_task)
-                task_names.append("validate")
-
-            if tasks_to_await:
-                # Wait for ALL parallel tasks at once
-                task_results = await asyncio.gather(
-                    *tasks_to_await, return_exceptions=True
-                )
-                parallel_time = (time.perf_counter() - parallel_start) * 1000
-
-                # Process results
-                for _i, (name, task_result) in enumerate(
-                    zip(task_names, task_results, strict=False)
-                ):
-                    if isinstance(task_result, Exception):
-                        logger.warning(f"[Pipeline] {name} task failed: {task_result}")
-                        continue
-
-                    if name == "translate":
-                        self._apply_translation_result(request, result, task_result)
-                        stage_times["translate"] = parallel_time
-                    elif name == "validate":
-                        self._apply_validation_result(request, result, task_result)
-                        stage_times["validate"] = parallel_time
-
-            # Stage 5: Audio generation
+            # Audio generation
             if request.generate_audio:
                 stage_start = time.perf_counter()
                 result.audio_path = await self._generate_audio(
@@ -577,7 +580,6 @@ Format: SCORE: X/10 | FEEDBACK: [your feedback]"""
                 )
                 stage_times["audio"] = (time.perf_counter() - stage_start) * 1000
 
-            # Deduplicate models_used and cache result
             result.models_used = list(dict.fromkeys(result.models_used))
             await self._cache_pipeline_result(cache_key, result)
 
@@ -776,6 +778,39 @@ Format: SCORE: X/10 | FEEDBACK: [your feedback]"""
             tier=CacheTier.L2,
         )
 
+    @staticmethod
+    def _get_stream_progress_msg(
+        need_translate: bool, need_validate: bool, target_language: str,
+    ) -> str:
+        """Build progress message for streaming translate/validate step."""
+        if need_translate and need_validate:
+            return "Translating and validating..."
+        if need_translate:
+            return f"Translating to {target_language}..."
+        return "Validating content..."
+
+    async def _stream_parallel_tasks(
+        self, simplified: str, request: ProcessingRequest,
+    ) -> dict[str, Any]:
+        """Run parallel translate+validate tasks and return results by key."""
+        tasks: list[Any] = []
+        keys: list[str] = []
+        if request.translate:
+            tasks.append(self._translate(simplified, request.target_language))
+            keys.append("translate")
+        if request.validate:
+            tasks.append(self._validate(simplified, request.subject))
+            keys.append("validate")
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        output: dict[str, Any] = {}
+        for key, res in zip(keys, results):
+            if isinstance(res, Exception):
+                logger.warning(f"[Pipeline-Stream] {key} failed: {res}")
+                continue
+            output[key] = res
+        return output
+
     async def process_stream(
         self,
         request: ProcessingRequest,
@@ -793,86 +828,52 @@ Format: SCORE: X/10 | FEEDBACK: [your feedback]"""
         )
 
         try:
-            # Simplification
+            simplified = request.text
+
             if request.simplify:
                 yield ProcessingProgress(
-                    stage=ProcessingStage.SIMPLIFYING,
-                    progress=0.1,
+                    stage=ProcessingStage.SIMPLIFYING, progress=0.1,
                     message="Simplifying content...",
                 )
-
-                simplified = await self._simplify(
-                    request.text,
-                    request.subject,
-                )
-
+                simplified = await self._simplify(request.text, request.subject)
                 yield ProcessingProgress(
-                    stage=ProcessingStage.SIMPLIFYING,
-                    progress=0.4,
+                    stage=ProcessingStage.SIMPLIFYING, progress=0.4,
                     message="Simplification complete",
                     partial_result={"simplified_text": simplified},
                 )
-            else:
-                simplified = request.text
 
-            # Translation + Validation: independent tasks, run concurrently
-            # (mirrors the non-streaming process() which already uses asyncio.gather)
             translated = None
-            score = None
-            feedback = None
-
             need_translate = request.translate
             need_validate = request.validate
 
             if need_translate or need_validate:
+                progress_msg = self._get_stream_progress_msg(
+                    need_translate, need_validate, request.target_language,
+                )
                 yield ProcessingProgress(
                     stage=ProcessingStage.TRANSLATING if need_translate else ProcessingStage.VALIDATING,
-                    progress=0.5,
-                    message="Translating and validating..." if (need_translate and need_validate) else (
-                        f"Translating to {request.target_language}..." if need_translate else "Validating content..."
-                    ),
+                    progress=0.5, message=progress_msg,
                 )
 
-                parallel_tasks = []
-                task_keys = []
+                task_results = await self._stream_parallel_tasks(simplified, request)
 
-                if need_translate:
-                    parallel_tasks.append(self._translate(simplified, request.target_language))
-                    task_keys.append("translate")
-                if need_validate:
-                    parallel_tasks.append(self._validate(simplified, request.subject))
-                    task_keys.append("validate")
+                if "translate" in task_results:
+                    translated = task_results["translate"]
+                    yield ProcessingProgress(
+                        stage=ProcessingStage.TRANSLATING, progress=0.7,
+                        message="Translation complete",
+                        partial_result={"translated_text": translated},
+                    )
+                if "validate" in task_results:
+                    score, feedback = task_results["validate"]
+                    yield ProcessingProgress(
+                        stage=ProcessingStage.VALIDATING, progress=0.9,
+                        message="Validation complete",
+                        partial_result={"validation_score": score, "validation_feedback": feedback},
+                    )
 
-                results = await asyncio.gather(*parallel_tasks, return_exceptions=True)
-
-                for key, res in zip(task_keys, results):
-                    if isinstance(res, Exception):
-                        logger.warning(f"[Pipeline-Stream] {key} failed: {res}")
-                        continue
-                    if key == "translate":
-                        translated = res
-                        yield ProcessingProgress(
-                            stage=ProcessingStage.TRANSLATING,
-                            progress=0.7,
-                            message="Translation complete",
-                            partial_result={"translated_text": translated},
-                        )
-                    elif key == "validate":
-                        score, feedback = res
-                        yield ProcessingProgress(
-                            stage=ProcessingStage.VALIDATING,
-                            progress=0.9,
-                            message="Validation complete",
-                            partial_result={
-                                "validation_score": score,
-                                "validation_feedback": feedback,
-                            },
-                        )
-
-            # Complete
             yield ProcessingProgress(
-                stage=ProcessingStage.COMPLETE,
-                progress=1.0,
+                stage=ProcessingStage.COMPLETE, progress=1.0,
                 message="Processing complete",
                 partial_result={
                     "original_text": request.text,
@@ -883,8 +884,7 @@ Format: SCORE: X/10 | FEEDBACK: [your feedback]"""
 
         except Exception as e:
             yield ProcessingProgress(
-                stage=ProcessingStage.ERROR,
-                progress=0.0,
+                stage=ProcessingStage.ERROR, progress=0.0,
                 message=f"Error: {e!s}",
             )
 
@@ -1844,7 +1844,7 @@ Text:
     def get_stats(self) -> dict[str, Any]:
         """Get comprehensive pipeline statistics with model and cache status."""
         models_loaded = {
-            "llm_qwen": self.inference_engine._mlx_engine is not None,
+            "llm_qwen": bool(getattr(self.inference_engine, '_mlx_engines', None)),
             "translation_indictrans2": self._translation_engine is not None,
             "validation_gemma2": self._validation_module is not None,
             "embeddings_bge_m3": self._embedder is not None,
