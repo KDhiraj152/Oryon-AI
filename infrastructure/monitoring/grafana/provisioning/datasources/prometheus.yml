@@ -1,0 +1,16 @@
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: https://prometheus:9090
+    isDefault: true
+    editable: false
+    basicAuth: true
+    basicAuthUser: ${PROMETHEUS_USER}
+    jsonData:
+      timeInterval: "15s"
+      tlsSkipVerify: false
+    secureJsonData:
+      basicAuthPassword: ${PROMETHEUS_PASSWORD}

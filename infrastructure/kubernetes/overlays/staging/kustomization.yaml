@@ -1,0 +1,38 @@
+"""Staging environment overlay."""
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: shiksha-setu-staging
+
+bases:
+  - ../../
+
+nameSuffix: -staging
+
+commonLabels:
+  environment: staging
+
+# Override replicas for staging
+replicas:
+  - name: fastapi
+    count: 2
+  - name: celery-worker
+    count: 2
+
+# Use staging-specific images
+images:
+  - name: shiksha-setu/api
+    newName: shiksha-setu/api
+    newTag: staging
+  - name: shiksha-setu/worker
+    newName: shiksha-setu/worker
+    newTag: staging
+
+# Staging-specific secrets (should be created separately)
+secretGenerator:
+  - name: shiksha-secrets
+    behavior: replace
+    literals:
+      - POSTGRES_PASSWORD=${STAGING_DB_PASSWORD}
+      - FLASK_SECRET_KEY=${STAGING_SECRET_KEY}

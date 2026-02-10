@@ -1,0 +1,107 @@
+# =============================================================================
+# SHIKSHA SETU - PRODUCTION FRONTEND DOCKERFILE
+# =============================================================================
+# Optimized multi-stage build with:
+# - Efficient npm caching
+# - Minimal runtime image
+# - Security hardening
+# - Vite/React production optimizations
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Stage 1: Dependencies (cached layer)
+# -----------------------------------------------------------------------------
+FROM node:20-alpine AS deps
+
+# Add labels for better image management
+LABEL maintainer="Shiksha Setu Team <team@shikshasetu.in>"
+LABEL stage="dependencies"
+
+WORKDIR /app
+
+# Copy package files for better cache utilization
+COPY frontend/package.json frontend/package-lock.json* ./
+
+# Install dependencies with clean cache
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --only=production --silent && \
+    npm cache clean --force
+
+# -----------------------------------------------------------------------------
+# Stage 2: Builder (compile and bundle)
+# -----------------------------------------------------------------------------
+FROM node:20-alpine AS builder
+
+LABEL maintainer="Shiksha Setu Team <team@shikshasetu.in>"
+LABEL org.opencontainers.image.title="Shiksha Setu Frontend"
+LABEL org.opencontainers.image.description="AI-Powered Bilingual Education Platform - React/Vite Frontend"
+LABEL org.opencontainers.image.version="4.0.0"
+
+WORKDIR /app
+
+# Copy dependencies from deps stage
+COPY --from=deps /app/node_modules ./node_modules
+
+# Copy all frontend source files
+COPY frontend/ .
+
+# Build-time environment variables
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    # Vite optimizations
+    VITE_BUILD_SOURCEMAP=false \
+    # Memory optimization for build
+    NODE_OPTIONS="--max-old-space-size=4096"
+
+# Build the application with optimizations
+RUN npm run build && \
+    # Remove dev dependencies and source files after build
+    rm -rf node_modules src .git .gitignore *.config.* tsconfig* && \
+    # Clean up unnecessary files
+    find . -name "*.map" -delete 2>/dev/null || true && \
+    find . -name "*.ts" -delete 2>/dev/null || true && \
+    find . -name "*.tsx" -delete 2>/dev/null || true
+
+# -----------------------------------------------------------------------------
+# Stage 3: Production runner (minimal image)
+# -----------------------------------------------------------------------------
+FROM node:20-alpine AS runner
+
+# Security: Run as non-root
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 --ingroup nodejs nextjs
+
+WORKDIR /app
+
+# Production environment
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3000 \
+    HOSTNAME="0.0.0.0"
+
+# Copy only necessary files from builder
+# For Vite/React SPA, we need the dist folder
+COPY --from=builder --chown=nextjs:nodejs /app/dist ./dist
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+
+# Install only serve for static file serving (lightweight)
+RUN npm install -g serve@14 && \
+    npm cache clean --force && \
+    rm -rf /root/.npm
+
+# Security: Remove unnecessary packages
+RUN apk --no-cache add curl && \
+    rm -rf /var/cache/apk/*
+
+# Switch to non-root user
+USER nextjs
+
+# Expose port
+EXPOSE 3000
+
+# Health check with proper timeout
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -fsS --max-time 3 http://localhost:3000/ || exit 1
+
+# Serve the static files with security headers
+CMD ["serve", "-s", "dist", "-l", "3000", "--no-clipboard"]

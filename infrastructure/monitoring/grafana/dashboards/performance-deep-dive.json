@@ -1,0 +1,125 @@
+{
+  "dashboard": {
+    "title": "ShikshaSetu - Performance Deep Dive",
+    "tags": ["shiksha-setu", "performance", "latency"],
+    "timezone": "browser",
+    "editable": true,
+    "panels": [
+      {
+        "id": 1,
+        "title": "Request Latency Heatmap",
+        "type": "heatmap",
+        "gridPos": {"h": 10, "w": 24, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "rate(http_request_duration_seconds_bucket{job=\"shiksha-setu\"}[5m])",
+            "format": "heatmap",
+            "legendFormat": "{{le}}",
+            "refId": "A"
+          }
+        ],
+        "yAxis": {"format": "s", "logBase": 2},
+        "cards": {"cardPadding": 2}
+      },
+      {
+        "id": 2,
+        "title": "Endpoint Performance Comparison (p50, p95, p99)",
+        "type": "graph",
+        "gridPos": {"h": 10, "w": 24, "x": 0, "y": 10},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket{job=\"shiksha-setu\"}[5m]))",
+            "legendFormat": "p50 - {{endpoint}}",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job=\"shiksha-setu\"}[5m]))",
+            "legendFormat": "p95 - {{endpoint}}",
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(http_request_duration_seconds_bucket{job=\"shiksha-setu\"}[5m]))",
+            "legendFormat": "p99 - {{endpoint}}",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          {"format": "s", "label": "Duration"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Request Volume by Endpoint",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 20},
+        "targets": [
+          {
+            "expr": "topk(10, sum by (endpoint) (rate(http_requests_total{job=\"shiksha-setu\"}[5m])))",
+            "legendFormat": "{{endpoint}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "reqps", "label": "Requests/sec"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Slowest Endpoints (p95 Duration)",
+        "type": "table",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 20},
+        "targets": [
+          {
+            "expr": "topk(10, histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job=\"shiksha-setu\"}[5m])))",
+            "format": "table",
+            "instant": true,
+            "refId": "A"
+          }
+        ],
+        "styles": [
+          {
+            "pattern": "Value",
+            "type": "number",
+            "unit": "s",
+            "decimals": 3
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Database Query Performance",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 28},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(db_query_duration_seconds_bucket{job=\"shiksha-setu\"}[5m]))",
+            "legendFormat": "p50 - {{operation}}",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(db_query_duration_seconds_bucket{job=\"shiksha-setu\"}[5m]))",
+            "legendFormat": "p95 - {{operation}}",
+            "refId": "B"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Model Inference Performance",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 28},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(model_inference_duration_seconds_bucket{job=\"shiksha-setu\"}[5m]))",
+            "legendFormat": "{{model_type}}",
+            "refId": "A"
+          }
+        ]
+      }
+    ],
+    "refresh": "10s",
+    "time": {"from": "now-30m", "to": "now"}
+  }
+}

@@ -1,0 +1,100 @@
+# =============================================================================
+# SHIKSHA SETU - KUBERNETES INGRESS CONFIGURATION
+# =============================================================================
+# Production Ingress with:
+# - TLS termination via cert-manager
+# - Rate limiting
+# - Security headers
+# - WebSocket support
+# - Custom timeouts for ML endpoints
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: shiksha-ingress
+  namespace: shiksha-setu
+  annotations:
+    # Cert-manager integration
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+
+    # SSL/TLS settings
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/ssl-protocols: "TLSv1.2 TLSv1.3"
+
+    # Security headers
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+      add_header X-Frame-Options "SAMEORIGIN" always;
+      add_header X-Content-Type-Options "nosniff" always;
+      add_header X-XSS-Protection "1; mode=block" always;
+      add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    # Body size for uploads
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+
+    # Timeouts for long-running ML requests
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+
+    # Rate limiting
+    nginx.ingress.kubernetes.io/limit-rps: "20"
+    nginx.ingress.kubernetes.io/limit-connections: "10"
+
+    # CORS (adjust origins as needed)
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "https://$(DOMAIN_NAME)"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization"
+
+    # WebSocket support
+    nginx.ingress.kubernetes.io/websocket-services: "fastapi"
+
+    # Logging
+    nginx.ingress.kubernetes.io/enable-access-log: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - $(DOMAIN_NAME)
+    - api.$(DOMAIN_NAME)
+    secretName: shiksha-tls
+  rules:
+  # API subdomain
+  - host: api.$(DOMAIN_NAME)
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: fastapi
+            port:
+              number: 8000
+  # Main domain - API routes
+  - host: $(DOMAIN_NAME)
+    http:
+      paths:
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: fastapi
+            port:
+              number: 8000
+      - path: /health
+        pathType: Exact
+        backend:
+          service:
+            name: fastapi
+            port:
+              number: 8000
+      - path: /metrics
+        pathType: Exact
+        backend:
+          service:
+            name: fastapi
+            port:
+              number: 8000

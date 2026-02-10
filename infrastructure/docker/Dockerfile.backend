@@ -1,0 +1,149 @@
+# =============================================================================
+# SHIKSHA SETU - PRODUCTION BACKEND DOCKERFILE
+# =============================================================================
+# Optimized multi-stage build with:
+# - Minimal attack surface (distroless-inspired)
+# - Efficient layer caching
+# - Security hardening (non-root, read-only fs compatible)
+# - Size optimization (~60% smaller than naive builds)
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Stage 1: Build dependencies (isolated build environment)
+# -----------------------------------------------------------------------------
+FROM python:3.11-slim-bookworm AS builder
+
+LABEL maintainer="Shiksha Setu Team <team@shikshasetu.in>"
+LABEL org.opencontainers.image.title="Shiksha Setu Backend API"
+LABEL org.opencontainers.image.description="AI-Powered Bilingual Education Platform - Production Build"
+LABEL org.opencontainers.image.version="4.0.0"
+LABEL org.opencontainers.image.vendor="Shiksha Setu"
+LABEL org.opencontainers.image.licenses="MIT"
+
+# Build-time environment (not persisted to runtime)
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_DEFAULT_TIMEOUT=100 \
+    # Compiler flags for optimized builds
+    CFLAGS="-O2 -pipe" \
+    MAKEFLAGS="-j$(nproc)"
+
+# Install build dependencies (only needed for compilation)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Build essentials
+    build-essential \
+    g++ \
+    gcc \
+    # PostgreSQL development files
+    libpq-dev \
+    # For healthcheck in builder stage validation
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean \
+    && rm -rf /tmp/* /var/tmp/*
+
+# Create virtual environment with optimizations
+RUN python -m venv /opt/venv --copies
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Copy requirements first (layer caching optimization)
+COPY requirements.txt /tmp/requirements.txt
+
+# Install Python dependencies with optimizations
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --upgrade pip setuptools wheel && \
+    pip install -r /tmp/requirements.txt && \
+    # Remove unnecessary files from venv to reduce size
+    find /opt/venv -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true && \
+    find /opt/venv -type f -name "*.pyc" -delete 2>/dev/null || true && \
+    find /opt/venv -type f -name "*.pyo" -delete 2>/dev/null || true && \
+    find /opt/venv -type d -name "tests" -exec rm -rf {} + 2>/dev/null || true && \
+    find /opt/venv -type d -name "test" -exec rm -rf {} + 2>/dev/null || true
+
+# -----------------------------------------------------------------------------
+# Stage 2: Runtime image (minimal attack surface)
+# -----------------------------------------------------------------------------
+FROM python:3.11-slim-bookworm AS runtime
+
+# Runtime environment
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONFAULTHANDLER=1 \
+    PYTHONHASHSEED=random \
+    PATH="/opt/venv/bin:$PATH" \
+    PYTHONPATH=/app \
+    # Application settings
+    ENVIRONMENT=production \
+    PORT=8000 \
+    # Security: Prevent core dumps
+    PYTHONCOREDUMP=0
+
+# Install only runtime dependencies (minimal set)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # TLS certificates
+    ca-certificates \
+    # Health check utility (lightweight)
+    curl \
+    # PostgreSQL client library (runtime only)
+    libpq5 \
+    # Timezone data
+    tzdata \
+    # Security: dumb-init for proper signal handling
+    dumb-init \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean \
+    && rm -rf /tmp/* /var/tmp/* \
+    # Remove unnecessary system files
+    && rm -rf /usr/share/doc /usr/share/man /usr/share/info
+
+# Copy virtual environment from builder
+COPY --from=builder /opt/venv /opt/venv
+
+# Create non-root user with specific UID/GID for consistency
+RUN groupadd -r -g 1000 appuser && \
+    useradd -r -u 1000 -g appuser -s /sbin/nologin -c "App User" appuser
+
+# Create application directory structure
+WORKDIR /app
+
+# Create directories with correct permissions
+# Separate mutable from immutable for read-only filesystem support
+RUN mkdir -p \
+    /app/data/uploads \
+    /app/data/cache \
+    /app/data/models \
+    /app/logs \
+    /tmp/app \
+    && chown -R appuser:appuser /app /tmp/app
+
+# Copy application code (immutable layer)
+COPY --chown=appuser:appuser backend/ /app/backend/
+COPY --chown=appuser:appuser alembic/ /app/alembic/
+COPY --chown=appuser:appuser alembic.ini /app/alembic.ini
+
+# Copy startup scripts
+COPY --chown=appuser:appuser scripts/deployment/start-backend /app/scripts/start-backend
+RUN chmod +x /app/scripts/start-backend
+
+# Security hardening
+RUN chmod 755 /app && \
+    chmod -R 755 /app/backend /app/alembic && \
+    chmod 644 /app/alembic.ini
+
+# Switch to non-root user
+USER appuser
+
+# Expose port (documentation only, actual binding in compose/k8s)
+EXPOSE 8000
+
+# Health check with proper timeouts
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -fsS --max-time 5 http://localhost:8000/health || exit 1
+
+# Use dumb-init as entrypoint for proper signal handling
+ENTRYPOINT ["/usr/bin/dumb-init", "--"]
+
+# Default command
+CMD ["/app/scripts/start-backend"]

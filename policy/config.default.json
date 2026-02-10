@@ -1,0 +1,337 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "version": "2.0.0",
+  "description": "Policy configuration for ShikshaSetu AI Engine. A safe, general-purpose AI for education and noble purposes.",
+  "last_updated": "2025-12-04T04:00:00Z",
+
+  "meta": {
+    "vision": "A safe AI that empowers users for education, research, creativity, and noble purposes without artificial restrictions",
+    "principles": [
+      "Safety without unnecessary restrictions",
+      "Empower users to learn and create",
+      "Block only genuinely harmful content",
+      "Trust users with good intent",
+      "Enable noble purposes beyond education"
+    ],
+    "extracted_from": [
+      "backend/services/ai_core/safety.py",
+      "backend/services/ai_core/engine.py",
+      "backend/services/curriculum_validator.py",
+      "backend/services/grade_adaptation.py",
+      "backend/services/validate/ncert.py"
+    ],
+    "purpose": "Minimal safety guardrails that block real harm while enabling maximum utility"
+  },
+
+  "modes": {
+    "OPEN": {
+      "description": "Default mode - open AI with essential safety only",
+      "policy_filters_enabled": false,
+      "curriculum_enforcement": false,
+      "harmful_content_blocking": true,
+      "allow_general_queries": true
+    },
+    "EDUCATION": {
+      "description": "Education-focused mode with curriculum alignment",
+      "policy_filters_enabled": true,
+      "curriculum_enforcement": true,
+      "harmful_content_blocking": true,
+      "allow_general_queries": true
+    },
+    "RESEARCH": {
+      "description": "Research mode - maximum freedom for academic work",
+      "policy_filters_enabled": false,
+      "curriculum_enforcement": false,
+      "harmful_content_blocking": true,
+      "allow_external_calls": true
+    }
+  },
+
+  "harmful_patterns": [
+    {
+      "id": "harm_violence_instructions",
+      "pattern": "(?i)\\b(how to|ways to|instructions for)\\s+(kill|harm|hurt|attack|murder)\\b",
+      "risk": "critical",
+      "category": "violence",
+      "origin": "backend/services/ai_core/safety.py:218",
+      "description": "Detects requests for instructions on causing physical harm"
+    },
+    {
+      "id": "harm_weapons",
+      "pattern": "(?i)\\b(make|build|create)\\s+(bomb|explosive|weapon)\\b",
+      "risk": "critical",
+      "category": "weapons",
+      "origin": "backend/services/ai_core/safety.py:219",
+      "description": "Detects requests for weapon/explosive creation"
+    },
+    {
+      "id": "harm_hacking",
+      "pattern": "(?i)\\b(hack|crack|steal)\\s+(password|account|credit card)\\b",
+      "risk": "high",
+      "category": "cybercrime",
+      "origin": "backend/services/ai_core/safety.py:222",
+      "description": "Detects requests for hacking/credential theft"
+    },
+    {
+      "id": "harm_malware",
+      "pattern": "(?i)\\b(create|generate)\\s+(malware|virus|ransomware)\\b",
+      "risk": "critical",
+      "category": "malware",
+      "origin": "backend/services/ai_core/safety.py:223",
+      "description": "Detects requests for malware creation"
+    }
+  ],
+
+  "jailbreak_patterns": [
+    {
+      "id": "jailbreak_ignore_rules",
+      "pattern": "(?i)(ignore|forget|disregard)\\s+(previous|all)\\s+(instructions|rules|guidelines)",
+      "risk": "high",
+      "category": "prompt_injection",
+      "origin": "backend/services/ai_core/safety.py:226",
+      "description": "Attempts to make model ignore its guidelines"
+    },
+    {
+      "id": "jailbreak_pretend_unrestricted",
+      "pattern": "(?i)pretend\\s+you\\s+(are|can|have)\\s+no\\s+(restrictions|limits|rules)",
+      "risk": "high",
+      "category": "prompt_injection",
+      "origin": "backend/services/ai_core/safety.py:227",
+      "description": "Attempts to make model pretend it has no restrictions"
+    },
+    {
+      "id": "jailbreak_dan_mode",
+      "pattern": "(?i)DAN\\s+mode|do\\s+anything\\s+now",
+      "risk": "high",
+      "category": "known_jailbreak",
+      "origin": "backend/services/ai_core/safety.py:228",
+      "description": "Known jailbreak technique (DAN)"
+    }
+  ],
+
+  "educational_context_patterns": [
+    {
+      "id": "edu_explain",
+      "pattern": "(?i)(explain|understand|learn about|history of|science of)",
+      "origin": "backend/services/ai_core/safety.py:232",
+      "description": "Educational explanation context"
+    },
+    {
+      "id": "edu_purpose",
+      "pattern": "(?i)(for educational purposes|in theory|academically)",
+      "origin": "backend/services/ai_core/safety.py:233",
+      "description": "Explicit educational purpose statement"
+    },
+    {
+      "id": "edu_questions",
+      "pattern": "(?i)(what is|how does|why does)",
+      "origin": "backend/services/ai_core/safety.py:234",
+      "description": "Educational question patterns"
+    }
+  ],
+
+  "secret_patterns": [
+    {
+      "id": "secret_aws_key",
+      "pattern": "AKIA[0-9A-Z]{16}",
+      "type": "AWS_ACCESS_KEY",
+      "risk": "critical",
+      "origin": "backend/services/ai_core/safety.py:95"
+    },
+    {
+      "id": "secret_openai_key",
+      "pattern": "sk-[A-Za-z0-9]{48}",
+      "type": "OPENAI_API_KEY",
+      "risk": "critical",
+      "origin": "backend/services/ai_core/safety.py:100"
+    },
+    {
+      "id": "secret_github_token",
+      "pattern": "ghp_[A-Za-z0-9]{36}",
+      "type": "GITHUB_PAT",
+      "risk": "critical",
+      "origin": "backend/services/ai_core/safety.py:101"
+    },
+    {
+      "id": "secret_jwt",
+      "pattern": "eyJ[A-Za-z0-9_-]*\\.eyJ[A-Za-z0-9_-]*\\.[A-Za-z0-9_-]*",
+      "type": "JWT_TOKEN",
+      "risk": "high",
+      "origin": "backend/services/ai_core/safety.py:109"
+    },
+    {
+      "id": "secret_password",
+      "pattern": "(?i)(password|passwd|pwd)[\"']?\\s*[:=]\\s*[\"']?([^\\s\"']{8,})",
+      "type": "PASSWORD",
+      "risk": "critical",
+      "origin": "backend/services/ai_core/safety.py:105"
+    },
+    {
+      "id": "secret_private_key",
+      "pattern": "-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----",
+      "type": "PRIVATE_KEY",
+      "risk": "critical",
+      "origin": "backend/services/ai_core/safety.py:121"
+    }
+  ],
+
+  "pii_patterns": [
+    {
+      "id": "pii_ssn",
+      "pattern": "\\b\\d{3}-\\d{2}-\\d{4}\\b",
+      "type": "SSN",
+      "risk": "critical",
+      "origin": "backend/services/ai_core/safety.py:127"
+    },
+    {
+      "id": "pii_email",
+      "pattern": "\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}\\b",
+      "type": "EMAIL",
+      "risk": "medium",
+      "origin": "backend/services/ai_core/safety.py:130"
+    },
+    {
+      "id": "pii_phone",
+      "pattern": "\\b(?:\\+?1[-\\.\\s]?)?\\(?\\d{3}\\)?[-\\.\\s]?\\d{3}[-\\.\\s]?\\d{4}\\b",
+      "type": "PHONE",
+      "risk": "medium",
+      "origin": "backend/services/ai_core/safety.py:133"
+    },
+    {
+      "id": "pii_credit_card",
+      "pattern": "\\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|6(?:011|5[0-9][0-9])[0-9]{12})\\b",
+      "type": "CREDIT_CARD",
+      "risk": "critical",
+      "origin": "backend/services/ai_core/safety.py:124"
+    }
+  ],
+
+  "curriculum": {
+    "ncert_alignment_threshold": 0.70,
+    "require_grade_level_match": false,
+    "allowed_grade_range": [1, 12],
+    "grade_configs": {
+      "primary": {
+        "grades": [1, 2, 3, 4, 5],
+        "max_sentence_length": 15,
+        "min_flesch_score": 80.0,
+        "vocabulary_complexity": "simple",
+        "origin": "backend/services/grade_adaptation.py:45-60"
+      },
+      "middle": {
+        "grades": [6, 7, 8],
+        "max_sentence_length": 20,
+        "min_flesch_score": 70.0,
+        "vocabulary_complexity": "moderate",
+        "origin": "backend/services/grade_adaptation.py:61-70"
+      },
+      "secondary": {
+        "grades": [9, 10],
+        "max_sentence_length": 25,
+        "min_flesch_score": 60.0,
+        "vocabulary_complexity": "advanced",
+        "origin": "backend/services/grade_adaptation.py:71-80"
+      },
+      "senior_secondary": {
+        "grades": [11, 12],
+        "max_sentence_length": 30,
+        "min_flesch_score": 50.0,
+        "vocabulary_complexity": "very_advanced",
+        "origin": "backend/services/grade_adaptation.py:81-90"
+      }
+    },
+    "subjects": [
+      "mathematics",
+      "science",
+      "social_science",
+      "english",
+      "hindi",
+      "languages",
+      "arts",
+      "physical_education"
+    ],
+    "origin": "backend/services/curriculum_validator.py:36-40"
+  },
+
+  "response_filters": {
+    "dangerous_code_patterns": [
+      {
+        "pattern": "(?i)(os\\.system|subprocess|eval|exec)\\s*\\([^)]+\\)",
+        "replacement": "[CODE_REMOVED_BY_POLICY]",
+        "origin": "backend/services/ai_core/safety.py:286-291"
+      }
+    ],
+    "max_response_length": 50000,
+    "truncation_message": "[Content truncated for safety]",
+    "origin": "backend/services/ai_core/safety.py:308-309"
+  },
+
+  "rejection_messages": {
+    "critical": {
+      "message": "I'm sorry, but I can't help with that request as it may involve harmful or dangerous content. If you're researching a topic for educational purposes, please rephrase your question to clarify the context.",
+      "origin": "backend/services/ai_core/safety.py:339-343"
+    },
+    "high": {
+      "message": "I'm unable to assist with this particular request. If you have a legitimate educational or professional need, please provide more context about what you're trying to accomplish.",
+      "origin": "backend/services/ai_core/safety.py:344-348"
+    },
+    "medium": {
+      "message": "I noticed some concerns with your request. Could you please rephrase it so I can better assist you?",
+      "origin": "backend/services/ai_core/safety.py:349-352"
+    }
+  },
+
+  "sandbox": {
+    "blocked_imports": ["os", "sys", "subprocess", "socket", "pickle"],
+    "blocked_patterns": [
+      "import os",
+      "import sys",
+      "import subprocess",
+      "__import__",
+      "eval(",
+      "exec(",
+      "compile(",
+      "open(",
+      "file(",
+      "input(",
+      "__builtins__",
+      "__code__",
+      "__globals__"
+    ],
+    "blocked_attributes": [
+      "__class__",
+      "__bases__",
+      "__subclasses__",
+      "__mro__",
+      "__globals__",
+      "__code__",
+      "__builtins__",
+      "__dict__"
+    ],
+    "origin": "backend/services/ai_core/sandbox.py:110-130"
+  },
+
+  "system_prompts": {
+    "base": {
+      "identity": "ShikshaSetu, an intelligent educational AI assistant",
+      "goals": ["help students learn effectively"],
+      "guidelines": [
+        "Be clear, accurate, and helpful",
+        "Use appropriate language for the student's grade level",
+        "Provide examples when explaining concepts",
+        "Encourage curiosity and critical thinking",
+        "Admit when you don't know something"
+      ],
+      "origin": "backend/services/ai_core/prompts.py:176-199"
+    },
+    "factual_rules": [
+      "NEVER make up facts, dates, names, or statistics",
+      "If you don't know something with certainty, say 'I'm not certain about this'",
+      "For factual questions, only state what is definitively true",
+      "If context/documents are provided, base your answer on them",
+      "Distinguish between established facts and your reasoning",
+      "For controversial topics, present multiple perspectives"
+    ],
+    "origin": "backend/services/ai_core/engine.py:648-663"
+  }
+}

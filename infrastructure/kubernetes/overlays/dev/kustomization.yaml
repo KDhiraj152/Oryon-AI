@@ -1,0 +1,56 @@
+"""Development environment overlay."""
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: shiksha-setu-dev
+
+bases:
+  - ../../
+
+nameSuffix: -dev
+
+commonLabels:
+  environment: development
+
+# Override replicas for dev
+replicas:
+  - name: fastapi
+    count: 1
+  - name: celery-worker
+    count: 1
+  - name: postgres
+    count: 1
+  - name: redis
+    count: 1
+
+# Use dev-specific secrets
+secretGenerator:
+  - name: shiksha-secrets
+    behavior: merge
+    literals:
+      - POSTGRES_PASSWORD=dev-password
+      - FLASK_SECRET_KEY=dev-secret-key
+
+# Override resource limits for dev
+patches:
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "2Gi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "1000m"
+    target:
+      kind: Deployment
+      name: fastapi
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "4Gi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "2000m"
+    target:
+      kind: Deployment
+      name: celery-worker

@@ -1,0 +1,68 @@
+"""Production environment overlay."""
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: shiksha-setu-prod
+
+bases:
+  - ../../
+
+nameSuffix: -prod
+
+commonLabels:
+  environment: production
+
+# Cloud provider and domain configuration - REPLACE WITH YOUR ACTUAL VALUES
+configMapGenerator:
+  - name: cloud-config
+    literals:
+      - AWS_ACCOUNT_ID=123456789012  # Replace with your AWS account ID
+      - DOMAIN_NAME=shiksha-setu.com  # Replace with your production domain
+      # - GCP_PROJECT_ID=your-project-id
+      # - AZURE_CLIENT_ID=your-client-id
+
+# Production replicas (HPA will manage scaling)
+replicas:
+  - name: fastapi
+    count: 3
+  - name: celery-worker
+    count: 5
+
+# Production images - ALWAYS use specific version tags, never 'latest'
+# Update these tags as part of your deployment process (CI/CD pipeline)
+# Example: your-registry.io/shiksha-setu/api:v1.2.3 or use git commit SHA
+images:
+  - name: shiksha-setu/api
+    newName: your-registry.io/shiksha-setu/api
+    newTag: v1.2.3  # Replace with actual production version or CI/CD variable
+  - name: shiksha-setu/worker
+    newName: your-registry.io/shiksha-setu/worker
+    newTag: v1.2.3  # Replace with actual production version or CI/CD variable
+
+# Production secrets should be managed externally (e.g., sealed secrets, external secrets operator)
+# This is just a placeholder
+configMapGenerator:
+  - name: shiksha-config
+    behavior: merge
+    literals:
+      - DB_POOL_SIZE=20
+      - DB_MAX_OVERFLOW=40
+
+# Production-specific patches
+patches:
+  # Enable pod disruption budgets
+  - patch: |-
+      apiVersion: policy/v1
+      kind: PodDisruptionBudget
+      metadata:
+        name: fastapi-pdb
+        namespace: shiksha-setu-prod
+      spec:
+        minAvailable: 2
+        selector:
+          matchLabels:
+            app: fastapi
+    target:
+      kind: Deployment
+      name: fastapi

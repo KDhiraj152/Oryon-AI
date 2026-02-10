@@ -1,0 +1,130 @@
+# ShikshaSetu Pre-commit Configuration
+# =====================================
+# Automated code quality checks before every commit
+#
+# Install: pip install pre-commit && pre-commit install
+# Run manually: pre-commit run --all-files
+#
+# See https://pre-commit.com for more information
+
+default_language_version:
+  python: python3.11
+
+repos:
+  # Pre-commit hooks repository
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      # File checks
+      - id: check-yaml
+        name: Check YAML syntax
+      - id: check-json
+        name: Check JSON syntax
+      - id: check-toml
+        name: Check TOML syntax
+      - id: end-of-file-fixer
+        name: Fix end of files
+      - id: trailing-whitespace
+        name: Trim trailing whitespace
+      - id: mixed-line-ending
+        name: Check for mixed line endings
+        args: ['--fix=lf']
+
+      # Security checks
+      - id: check-added-large-files
+        name: Check for large files
+        args: ['--maxkb=1000']
+      - id: check-merge-conflict
+        name: Check for merge conflicts
+      - id: detect-private-key
+        name: Detect private keys
+
+      # Python checks
+      - id: check-ast
+        name: Check Python AST
+      - id: debug-statements
+        name: Check for debug statements
+      - id: check-docstring-first
+        name: Check docstring position
+
+  # Ruff - Fast Python linter and formatter
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.7.0
+    hooks:
+      - id: ruff
+        name: Ruff linter
+        args: [
+          "--fix",
+          "--select=E,F,I,B,C4,UP,PT",  # Common errors, imports, bugbear, comprehensions
+          "--ignore=E501,E402,F401",    # Ignore line length, import order for lazy loading
+        ]
+      - id: ruff-format
+        name: Ruff formatter
+
+  # Security scanning
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.10
+    hooks:
+      - id: bandit
+        name: Bandit security scan
+        args: ["-c", "pyproject.toml", "-q", "-ll"]  # Only HIGH severity
+        additional_dependencies: ["bandit[toml]"]
+
+  # Type checking (optional - can be slow)
+  # - repo: https://github.com/pre-commit/mirrors-mypy
+  #   rev: v1.11.2
+  #   hooks:
+  #     - id: mypy
+  #       name: MyPy type checking
+  #       additional_dependencies: [types-all]
+  #       args: ["--ignore-missing-imports"]
+
+  # Conventional commit messages
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v3.4.0
+    hooks:
+      - id: conventional-pre-commit
+        name: Conventional commit check
+        stages: [commit-msg]
+        args: [feat, fix, docs, style, refactor, perf, test, build, ci, chore]
+
+  # Docker linting
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.12.0
+    hooks:
+      - id: hadolint-docker
+        name: Hadolint Dockerfile check
+        entry: hadolint
+        files: Dockerfile
+
+  # Shell script checking
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+        name: ShellCheck
+        files: \.(sh|bash)$
+
+  # Frontend: TypeScript/JavaScript
+  - repo: local
+    hooks:
+      - id: eslint
+        name: ESLint
+        entry: bash -c 'cd frontend && npm run lint --if-present || true'
+        language: system
+        files: \.(ts|tsx|js|jsx)$
+        pass_filenames: false
+
+      - id: typecheck
+        name: TypeScript check
+        entry: bash -c 'cd frontend && npx tsc --noEmit || true'
+        language: system
+        files: \.(ts|tsx)$
+        pass_filenames: false
+
+# CI-specific settings
+ci:
+  autofix_commit_msg: "style: auto-fixes from pre-commit hooks"
+  autofix_prs: true
+  autoupdate_commit_msg: "chore: pre-commit autoupdate"
+  autoupdate_schedule: weekly

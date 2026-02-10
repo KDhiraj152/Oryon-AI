@@ -1,0 +1,156 @@
+# =============================================================================
+# SHIKSHA SETU - PROMETHEUS CONFIGURATION
+# =============================================================================
+# Optimized monitoring configuration with:
+# - Efficient scrape intervals
+# - Service discovery
+# - Relabeling for better metrics
+# - Recording rules for performance
+# =============================================================================
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+  external_labels:
+    cluster: 'shikshasetu-prod'
+    environment: 'production'
+    region: 'ap-south-1'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - 'alertmanager:9093'
+      timeout: 10s
+      api_version: v2
+
+# Load alert rules
+rule_files:
+  - '/etc/prometheus/rules/*.yml'
+
+# Scrape configurations
+scrape_configs:
+  # =========================================================================
+  # Prometheus Self-Monitoring
+  # =========================================================================
+  - job_name: 'prometheus'
+    static_configs:
+      - targets:
+          - 'localhost:9090'
+    metrics_path: /metrics
+    scheme: http
+
+  # =========================================================================
+  # ShikshaSetu API (FastAPI)
+  # =========================================================================
+  - job_name: 'shikshasetu_api'
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    static_configs:
+      - targets:
+          - 'api-1:8000'
+          - 'api-2:8000'
+          - 'api-3:8000'
+          - 'api-4:8000'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        regex: '(.+):.*'
+        replacement: '${1}'
+      - source_labels: [__address__]
+        target_label: __tmp_hash
+        modulus: 4
+        action: hashmod
+      - source_labels: [__tmp_hash]
+        target_label: shard
+    metric_relabel_configs:
+      # Drop high-cardinality metrics if needed
+      - source_labels: [__name__]
+        regex: 'go_gc_.*'
+        action: drop
+
+  # =========================================================================
+  # PostgreSQL Exporter
+  # =========================================================================
+  - job_name: 'postgres'
+    static_configs:
+      - targets:
+          - 'postgres-exporter:9187'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: database
+        replacement: 'shiksha_setu'
+
+  # =========================================================================
+  # Redis Exporter
+  # =========================================================================
+  - job_name: 'redis'
+    static_configs:
+      - targets:
+          - 'redis-exporter:9121'
+
+  # =========================================================================
+  # Celery Workers
+  # =========================================================================
+  - job_name: 'celery'
+    static_configs:
+      - targets:
+          - 'celery-exporter:9540'
+    metric_relabel_configs:
+      - source_labels: [queue]
+        target_label: celery_queue
+
+  # =========================================================================
+  # Node Exporter (System Metrics)
+  # =========================================================================
+  - job_name: 'node'
+    scrape_interval: 30s
+    static_configs:
+      - targets:
+          - 'node-exporter-1:9100'
+          - 'node-exporter-2:9100'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: node
+        regex: '(.+):.*'
+        replacement: '${1}'
+
+  # =========================================================================
+  # NGINX (Load Balancer)
+  # =========================================================================
+  - job_name: 'nginx'
+    static_configs:
+      - targets:
+          - 'nginx-exporter:9113'
+
+  # =========================================================================
+  # vLLM Model Server
+  # =========================================================================
+  - job_name: 'vllm'
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+    scrape_timeout: 20s
+    static_configs:
+      - targets:
+          - 'vllm-server:8001'
+
+  # =========================================================================
+  # Blackbox Exporter (HTTP Probes)
+  # =========================================================================
+  - job_name: 'blackbox_http'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - 'https://shikshasetu.in/health'
+          - 'https://api.shikshasetu.in/health'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: 'blackbox-exporter:9115'

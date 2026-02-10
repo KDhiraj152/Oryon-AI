@@ -1,0 +1,184 @@
+# ShikshaSetu Dependencies - Optimized for Apple Silicon (M1/M2/M3/M4)
+# ============================================================================
+# PYTHON VERSION: 3.11.x REQUIRED (Recommended: 3.11.10)
+# ============================================================================
+# Why Python 3.11?
+#   - Full MLX support for Apple Silicon
+#   - Pre-built wheels for ALL packages (including verovio)
+#   - Maximum compatibility with transformers, torch, sentence-transformers
+#   - 10-60% faster than 3.10, stable and well-tested
+#   - Long-term support until October 2027
+#
+# Updated: 2025-12-02
+#
+# Installation:
+#   1. Ensure Python 3.11: python3.11 --version
+#   2. Create venv:        python3.11 -m venv venv
+#   3. Activate:           source venv/bin/activate
+#   4. Install:            pip install -r requirements.txt
+#   5. For CUDA systems:   pip install vllm bitsandbytes
+#
+# Current Tech Stack:
+#   - FastAPI 0.115+ with V2 API consolidation
+#   - SQLAlchemy 2.0 + PostgreSQL 17 + pgvector
+#   - Redis 7+ for L2 cache and rate limiting
+#   - MLX 0.28+ for Apple Silicon native inference
+#   - Transformers 4.45+ for model loading
+#   - Circuit breakers and OpenTelemetry tracing (optional)
+#
+# Model Stack (8 Models):
+#   - LLM:            Qwen/Qwen2.5-3B-Instruct (via MLX or Transformers)
+#   - Translation:    ai4bharat/indictrans2-en-indic-1B
+#   - Embeddings:     BAAI/bge-m3 (via sentence-transformers)
+#   - Reranker:       BAAI/bge-reranker-v2-m3
+#   - OCR:            ucaslcl/GOT-OCR2_0
+#   - STT:            openai/whisper-large-v3-turbo
+#   - TTS:            edge-tts (Microsoft Azure Neural voices)
+#   - Eval:           google/gemma-2-2b-it (teacher evaluation)
+
+# ============================================================================
+# WEB FRAMEWORK
+# ============================================================================
+fastapi>=0.115.0,<1.0.0
+uvicorn[standard]>=0.32.0,<1.0.0
+pydantic>=2.9.0,<3.0.0
+pydantic-settings>=2.6.0,<3.0.0
+email-validator>=2.0.0,<3.0.0
+starlette>=0.40.0,<1.0.0
+
+# ============================================================================
+# DATABASE & ORM
+# ============================================================================
+sqlalchemy>=2.0.0,<3.0.0
+alembic>=1.13.0,<2.0.0
+psycopg2-binary>=2.9.0,<3.0.0
+asyncpg>=0.29.0,<1.0.0
+pgvector>=0.3.0,<1.0.0
+
+# ============================================================================
+# CACHING & TASK QUEUE
+# ============================================================================
+redis>=5.2.0,<6.0.0
+celery>=5.4.0,<6.0.0
+kombu>=5.4.0,<6.0.0
+
+# ============================================================================
+# AI/ML CORE (Python 3.11 Compatible)
+# ============================================================================
+torch>=2.2.0,<3.0.0
+transformers>=4.45.0,<5.0.0
+accelerate>=0.30.0,<1.0.0
+tiktoken>=0.6.0,<1.0.0
+sentencepiece>=0.2.0,<1.0.0
+safetensors>=0.4.0,<1.0.0
+huggingface-hub>=0.20.0,<1.0.0
+
+# ============================================================================
+# EMBEDDINGS & RETRIEVAL
+# ============================================================================
+sentence-transformers>=3.0.0,<4.0.0
+
+# NOTE: FlagEmbedding is OPTIONAL - only needed for CUDA systems
+# Apple Silicon uses sentence-transformers + CrossEncoder for 8.5x faster inference
+# Uncomment below only if deploying on CUDA systems:
+# FlagEmbedding>=1.2.0,<2.0.0
+
+# ============================================================================
+# TRANSLATION (IndicTrans2)
+# ============================================================================
+sacremoses>=0.1.1,<1.0.0
+indic-nlp-library>=0.92,<1.0.0
+
+# ============================================================================
+# DOCUMENT PROCESSING
+# ============================================================================
+pymupdf>=1.24.0,<2.0.0
+Pillow>=10.0.0,<13.0.0
+pdf2image>=1.17.0,<2.0.0
+pypdf>=5.0.0,<6.0.0
+verovio>=5.6.0,<6.0.0       # Music score rendering (GOT-OCR2) - needs Python 3.11/3.12
+python-docx>=1.1.0,<2.0.0
+python-pptx>=1.0.0,<2.0.0
+
+# ============================================================================
+# AUDIO/TTS/STT
+# ============================================================================
+edge-tts>=6.1.0,<8.0.0
+librosa>=0.10.0,<1.0.0
+soundfile>=0.12.0,<1.0.0
+pydub>=0.25.0,<1.0.0
+datasets>=3.0.0,<4.0.0
+
+# ============================================================================
+# HTTP & UTILITIES
+# ============================================================================
+httpx>=0.28.0,<1.0.0
+aiofiles>=24.0.0,<25.0.0
+python-magic>=0.4.27,<1.0.0
+python-dotenv>=1.0.0,<2.0.0
+
+# ============================================================================
+# SECURITY & AUTH
+# ============================================================================
+python-jose[cryptography]>=3.3.0,<4.0.0
+passlib[bcrypt]>=1.7.4,<2.0.0
+bcrypt>=4.2.0,<5.0.0
+python-multipart>=0.0.17,<1.0.0
+
+# ============================================================================
+# DATA PROCESSING
+# ============================================================================
+pandas>=2.2.0,<3.0.0
+numpy>=1.26.0,<2.0.0          # numpy 2.0 has breaking changes
+scikit-learn>=1.5.0,<1.6.0    # Pinned for coremltools 8.x compatibility
+langdetect>=1.0.9,<2.0.0
+einops>=0.7.0,<1.0.0
+xxhash>=3.4.0,<4.0.0          # Fast hashing for cache keys (10x faster than SHA256)
+orjson>=3.10.0,<4.0.0         # Fast JSON serialization (10x faster than stdlib json)
+
+# ============================================================================
+# MONITORING & OBSERVABILITY
+# ============================================================================
+prometheus-client>=0.21.0,<1.0.0
+prometheus-fastapi-instrumentator>=7.0.0,<8.0.0
+sentry-sdk[fastapi]>=2.20.0,<3.0.0
+
+# ============================================================================
+# UTILITIES
+# ============================================================================
+pyyaml>=6.0.0,<7.0.0
+click>=8.1.0,<9.0.0
+rich>=13.9.0,<14.0.0
+tqdm>=4.67.0,<5.0.0
+psutil>=5.9.0,<6.0.0
+
+# ============================================================================
+# APPLE SILICON OPTIMIZATIONS (M1/M2/M3/M4) - Python 3.11 Required
+# ============================================================================
+# MLX - Apple's native ML framework (v0.28.3+ for sampler API compatibility)
+# Requires: macOS 13.5+, Apple Silicon, Python 3.10-3.12
+mlx>=0.28.0,<1.0.0
+mlx-lm>=0.20.0,<1.0.0
+
+# CoreMLTools - For Apple Neural Engine (ANE) acceleration
+coremltools>=8.0,<9.0
+
+# ============================================================================
+# OPTIONAL: OPENTELEMETRY TRACING
+# ============================================================================
+# Uncomment to enable distributed tracing (Jaeger, Zipkin, etc.)
+# opentelemetry-api>=1.20.0
+# opentelemetry-sdk>=1.20.0
+# opentelemetry-exporter-otlp>=1.20.0
+
+# ============================================================================
+# OPTIONAL: GPU-SPECIFIC (install separately on CUDA systems)
+# ============================================================================
+# pip install vllm>=0.6.0
+# pip install bitsandbytes>=0.44.0
+# pip install flash-attn>=2.5.0
+# pip install auto-gptq>=0.7.0
+# pip install autoawq>=0.2.0
+nest_asyncio
+msgpack>=1.0.0
+greenlet>=3.0.0

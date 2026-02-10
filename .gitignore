@@ -1,0 +1,128 @@
+# ============================================
+# ShikshaSetu .gitignore
+# ============================================
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv/
+
+# Environment Variables (CRITICAL - Never commit!)
+.env
+.env.local
+.env.production
+.env.*.local
+
+# Secrets & Credentials (CRITICAL)
+*password*
+*secret*
+*credentials.json
+*.pem
+*.key
+id_rsa*
+
+# IDE & Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS Files
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+
+# Logs
+logs/*.log
+logs/*.pid
+!logs/.gitkeep
+
+# Runtime artifacts
+*.lock
+*.pid
+.env.local
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Frontend Build
+.vite/
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.next/
+frontend/out/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Storage (Keep structure, not files)
+storage/uploads/*
+storage/cache/*
+storage/audio/*
+storage/captions/*
+storage/models/*
+!storage/**/.gitkeep
+
+# Data Models (Large files - downloaded from HuggingFace)
+data/models/models--*
+data/models/*.bin
+data/models/*.safetensors
+*.bin
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+
+# Docker
+docker-compose.override.yml
+*.pid
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+*.pkl
+
+# Alembic
+alembic/versions/*.pyc
+
+# Supabase
+.supabase/
+.projectx/
