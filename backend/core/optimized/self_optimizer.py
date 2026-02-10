@@ -299,11 +299,21 @@ class SelfOptimizingRetrievalLoop:
                     all_results.append(r)
                     seen_ids.add(r_id)
 
-            # Check if we have enough relevant results
+            # Early exit: if first iteration already high-quality, skip
+            # reformulation overhead entirely (saves 1-2 network round-trips).
             if (
                 len(all_results) >= min_results
                 and attempt.relevance_score >= self.MIN_RELEVANCE_THRESHOLD
             ):
+                break
+
+            # High-confidence early exit: first-iteration score so high that
+            # further reformulation cannot meaningfully improve results.
+            if iteration == 0 and attempt.relevance_score >= 0.85:
+                logger.debug(
+                    f"Early-exit retrieval: first-pass relevance "
+                    f"{attempt.relevance_score:.2f} ≥ 0.85"
+                )
                 break
 
             # Reformulate query for next iteration

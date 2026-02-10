@@ -815,47 +815,59 @@ Format: SCORE: X/10 | FEEDBACK: [your feedback]"""
             else:
                 simplified = request.text
 
-            # Translation
-            if request.translate:
+            # Translation + Validation: independent tasks, run concurrently
+            # (mirrors the non-streaming process() which already uses asyncio.gather)
+            translated = None
+            score = None
+            feedback = None
+
+            need_translate = request.translate
+            need_validate = request.validate
+
+            if need_translate or need_validate:
                 yield ProcessingProgress(
-                    stage=ProcessingStage.TRANSLATING,
+                    stage=ProcessingStage.TRANSLATING if need_translate else ProcessingStage.VALIDATING,
                     progress=0.5,
-                    message=f"Translating to {request.target_language}...",
+                    message="Translating and validating..." if (need_translate and need_validate) else (
+                        f"Translating to {request.target_language}..." if need_translate else "Validating content..."
+                    ),
                 )
 
-                translated = await self._translate(simplified, request.target_language)
+                parallel_tasks = []
+                task_keys = []
 
-                yield ProcessingProgress(
-                    stage=ProcessingStage.TRANSLATING,
-                    progress=0.7,
-                    message="Translation complete",
-                    partial_result={"translated_text": translated},
-                )
-            else:
-                translated = None
+                if need_translate:
+                    parallel_tasks.append(self._translate(simplified, request.target_language))
+                    task_keys.append("translate")
+                if need_validate:
+                    parallel_tasks.append(self._validate(simplified, request.subject))
+                    task_keys.append("validate")
 
-            # Validation
-            if request.validate:
-                yield ProcessingProgress(
-                    stage=ProcessingStage.VALIDATING,
-                    progress=0.8,
-                    message="Validating content...",
-                )
+                results = await asyncio.gather(*parallel_tasks, return_exceptions=True)
 
-                score, feedback = await self._validate(
-                    simplified,
-                    request.subject,
-                )
-
-                yield ProcessingProgress(
-                    stage=ProcessingStage.VALIDATING,
-                    progress=0.9,
-                    message="Validation complete",
-                    partial_result={
-                        "validation_score": score,
-                        "validation_feedback": feedback,
-                    },
-                )
+                for key, res in zip(task_keys, results):
+                    if isinstance(res, Exception):
+                        logger.warning(f"[Pipeline-Stream] {key} failed: {res}")
+                        continue
+                    if key == "translate":
+                        translated = res
+                        yield ProcessingProgress(
+                            stage=ProcessingStage.TRANSLATING,
+                            progress=0.7,
+                            message="Translation complete",
+                            partial_result={"translated_text": translated},
+                        )
+                    elif key == "validate":
+                        score, feedback = res
+                        yield ProcessingProgress(
+                            stage=ProcessingStage.VALIDATING,
+                            progress=0.9,
+                            message="Validation complete",
+                            partial_result={
+                                "validation_score": score,
+                                "validation_feedback": feedback,
+                            },
+                        )
 
             # Complete
             yield ProcessingProgress(

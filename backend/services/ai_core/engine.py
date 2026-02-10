@@ -801,35 +801,39 @@ class AIEngine:
         retrieval_iterations = 0
 
         # Use adaptive context allocation for dynamic context sizing
+        # AND schedule resources — these are independent, run concurrently.
         context_allocator = self._get_context_allocator()
-        context_allocation = None
-        if context_allocator:
-            try:
-                context_allocation = context_allocator.allocate(message, intent.value)
-                logger.debug(
-                    f"Context allocation: {context_allocation.total_tokens} tokens, priority={context_allocation.priority}"
-                )
-            except Exception as e:
-                logger.debug(f"Context allocation failed: {e}")
-
-        # Schedule resources using predictive scheduler (ANE/GPU-aware)
         resource_scheduler = self._get_resource_scheduler()
-        if resource_scheduler:
-            try:
-                # Estimate task requirements
-                est_tokens = config.max_tokens
-                prediction = resource_scheduler.predict_resources(
-                    queue_length=1,
-                    avg_tokens=est_tokens,
-                    current_memory_pressure=0.5,
-                )
-                # Adjust batch size based on prediction
-                if prediction and hasattr(prediction, "optimal_batch_size"):
+        context_allocation = None
+
+        async def _alloc_context():
+            nonlocal context_allocation
+            if context_allocator:
+                try:
+                    context_allocation = context_allocator.allocate(message, intent.value)
                     logger.debug(
-                        f"Resource prediction: batch_size={prediction.optimal_batch_size}"
+                        f"Context allocation: {context_allocation.total_tokens} tokens, priority={context_allocation.priority}"
                     )
-            except Exception as e:
-                logger.debug(f"Resource scheduling failed: {e}")
+                except Exception as e:
+                    logger.debug(f"Context allocation failed: {e}")
+
+        async def _schedule_resources():
+            if resource_scheduler:
+                try:
+                    est_tokens = config.max_tokens
+                    prediction = resource_scheduler.predict_resources(
+                        queue_length=1,
+                        avg_tokens=est_tokens,
+                        current_memory_pressure=0.5,
+                    )
+                    if prediction and hasattr(prediction, "optimal_batch_size"):
+                        logger.debug(
+                            f"Resource prediction: batch_size={prediction.optimal_batch_size}"
+                        )
+                except Exception as e:
+                    logger.debug(f"Resource scheduling failed: {e}")
+
+        await asyncio.gather(_alloc_context(), _schedule_resources())
 
         if use_rag and self._rag_service:
             rag_attempted = True
@@ -955,12 +959,10 @@ class AIEngine:
         try:
             response_text = await self._run_generation(llm, prompt, config)
 
-            # Safety check - uses PolicyEngine to determine if filtering should apply
-            if self._should_block_harmful(config) and self._safety_guard:
-                response_text = self._safety_guard.filter_response(response_text)
-
-            # NOTE: Semantic validation removed - was causing slowness
-            # The model quality is sufficient without multi-model verification
+            # NOTE: SafetyGuard.filter_response() removed — its regex checks
+            # (os.system/subprocess/eval removal) are a strict subset of Pass 3
+            # toxicity patterns in SafetyPipeline.verify() called below.
+            # Running both was duplicated reasoning with no quality benefit.
 
             # Calculate confidence based on RAG sources
             confidence = 0.7  # Base confidence

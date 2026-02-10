@@ -46,6 +46,19 @@ class BasePatternsMixin:
         subject = context.get("subject", "General")
         target_language = context.get("target_language", "Hindi")
 
+        # Pre-compute embedding of the original text as a background task.
+        # Step 3 (semantic check) needs this, and it depends only on
+        # input_text — not on the LLM or translator output — so we
+        # overlap its I/O with Step 1 and Step 2.
+        import asyncio as _aio
+
+        orig_emb_future: _aio.Task | None = None
+        embedder = self._get_embedder()  # type: ignore
+        if embedder and self.config.enable_semantic_verification:  # type: ignore
+            orig_emb_future = _aio.ensure_future(
+                self._get_embedding(input_text)  # type: ignore
+            )
+
         # Step 1: LLM simplifies
         llm = self._get_llm()  # type: ignore
         if llm:
@@ -88,11 +101,10 @@ Simplified version (keep key facts, use simple words):"""
                 except Exception as e:
                     logger.warning(f"[Chain] Translation step failed: {e}")
 
-        # Step 3: Validate with semantic check
-        embedder = self._get_embedder()  # type: ignore
+        # Step 3: Validate with semantic check (reuse pre-computed original embedding)
         if embedder and self.config.enable_semantic_verification:  # type: ignore
             try:
-                orig_emb = await self._get_embedding(input_text)  # type: ignore
+                orig_emb = await orig_emb_future if orig_emb_future else None
                 curr_emb = await self._get_embedding(current_text)  # type: ignore
 
                 if orig_emb is not None and curr_emb is not None:

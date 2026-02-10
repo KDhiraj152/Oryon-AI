@@ -233,23 +233,37 @@ class SafetyPipeline:
         context = context or []
         metadata = metadata or {}
 
-        # Pass 1: Semantic Match Verification
+        # All 3 passes are independent (regex / keyword / embedding operations)
+        # so we launch them concurrently and gather results.
+        pass_coros = []
+        pass_names = []
+
         if self.enable_pass_1:
-            pass1_result = await self._pass_1_semantic_match(query, response)
-            pass_results.append(pass1_result)
-            all_issues.extend(pass1_result.issues)
-
-        # Pass 2: Logical Consistency Check
+            pass_coros.append(self._pass_1_semantic_match(query, response))
+            pass_names.append("pass_1")
         if self.enable_pass_2:
-            pass2_result = await self._pass_2_logical_consistency(response, context)
-            pass_results.append(pass2_result)
-            all_issues.extend(pass2_result.issues)
-
-        # Pass 3: Safety Shield
+            pass_coros.append(self._pass_2_logical_consistency(response, context))
+            pass_names.append("pass_2")
         if self.enable_pass_3:
-            pass3_result = await self._pass_3_safety_shield(response, context)
-            pass_results.append(pass3_result)
-            all_issues.extend(pass3_result.issues)
+            pass_coros.append(self._pass_3_safety_shield(response, context))
+            pass_names.append("pass_3")
+
+        if pass_coros:
+            import asyncio as _aio
+            gathered = await _aio.gather(*pass_coros, return_exceptions=True)
+            for name, result in zip(pass_names, gathered):
+                if isinstance(result, Exception):
+                    logger.warning(f"Safety {name} failed: {result}")
+                    continue
+                pass_results.append(result)
+                all_issues.extend(result.issues)
+
+                # Early exit: if Pass 3 (safety_shield) blocks, skip remaining analysis
+                if (
+                    result.pass_name == "safety_shield"
+                    and result.safety_level == SafetyLevel.BLOCKED
+                ):
+                    break
 
         # Determine overall result based on mode
         overall_safe, overall_level, rejection_reason = self._determine_overall_result(
@@ -576,17 +590,18 @@ class SafetyPipeline:
                 break  # One PII issue is enough to flag
 
         # Hallucination check (grounding verification)
-        if context:
-            grounding_score = self._calculate_grounding_score(response, context)
-            if grounding_score < self.hallucination_threshold:
-                issues.append(
-                    SafetyIssue(
-                        issue_type=IssueType.HALLUCINATION,
-                        severity=SafetyLevel.CAUTION,
-                        description=f"Response may not be well-grounded in context (score: {grounding_score:.2f})",
-                        confidence=1 - grounding_score,
-                    )
+        grounding_score = (
+            self._calculate_grounding_score(response, context) if context else 1.0
+        )
+        if context and grounding_score < self.hallucination_threshold:
+            issues.append(
+                SafetyIssue(
+                    issue_type=IssueType.HALLUCINATION,
+                    severity=SafetyLevel.CAUTION,
+                    description=f"Response may not be well-grounded in context (score: {grounding_score:.2f})",
+                    confidence=1 - grounding_score,
                 )
+            )
 
         # Determine pass result
         blocked_issues = [i for i in issues if i.severity == SafetyLevel.BLOCKED]
@@ -614,9 +629,7 @@ class SafetyPipeline:
             latency_ms=(time.time() - start) * 1000,
             details={
                 "toxicity_score": toxicity_score,
-                "grounding_score": self._calculate_grounding_score(response, context)
-                if context
-                else 1.0,
+                "grounding_score": grounding_score,
             },
         )
 

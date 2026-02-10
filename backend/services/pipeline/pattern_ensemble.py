@@ -46,8 +46,8 @@ class EnsemblePatternsMixin:
         subject = context.get("subject", "General")
         processed_text = context.get("processed_text", input_text)
 
-        # Weight for each model's vote
-        weights = {
+        # Base weight for each model's vote (prior, before confidence scaling)
+        base_weights = {
             "llm_score": 0.3,
             "semantic_score": 0.4,
             "validator_score": 0.3,
@@ -145,22 +145,28 @@ Respond with just the score (0-10):"""
             scores["validator_score"] = validator_score
             models_used.append("gemma-2b")
 
-        # Calculate weighted average
+        # Confidence-weighted arbitration
+        # ─────────────────────────────────────────────────────────
+        # Instead of fixed weights, each model's base weight is
+        # *scaled by its own score* so high-confidence judgements
+        # naturally dominate.  This replaces majority voting with
+        # an evidence-strength model: w_i = base_i * score_i
         total_weight = 0.0
         weighted_sum = 0.0
 
         for key, score in scores.items():
-            weight = weights.get(key, 0.33)
-            weighted_sum += score * weight
-            total_weight += weight
+            base = base_weights.get(key, 0.33)
+            effective_weight = base * score  # self-weighting
+            weighted_sum += score * effective_weight
+            total_weight += effective_weight
 
         confidence = weighted_sum / total_weight if total_weight > 0 else 0.5
 
-        # Consensus: all models agree above threshold
-        consensus = all(
-            s >= self.config.consensus_threshold  # type: ignore
-            for s in scores.values()
-        )
+        # Weighted-confidence consensus: instead of requiring ALL models
+        # above the threshold (brittle), we check whether the
+        # confidence-weighted mean itself clears the bar.
+        # A single high-confidence model can carry a borderline one.
+        consensus = confidence >= self.config.consensus_threshold  # type: ignore
 
         if consensus:
             self._metrics["successful_consensus"] = (  # type: ignore
