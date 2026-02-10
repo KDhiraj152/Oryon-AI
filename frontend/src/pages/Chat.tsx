@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, memo } from 'react';
-import { useChatStore, useThemeStore, useAuthStore, useProfileStore, shallow } from '../store';
+import { useChatStore, useThemeStore, useAuthStore, useProfileStore } from '../store';
 import type { Message, Citation } from '../store';
 import ChatMessage from '../components/chat/ChatMessage';
 import ChatInput from '../components/chat/ChatInput';
@@ -8,6 +8,7 @@ import { EmptyState } from '../components/chat/EmptyState';
 import { ThinkingIndicator, RegeneratingIndicator } from '../components/chat/ChatIndicators';
 import { useAudioPlayback, useChatScroll } from '../hooks/useChat';
 import { ArrowDown } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import 'katex/dist/katex.min.css';
 import {
   processUploadedFiles,
@@ -68,7 +69,7 @@ export default function Chat() {
     setStreamingMessage,
     createConversation
   } = useChatStore(
-    (state) => ({
+    useShallow((state) => ({
       activeConversationId: state.activeConversationId,
       messages: state.messages,
       streamingMessage: state.streamingMessage,
@@ -76,13 +77,11 @@ export default function Chat() {
       replaceLastAssistantMessage: state.replaceLastAssistantMessage,
       setStreamingMessage: state.setStreamingMessage,
       createConversation: state.createConversation,
-    }),
-    shallow
+    }))
   );
 
   const { accessToken, isAuthenticated } = useAuthStore(
-    (state) => ({ accessToken: state.accessToken, isAuthenticated: state.isAuthenticated }),
-    shallow
+    useShallow((state) => ({ accessToken: state.accessToken, isAuthenticated: state.isAuthenticated }))
   );
   const fetchProfile = useProfileStore((state) => state.fetchProfile);
   const resolvedTheme = useThemeStore((state) => state.resolvedTheme);
@@ -129,130 +128,97 @@ export default function Chat() {
   /**
    * Send a chat message with optional file attachments
    */
+  /** Process file uploads and return context string */
+  const processFiles = async (files: File[] | undefined): Promise<string> => {
+    if (!files || files.length === 0) return '';
+    const result = await processUploadedFiles(files);
+    for (const err of result.errors) {
+      showToast(err, 'error');
+    }
+    return result.context;
+  };
+
+  /** Process the fetch response based on status and auth state */
+  const processResponse = async (
+    response: Response,
+    fullMessage: string,
+    responseLanguage: string,
+    signal: AbortSignal,
+    onStream: (reader: ReadableStreamDefaultReader<Uint8Array>) => Promise<void>,
+    onJSON: (reader: ReadableStreamDefaultReader<Uint8Array>) => Promise<void>,
+  ) => {
+    if (response.status === 401 && isAuthenticated) {
+      console.log('Auth token expired, falling back to guest endpoint');
+      const guestResponse = await fetch('/api/v2/chat/guest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: fullMessage, language: responseLanguage }),
+        signal,
+      });
+      if (!guestResponse.ok) throw new Error(`HTTP error! status: ${guestResponse.status}`);
+      const reader = guestResponse.body?.getReader();
+      if (reader) await onJSON(reader);
+    } else if (response.ok) {
+      const reader = response.body?.getReader();
+      if (reader) {
+        await (isAuthenticated ? onStream(reader) : onJSON(reader));
+      }
+    } else {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+  };
+
   const handleSend = async (message: string, files?: File[], language?: string) => {
     if (!message.trim() && !files?.length) return;
 
     const responseLanguage = getResponseLanguage(language, selectedLanguage);
 
-    // Get or create conversation
     let convId = activeConversationId;
     if (!convId) {
       const conv = createConversation();
       convId = conv.id;
     }
 
-    // Process uploaded files
-    let fileContext = '';
-    if (files && files.length > 0) {
-      const result = await processUploadedFiles(files);
-      fileContext = result.context;
-      for (const err of result.errors) {
-        showToast(err, 'error');
-      }
-    }
-
+    const fileContext = await processFiles(files);
     const fullMessage = fileContext ? `${message}\n${fileContext}` : message;
     const history = buildConversationHistory(messages);
 
-    // Set thinking state FIRST to ensure UI shows loading
     setIsThinking(true);
     setStreamingMessage('');
-
-    // Add user message to store
-    const userMessage = createUserMessage(convId, message, files);
-    addMessage(userMessage);
+    addMessage(createUserMessage(convId, message, files));
 
     try {
       abortControllerRef.current = new AbortController();
 
-      const endpoint = getChatEndpoint(isAuthenticated);
-      const headers = buildChatHeaders(accessToken ?? undefined);
-      const body = buildChatRequestBody({
-        message: fullMessage,
-        conversationId: convId,
-        history,
-        language: responseLanguage,
-        isAuthenticated,
-      });
-
-      const response = await fetch(endpoint, {
+      const response = await fetch(getChatEndpoint(isAuthenticated), {
         method: 'POST',
-        headers,
-        body,
+        headers: buildChatHeaders(accessToken ?? undefined),
+        body: buildChatRequestBody({ message: fullMessage, conversationId: convId, history, language: responseLanguage, isAuthenticated }),
         signal: abortControllerRef.current.signal,
       });
 
       let fullResponse = '';
       let responseMeta: typeof lastResponseMeta = {};
+      const metaHandler = (meta: typeof lastResponseMeta) => { responseMeta = meta; setLastResponseMeta(meta); };
 
-      const handleStream = async (reader: ReadableStreamDefaultReader<Uint8Array>) => {
+      const onStream = async (reader: ReadableStreamDefaultReader<Uint8Array>) => {
         setIsThinking(false);
-        fullResponse = await parseSSEStream(
-          reader,
-          setStreamingMessage,
-          (meta) => {
-            responseMeta = meta;
-            setLastResponseMeta(meta);
-          }
-        );
+        fullResponse = await parseSSEStream(reader, setStreamingMessage, metaHandler);
+      };
+      const onJSON = async (reader: ReadableStreamDefaultReader<Uint8Array>) => {
+        setIsThinking(false);
+        fullResponse = await parseJSONResponse(reader, setStreamingMessage, metaHandler);
       };
 
-      const handleJSONResponse = async (reader: ReadableStreamDefaultReader<Uint8Array>) => {
-        setIsThinking(false);
-        fullResponse = await parseJSONResponse(
-          reader,
-          setStreamingMessage,
-          (meta) => {
-            responseMeta = meta;
-            setLastResponseMeta(meta);
-          }
-        );
-      };
-
-      // Handle auth failure with guest fallback
-      if (response.status === 401 && isAuthenticated) {
-        console.log('Auth token expired, falling back to guest endpoint');
-        const guestResponse = await fetch('/api/v2/chat/guest', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: fullMessage,
-            language: responseLanguage,
-          }),
-          signal: abortControllerRef.current.signal,
-        });
-        if (!guestResponse.ok) {
-          throw new Error(`HTTP error! status: ${guestResponse.status}`);
-        }
-        const reader = guestResponse.body?.getReader();
-        if (reader) await handleJSONResponse(reader);
-      } else if (response.ok) {
-        const reader = response.body?.getReader();
-        if (reader) {
-          if (isAuthenticated) {
-            await handleStream(reader);
-          } else {
-            await handleJSONResponse(reader);
-          }
-        }
-      } else {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
+      await processResponse(response, fullMessage, responseLanguage, abortControllerRef.current.signal, onStream, onJSON);
       setStreamingMessage('');
 
-      const assistantMessage = createAssistantMessage(
+      addMessage(createAssistantMessage(
         convId,
         fullResponse || 'I apologize, but I was unable to generate a response. Please try again.',
         !fullResponse,
-        {
-          citations: responseMeta.citations,
-          modelUsed: responseMeta.model,
-          latencyMs: responseMeta.latencyMs,
-          tokenCount: responseMeta.tokenCount,
-        }
-      );
-      addMessage(assistantMessage);
+        { citations: responseMeta.citations, modelUsed: responseMeta.model, latencyMs: responseMeta.latencyMs, tokenCount: responseMeta.tokenCount }
+      ));
 
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {

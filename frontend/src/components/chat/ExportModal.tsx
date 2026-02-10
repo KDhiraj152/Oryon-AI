@@ -3,6 +3,18 @@ import { X, Download, FileText, FileJson, File, Check, Loader2 } from 'lucide-re
 import { useThemeStore, Message } from '../../store';
 import { aiCore } from '../../api';
 
+function triggerFileDownload(content: string, filename: string, mimeType: string) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 interface ExportModalProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
@@ -79,21 +91,9 @@ export default function ExportModal({ isOpen, onClose, messages, conversationTit
         content = localExport(messages, selectedFormat, includeMetadata);
       }
 
-      // Create and download file
       const formatInfo = formatOptions.find((f) => f.id === selectedFormat)!;
-      const filename = `${conversationTitle || 'conversation'}-${new Date().toISOString().split('T')[0]}${formatInfo.extension}`;
-
-      const blob = new Blob([content], {
-        type: selectedFormat === 'json' ? 'application/json' : 'text/plain'
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      const filename = `${conversationTitle || 'conversation'}-${new Date().toISOString().split('T')[0]}${formatInfo.extension}`;\n      const mimeType = selectedFormat === 'json' ? 'application/json' : 'text/plain';
+      triggerFileDownload(content, filename, mimeType);
 
       setExportSuccess(true);
       setTimeout(() => {
@@ -114,7 +114,7 @@ export default function ExportModal({ isOpen, onClose, messages, conversationTit
         className="fixed inset-0 bg-black/50 z-50 backdrop-blur-sm animate-fadeIn"
         onClick={onClose}
         onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
-        role="presentation"
+        role="none"
       />
 
       {/* Modal */}
@@ -158,15 +158,18 @@ export default function ExportModal({ isOpen, onClose, messages, conversationTit
             <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-labelledby="export-format-label">
               {formatOptions.map((format) => {
                 const isSelected = selectedFormat === format.id;
-                const borderClass = isSelected
-                  ? (isDark ? 'border-white/20 bg-white/5' : 'border-gray-300 bg-gray-50')
-                  : (isDark ? 'border-white/[0.06] hover:border-white/10' : 'border-gray-100 hover:border-gray-200');
-                const iconClass = isSelected
-                  ? (isDark ? 'text-white' : 'text-gray-900')
-                  : (isDark ? 'text-white/40' : 'text-gray-400');
-                const textClass = isSelected
-                  ? (isDark ? 'text-white' : 'text-gray-900')
-                  : (isDark ? 'text-white/60' : 'text-gray-600');
+                let borderClass: string;
+                let iconClass: string;
+                let textClass: string;
+                if (isSelected) {
+                  borderClass = isDark ? 'border-white/20 bg-white/5' : 'border-gray-300 bg-gray-50';
+                  iconClass = isDark ? 'text-white' : 'text-gray-900';
+                  textClass = isDark ? 'text-white' : 'text-gray-900';
+                } else {
+                  borderClass = isDark ? 'border-white/[0.06] hover:border-white/10' : 'border-gray-100 hover:border-gray-200';
+                  iconClass = isDark ? 'text-white/40' : 'text-gray-400';
+                  textClass = isDark ? 'text-white/60' : 'text-gray-600';
+                }
                 return (
                   <button
                     key={format.id}
@@ -249,19 +252,11 @@ export default function ExportModal({ isOpen, onClose, messages, conversationTit
                 : 'bg-gray-900 text-white hover:bg-gray-800 disabled:bg-gray-400'
               }`}
           >
-            {isExporting ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : exportSuccess ? (
-              <>
-                <Check className="w-4 h-4" />
-                Exported!
-              </>
-            ) : (
-              <>
-                <Download className="w-4 h-4" />
-                Export
-              </>
-            )}
+            {(() => {
+              if (isExporting) return <Loader2 className="w-4 h-4 animate-spin" />;
+              if (exportSuccess) return (<><Check className="w-4 h-4" /> Exported!</>);
+              return (<><Download className="w-4 h-4" /> Export</>);
+            })()}
           </button>
         </div>
       </div>
@@ -300,7 +295,7 @@ function localExport(messages: Message[], format: ExportFormat, includeMetadata:
       if (m.citations && m.citations.length > 0) {
         md += `**Sources:**\n`;
         m.citations.forEach((c, i) => {
-          md += `${i + 1}. ${c.title}${c.url ? ` - [Link](${c.url})` : ''}\n`;
+          md += `${i + 1}. ${c.title}${c.url ? ' - [Link](' + c.url + ')' : ''}\n`;
         });
         md += '\n';
       }

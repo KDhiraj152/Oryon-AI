@@ -5,7 +5,7 @@ import os
 import secrets
 from enum import Enum
 from pathlib import Path
-from typing import List, Literal
+from typing import Any, List, Literal
 
 # Load .env file BEFORE any settings are read
 # This ensures environment variables are available when Settings() is instantiated
@@ -43,7 +43,7 @@ class Settings:
     DEBUG: bool = os.getenv("DEBUG", "true").lower() == "true"  # Enabled until stable
 
     # Deployment Configuration
-    DEPLOYMENT_TIER: DeploymentTier = os.getenv("DEPLOYMENT_TIER", "local")
+    DEPLOYMENT_TIER: DeploymentTier = os.getenv("DEPLOYMENT_TIER", "local")  # type: ignore[assignment]
 
     # =================================================================
     # DEVICE & COMPUTE
@@ -367,9 +367,9 @@ class Settings:
         """Get vLLM API base URL."""
         return f"http://{self.VLLM_HOST}:{self.VLLM_PORT}/v1"
 
-    def get_model_config(self, task: str) -> dict:
+    def get_model_config(self, task: str) -> dict[str, Any]:
         """Get model configuration for a specific task."""
-        configs = {
+        configs: dict[str, dict[str, Any]] = {
             "simplification": {
                 "model_id": self.SIMPLIFICATION_MODEL_ID,
                 "backend": self.SIMPLIFICATION_BACKEND,

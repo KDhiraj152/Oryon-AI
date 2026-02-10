@@ -64,6 +64,85 @@ const OmSymbol = ({
   </div>
 );
 
+interface VariantProps {
+  size: number;
+  className: string;
+  animated: boolean;
+  color: 'light' | 'dark';
+  isVisible: boolean;
+  textColor: string;
+  glowColor: string;
+  accentColor: string;
+}
+
+function HeroVariant({ size, className, animated, color, isVisible, textColor, glowColor, accentColor }: Readonly<VariantProps>) {
+  const borderColor = color === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+  const pulseAnim = animated ? 'pulse 4s ease-in-out infinite' : 'none';
+  return (
+    <div
+      className={`relative flex items-center justify-center ${className} ${isVisible ? 'opacity-100' : 'opacity-0'} transition-opacity duration-700`}
+      style={{ width: size, height: size }}
+    >
+      {animated && (
+        <div
+          className="absolute rounded-full"
+          style={{
+            width: size * 0.85,
+            height: size * 0.85,
+            border: `1px solid ${borderColor}`,
+            animation: 'spin 30s linear infinite',
+          }}
+        />
+      )}
+      <div
+        className="absolute rounded-full"
+        style={{
+          width: size * 0.6,
+          height: size * 0.6,
+          background: `radial-gradient(circle, ${accentColor} 0%, transparent 70%)`,
+          filter: 'blur(20px)',
+          animation: pulseAnim,
+        }}
+      />
+      <div
+        className={animated ? 'animate-breathe' : ''}
+        style={{ filter: `drop-shadow(0 0 20px ${glowColor}30)` }}
+      >
+        <OmSymbol size={size * 0.45} color={textColor} />
+      </div>
+    </div>
+  );
+}
+
+function NavVariant({ size, className, color, isVisible, textColor, glowColor }: Readonly<VariantProps>) {
+  const filterVal = color === 'dark' ? `drop-shadow(0 0 6px ${glowColor}20)` : 'none';
+  return (
+    <div className={`flex items-center gap-2.5 ${className} ${isVisible ? 'opacity-100' : 'opacity-0'} transition-opacity duration-500`}>
+      <div style={{ filter: filterVal }}>
+        <OmSymbol size={size} color={textColor} />
+      </div>
+      <span className="text-sm font-semibold tracking-tight" style={{ color: textColor }}>
+        shiksha setu
+      </span>
+    </div>
+  );
+}
+
+function FooterVariant({ size, className, color, isVisible }: Readonly<VariantProps>) {
+  const symbolColor = color === 'dark' ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.4)';
+  const dividerBg = color === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)';
+  const labelColor = color === 'dark' ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)';
+  return (
+    <div className={`flex items-center gap-3 ${className} ${isVisible ? 'opacity-100' : 'opacity-0'} transition-opacity duration-500`}>
+      <OmSymbol size={size} color={symbolColor} />
+      <div className="h-4 w-px" style={{ background: dividerBg }} />
+      <span className="text-xs tracking-widest uppercase font-medium" style={{ color: labelColor }}>
+        Shiksha Setu
+      </span>
+    </div>
+  );
+}
+
 export const OmLogo: React.FC<OmLogoProps> = ({
   size = 200,
   className = '',
@@ -85,90 +164,11 @@ export const OmLogo: React.FC<OmLogoProps> = ({
   const glowColor = '#6366f1';
   const accentColor = color === 'dark' ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.08)';
 
-  // === HERO VARIANT ===
-  if (variant === 'hero') {
-    return (
-      <div
-        className={`relative flex items-center justify-center ${className} ${isVisible ? 'opacity-100' : 'opacity-0'} transition-opacity duration-700`}
-        style={{ width: size, height: size }}
-      >
-        {/* Outer rotating ring */}
-        {animated && (
-          <div
-            className="absolute rounded-full"
-            style={{
-              width: size * 0.85,
-              height: size * 0.85,
-              border: `1px solid ${color === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'}`,
-              animation: 'spin 30s linear infinite',
-            }}
-          />
-        )}
+  const props: VariantProps = { size, className, animated, color, isVisible, textColor, glowColor, accentColor };
 
-        {/* Glowing backdrop */}
-        <div
-          className="absolute rounded-full"
-          style={{
-            width: size * 0.6,
-            height: size * 0.6,
-            background: `radial-gradient(circle, ${accentColor} 0%, transparent 70%)`,
-            filter: 'blur(20px)',
-            animation: animated ? 'pulse 4s ease-in-out infinite' : 'none',
-          }}
-        />
-
-        {/* The Om Symbol */}
-        <div
-          className={animated ? 'animate-breathe' : ''}
-          style={{
-            filter: `drop-shadow(0 0 20px ${glowColor}30)`,
-          }}
-        >
-          <OmSymbol size={size * 0.45} color={textColor} />
-        </div>
-      </div>
-    );
-  }
-
-  // === NAV VARIANT ===
-  if (variant === 'nav') {
-    return (
-      <div className={`flex items-center gap-2.5 ${className} ${isVisible ? 'opacity-100' : 'opacity-0'} transition-opacity duration-500`}>
-        <div
-          style={{
-            filter: color === 'dark' ? `drop-shadow(0 0 6px ${glowColor}20)` : 'none',
-          }}
-        >
-          <OmSymbol size={size} color={textColor} />
-        </div>
-        <span
-          className="text-sm font-semibold tracking-tight"
-          style={{ color: textColor }}
-        >
-          shiksha setu
-        </span>
-      </div>
-    );
-  }
-
-  // === FOOTER VARIANT ===
-  if (variant === 'footer') {
-    return (
-      <div className={`flex items-center gap-3 ${className} ${isVisible ? 'opacity-100' : 'opacity-0'} transition-opacity duration-500`}>
-        <OmSymbol size={size} color={color === 'dark' ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.4)'} />
-        <div
-          className="h-4 w-px"
-          style={{ background: color === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)' }}
-        />
-        <span
-          className="text-xs tracking-widest uppercase font-medium"
-          style={{ color: color === 'dark' ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)' }}
-        >
-          Shiksha Setu
-        </span>
-      </div>
-    );
-  }
+  if (variant === 'hero') return <HeroVariant {...props} />;
+  if (variant === 'nav') return <NavVariant {...props} />;
+  if (variant === 'footer') return <FooterVariant {...props} />;
 
   // === MINIMAL VARIANT ===
   return (

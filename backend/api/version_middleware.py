@@ -104,7 +104,7 @@ def get_version_headers(version: str = CURRENT_VERSION) -> dict[str, str]:
         if info.get("deprecated"):
             headers["X-API-Deprecated"] = "true"
             if info.get("sunset"):
-                headers["X-API-Sunset"] = info["sunset"]
+                headers["X-API-Sunset"] = str(info["sunset"])
             headers["X-API-Recommended-Version"] = CURRENT_VERSION
 
     return headers

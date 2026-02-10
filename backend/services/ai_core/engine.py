@@ -809,6 +809,107 @@ class AIEngine:
 
         return context_allocation
 
+    def _get_chunk_text(self, chunk) -> str:
+        """Extract text from a retrieval chunk, handling missing attributes."""
+        if hasattr(chunk, "text"):
+            return chunk.text
+        return str(chunk)
+
+    def _build_loop_source_reference(
+        self, index: int, chunk
+    ) -> SourceReference:
+        """Build a SourceReference from a retrieval-loop chunk with safe attribute access."""
+        source_id = chunk.chunk_id if hasattr(chunk, "chunk_id") else str(index)
+        title = (
+            chunk.metadata.get("title", "Document")
+            if hasattr(chunk, "metadata")
+            else "Document"
+        )
+        location = (
+            chunk.metadata.get("location")
+            if hasattr(chunk, "metadata")
+            else None
+        )
+        score = chunk.score if hasattr(chunk, "score") else 0.8
+        text = self._get_chunk_text(chunk)
+        quote = text[:200] if len(text) > 200 else text
+
+        return SourceReference(
+            source_id=source_id,
+            source_type="document",
+            title=title,
+            location=location,
+            confidence=score,
+            quote=quote,
+            is_inferred=score < 0.8,
+        )
+
+    async def _execute_retrieval_loop(
+        self, message: str, retrieval_loop
+    ) -> tuple[list, str, int, bool]:
+        """Execute the self-optimizing retrieval loop.
+
+        Returns: (sources, augmented_context, retrieval_iterations, rag_empty)
+        """
+        def search_fn(query: str, top_k: int = 5):
+            return self._rag_service.search(query, top_k=top_k, rerank=True)
+
+        loop_result = await retrieval_loop.retrieve_with_refinement(
+            query=message,
+            search_fn=search_fn,
+            min_quality=0.7,
+            max_iterations=3,
+        )
+
+        if not loop_result or not loop_result.chunks:
+            return [], "", 0, True
+
+        retrieval_iterations = loop_result.iterations
+        chunks = loop_result.chunks[:3]
+        sources = [
+            self._build_loop_source_reference(i, r)
+            for i, r in enumerate(chunks)
+        ]
+        augmented_context = "\n\n".join(
+            self._get_chunk_text(r) for r in chunks
+        )
+        logger.debug(
+            f"Retrieval loop completed in {retrieval_iterations} iterations"
+        )
+        return sources, augmented_context, retrieval_iterations, False
+
+    def _perform_standard_rag_search(
+        self, message: str
+    ) -> tuple[list, str, bool]:
+        """Perform standard RAG search as fallback.
+
+        Returns: (sources, augmented_context, rag_empty)
+        """
+        try:
+            rag_result = self._rag_service.search(message, top_k=5, rerank=True)
+        except Exception as e:
+            logger.warning(f"RAG search failed: {e}")
+            return [], "", True
+
+        if not rag_result:
+            logger.info(f"RAG returned no results for: {message[:50]}...")
+            return [], "", True
+
+        sources = [
+            SourceReference(
+                source_id=r.chunk_id,
+                source_type="document",
+                title=r.metadata.get("title", "Document"),
+                location=r.metadata.get("location"),
+                confidence=r.score,
+                quote=r.text[:200] if len(r.text) > 200 else r.text,
+                is_inferred=r.score < 0.8,
+            )
+            for r in rag_result[:3]
+        ]
+        augmented_context = "\n\n".join(r.text for r in rag_result[:3])
+        return sources, augmented_context, False
+
     async def _retrieve_rag_sources(
         self, message: str
     ) -> tuple[list, str, bool, int]:
@@ -825,82 +926,21 @@ class AIEngine:
 
         if retrieval_loop:
             try:
-                def search_fn(query: str, top_k: int = 5):
-                    return self._rag_service.search(query, top_k=top_k, rerank=True)
-
-                loop_result = await retrieval_loop.retrieve_with_refinement(
-                    query=message,
-                    search_fn=search_fn,
-                    min_quality=0.7,
-                    max_iterations=3,
+                sources, augmented_context, retrieval_iterations, rag_empty = (
+                    await self._execute_retrieval_loop(message, retrieval_loop)
                 )
-
-                if loop_result and loop_result.chunks:
-                    retrieval_iterations = loop_result.iterations
-                    sources = [
-                        SourceReference(
-                            source_id=r.chunk_id
-                            if hasattr(r, "chunk_id")
-                            else str(i),
-                            source_type="document",
-                            title=r.metadata.get("title", "Document")
-                            if hasattr(r, "metadata")
-                            else "Document",
-                            location=r.metadata.get("location")
-                            if hasattr(r, "metadata")
-                            else None,
-                            confidence=r.score if hasattr(r, "score") else 0.8,
-                            quote=r.text[:200]
-                            if hasattr(r, "text") and len(r.text) > 200
-                            else (r.text if hasattr(r, "text") else str(r)),
-                            is_inferred=(r.score if hasattr(r, "score") else 0.8)
-                            < 0.8,
-                        )
-                        for i, r in enumerate(loop_result.chunks[:3])
-                    ]
-                    augmented_context = "\n\n".join(
-                        [
-                            r.text if hasattr(r, "text") else str(r)
-                            for r in loop_result.chunks[:3]
-                        ]
-                    )
-                    logger.debug(
-                        f"Retrieval loop completed in {retrieval_iterations} iterations"
-                    )
-                else:
-                    rag_empty = True
             except Exception as e:
                 logger.warning(
                     f"Self-optimizing retrieval failed, falling back: {e}"
                 )
-                retrieval_loop = None  # Fall back to standard retrieval
+                retrieval_loop = None
 
         # Fallback to standard RAG if loop not available or failed
-        if not retrieval_loop or (not sources and not rag_empty):
-            try:
-                rag_result = self._rag_service.search(message, top_k=5, rerank=True)
-                if rag_result:
-                    sources = [
-                        SourceReference(
-                            source_id=r.chunk_id,
-                            source_type="document",
-                            title=r.metadata.get("title", "Document"),
-                            location=r.metadata.get("location"),
-                            confidence=r.score,
-                            quote=r.text[:200] if len(r.text) > 200 else r.text,
-                            is_inferred=r.score < 0.8,
-                        )
-                        for r in rag_result[:3]
-                    ]
-                    augmented_context = "\n\n".join(
-                        [r.text for r in rag_result[:3]]
-                    )
-                else:
-                    rag_empty = True
-                    logger.info(f"RAG returned no results for: {message[:50]}...")
-            except Exception as e:
-                logger.warning(f"RAG search failed: {e}")
-                rag_empty = True
+        needs_fallback = not retrieval_loop or (not sources and not rag_empty)
+        if needs_fallback:
+            sources, augmented_context, rag_empty = (
+                self._perform_standard_rag_search(message)
+            )
 
         return sources, augmented_context, rag_empty, retrieval_iterations
 
@@ -963,6 +1003,103 @@ class AIEngine:
 
         return confidence, uncertainty_count
 
+    def _get_model_routing(self, message: str, task_type, budget: ComputeBudget | None):
+        """Route to appropriate model, enforcing budget tier ceiling."""
+        max_latency = budget.max_latency_ms if budget else None
+        tier_ceiling = budget.model_tier_ceiling if budget else None
+        return self.router.route(
+            message, task_type,
+            max_latency_ms=max_latency,
+            model_tier_ceiling=tier_ceiling,
+        )
+
+    def _resolve_max_tokens(
+        self, config: GenerationConfig, budget: ComputeBudget | None, dynamic_max_tokens: int
+    ) -> None:
+        """Apply token ceiling: router estimate capped by budget. Mutates config in place."""
+        if budget:
+            config.max_tokens = min(budget.max_tokens, dynamic_max_tokens)
+        elif config.max_tokens < dynamic_max_tokens:
+            config.max_tokens = dynamic_max_tokens
+
+    def _determine_rag_usage(self, config: GenerationConfig, message: str, intent: Intent) -> bool:
+        """Decide whether RAG should be used for this request."""
+        if config.use_rag is not None:
+            return config.use_rag
+        return self._should_use_rag(message, intent)
+
+    def _augment_system_prompt_with_rag(
+        self,
+        system_prompt: str,
+        augmented_context: str,
+        rag_attempted: bool,
+        rag_empty: bool,
+        is_unrestricted: bool,
+    ) -> str:
+        """Modify system prompt based on RAG retrieval results."""
+        if augmented_context:
+            # We have verified sources - instruct model to use them
+            system_prompt += (
+                "\n\nVERIFIED REFERENCE DOCUMENTS PROVIDED:\n"
+                "You MUST base your answer primarily on the provided context below. "
+                "These are trusted sources. Cite specific information from them.\n"
+            )
+        elif rag_attempted and rag_empty and not is_unrestricted:
+            # RAG was tried but no documents found - make model more cautious
+            system_prompt += (
+                "\n\nIMPORTANT: No verified reference documents are available for this query.\n"
+                "You should:\n"
+                "1. Clearly state that you're providing general knowledge, not verified information\n"
+                "2. Be extra cautious with specific facts, dates, and numbers\n"
+                "3. Recommend the student verify important facts with their textbook or teacher\n"
+                "4. Focus on explaining concepts and reasoning rather than specific facts\n"
+            )
+        return system_prompt
+
+    def _collect_speculative_decoding_meta(self) -> dict | None:
+        """Collect speculative decoding statistics if available."""
+        spec_decoder = self._get_speculative_decoder()
+        if not spec_decoder:
+            return None
+        spec_stats = spec_decoder.get_stats()
+        if not spec_stats:
+            return None
+        return {
+            "used": spec_stats.total_generations > 0,
+            "acceptance_rate": spec_stats.acceptance_rate,
+            "speedup": spec_stats.avg_speedup,
+        }
+
+    def _build_generation_metadata(
+        self,
+        budget: ComputeBudget | None,
+        rag_attempted: bool,
+        sources: list,
+        retrieval_iterations: int,
+        context_allocation,
+        uncertainty_count: int,
+        safety_result,
+        spec_decoding_meta: dict | None,
+    ) -> dict:
+        """Build the metadata dict for a GenerationResult."""
+        compute_class = budget.compute_class.value if budget else "unclassified"
+        budget_max_tokens = budget.max_tokens if budget else None
+        alloc_tokens = context_allocation.total_tokens if context_allocation else None
+        safety_level = safety_result.overall_level.value if safety_result else "unknown"
+
+        return {
+            "compute_class": compute_class,
+            "compute_budget_max_tokens": budget_max_tokens,
+            "rag_attempted": rag_attempted,
+            "rag_found_sources": len(sources) > 0,
+            "retrieval_iterations": retrieval_iterations,
+            "context_allocation": alloc_tokens,
+            "uncertainty_detected": uncertainty_count > 0,
+            "safety_verified": safety_result is not None,
+            "safety_level": safety_level,
+            "speculative_decoding": spec_decoding_meta,
+        }
+
     async def _generate_response(
         self,
         message: str,
@@ -980,26 +1117,13 @@ class AIEngine:
 
         # Route to appropriate model — enforce budget tier ceiling
         task_type = self._intent_to_task_type(intent)
-        routing = self.router.route(
-            message,
-            task_type,
-            max_latency_ms=budget.max_latency_ms if budget else None,
-            model_tier_ceiling=budget.model_tier_ceiling if budget else None,
-        )
+        routing = self._get_model_routing(message, task_type, budget)
 
         # Compute token ceiling: router estimate capped by budget
-        dynamic_max_tokens = routing.estimated_max_tokens
-        if budget:
-            # Budget is a hard ceiling — over-computation is a failure
-            config.max_tokens = min(budget.max_tokens, dynamic_max_tokens)
-        elif config.max_tokens < dynamic_max_tokens:
-            config.max_tokens = dynamic_max_tokens
+        self._resolve_max_tokens(config, budget, routing.estimated_max_tokens)
 
-        # Check if RAG is needed - respect config.use_rag if explicitly set
-        if config.use_rag is not None:
-            use_rag = config.use_rag
-        else:
-            use_rag = self._should_use_rag(message, intent)
+        # Check if RAG is needed
+        use_rag = self._determine_rag_usage(config, message, intent)
 
         sources: list[dict[str, Any]] = []
         augmented_context = ""
@@ -1028,23 +1152,9 @@ class AIEngine:
         is_unrestricted = policy and policy.mode == PolicyMode.UNRESTRICTED
 
         # Modify system prompt based on RAG results
-        if augmented_context:
-            # We have verified sources - instruct model to use them
-            system_prompt += (
-                "\n\nVERIFIED REFERENCE DOCUMENTS PROVIDED:\n"
-                "You MUST base your answer primarily on the provided context below. "
-                "These are trusted sources. Cite specific information from them.\n"
-            )
-        elif rag_attempted and rag_empty and not is_unrestricted:
-            # RAG was tried but no documents found - make model more cautious (only in restricted mode)
-            system_prompt += (
-                "\n\nIMPORTANT: No verified reference documents are available for this query.\n"
-                "You should:\n"
-                "1. Clearly state that you're providing general knowledge, not verified information\n"
-                "2. Be extra cautious with specific facts, dates, and numbers\n"
-                "3. Recommend the student verify important facts with their textbook or teacher\n"
-                "4. Focus on explaining concepts and reasoning rather than specific facts\n"
-            )
+        system_prompt = self._augment_system_prompt_with_rag(
+            system_prompt, augmented_context, rag_attempted, rag_empty, is_unrestricted
+        )
 
         prompt = self._build_prompt(message, history, augmented_context, system_prompt)
 
@@ -1068,9 +1178,6 @@ class AIEngine:
 
             # 3-Pass Safety Pipeline Verification
             # Safety is never optional — even TRIVIAL queries run through it.
-            # The budget.run_safety flag is preserved for future use but
-            # currently always True (see quality audit: PII/toxicity can
-            # appear in any LLM response regardless of query complexity).
             rag_chunks = list(sources) if sources else []
             (
                 verified_response,
@@ -1089,19 +1196,13 @@ class AIEngine:
             latency_ms = (time.perf_counter() - start_time) * 1000
 
             # Get speculative decoding stats if available
-            spec_decoder = self._get_speculative_decoder()
-            spec_stats = spec_decoder.get_stats() if spec_decoder else None
+            spec_decoding_meta = self._collect_speculative_decoding_meta()
 
-            spec_decoding_meta = None
-            if spec_stats:
-                spec_decoding_meta = {
-                    "used": spec_stats.total_generations > 0,
-                    "acceptance_rate": spec_stats.acceptance_rate,
-                    "speedup": spec_stats.avg_speedup,
-                }
-
-            alloc_tokens = context_allocation.total_tokens if context_allocation else None
-            safety_level = safety_result.overall_level.value if safety_result else "unknown"
+            metadata = self._build_generation_metadata(
+                budget, rag_attempted, sources, retrieval_iterations,
+                context_allocation, uncertainty_count, safety_result,
+                spec_decoding_meta,
+            )
 
             result = GenerationResult(
                 content=response_text,
@@ -1111,18 +1212,7 @@ class AIEngine:
                 model_id=routing.model_id,
                 sources=sources,
                 confidence=confidence,
-                metadata={
-                    "compute_class": budget.compute_class.value if budget else "unclassified",
-                    "compute_budget_max_tokens": budget.max_tokens if budget else None,
-                    "rag_attempted": rag_attempted,
-                    "rag_found_sources": len(sources) > 0,
-                    "retrieval_iterations": retrieval_iterations,
-                    "context_allocation": alloc_tokens,
-                    "uncertainty_detected": uncertainty_count > 0,
-                    "safety_verified": safety_result is not None,
-                    "safety_level": safety_level,
-                    "speculative_decoding": spec_decoding_meta,
-                },
+                metadata=metadata,
             )
 
             # Record metrics for self-optimization

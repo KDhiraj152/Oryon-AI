@@ -116,58 +116,7 @@
   animation: fade-in 0.3s ease-out forwards;
 }
 
-/* Shimmer animation for skeleton loaders */
-@keyframes shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
-  }
-}
-
-.animate-shimmer {
-  background: linear-gradient(
-    90deg,
-    var(--bg-tertiary) 0%,
-    var(--bg-secondary) 50%,
-    var(--bg-tertiary) 100%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
-}
-
-/* Slide in animation for toasts */
-@keyframes slideIn {
-  0% {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-  100% {
-    transform: translateX(0);
-    opacity: 1;
-  }
-}
-
-.animate-slideIn {
-  animation: slideIn 0.3s var(--ease-out-expo) forwards;
-}
-
-/* Scale in animation for modals */
-@keyframes scaleIn {
-  0% {
-    transform: scale(0.95);
-    opacity: 0;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-.animate-scaleIn {
-  animation: scaleIn 0.2s var(--ease-out-expo) forwards;
-}
+/* Shimmer, slideIn, scaleIn animations defined in chat animations section below */
 
 /* Glassmorphism Utilities */
 .glass-panel {
@@ -320,13 +269,9 @@ input[type="radio"] {
   background-clip: padding-box;
 }
 
-/* Smooth input transitions */
+/* Smooth input transitions + caret color */
 input, textarea {
   transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
-}
-
-/* Custom caret color for better visibility */
-input, textarea {
   caret-color: var(--text-primary);
 }
 
@@ -470,27 +415,6 @@ input, textarea {
 
 .animate-message-appear {
   animation: messageAppear 0.3s ease-out forwards;
-}
-
-/* Shimmer effect for loading states */
-@keyframes shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
-  }
-}
-
-.animate-shimmer {
-  background: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.1) 50%,
-    rgba(255, 255, 255, 0) 100%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
 }
 
 /* Blinking cursor for streaming text */
@@ -1139,8 +1063,8 @@ li .katex {
 
 /* Error styling for invalid LaTeX */
 .katex-error {
-  color: #ef4444;
-  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+  background: rgba(220, 38, 38, 0.15);
   padding: 2px 6px;
   border-radius: 4px;
   font-family: 'JetBrains Mono', monospace;

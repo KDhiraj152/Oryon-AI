@@ -20,7 +20,7 @@ interface StatusBadgeProps {
   label?: string;
 }
 
-function StatusBadge({ status, label }: StatusBadgeProps) {
+function StatusBadge({ status, label }: Readonly<StatusBadgeProps>) {
   const config = {
     healthy: { icon: CheckCircle, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
     degraded: { icon: AlertCircle, color: 'text-yellow-500', bg: 'bg-yellow-500/10' },

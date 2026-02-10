@@ -29,6 +29,134 @@ const calculatePasswordStrength = (password: string): { score: number; label: st
   return { score, label: 'Very Strong', color: 'bg-emerald-500' };
 };
 
+/** Auth header with logo and title */
+function AuthHeader({ isLogin, isDark }: Readonly<{ isLogin: boolean; isDark: boolean }>) {
+  return (
+    <div className="text-center mb-12">
+      <div className="inline-flex items-center justify-center mb-8 transition-transform hover:scale-105 duration-500">
+        <OmLogo variant="minimal" size={42} animated={false} color={isDark ? 'dark' : 'light'} />
+      </div>
+      <h1
+        key={isLogin ? 'login' : 'signup'}
+        className={`text-3xl font-semibold tracking-tight mb-3 animate-in fade-in slide-in-from-bottom-2 duration-300 ${isDark ? 'text-white' : 'text-[#111]'}`}
+      >
+        {isLogin ? 'Welcome back' : 'Create account'}
+      </h1>
+      <p
+        key={`desc-${isLogin ? 'login' : 'signup'}`}
+        className={`text-[15px] animate-in fade-in slide-in-from-bottom-2 duration-300 ${isDark ? 'text-white/50' : 'text-black/50'}`}
+      >
+        {isLogin ? 'Enter your details to sign in.' : 'Start your learning journey today.'}
+      </p>
+    </div>
+  );
+}
+
+/** Password field with strength indicator */
+function PasswordField({ isDark, password, setPassword, showPassword, setShowPassword, isLogin, touched, onBlur, getInputClasses, getLabelClasses, getStrengthBarClass, passwordStrength, passwordValid }: Readonly<{
+  isDark: boolean;
+  password: string;
+  setPassword: (v: string) => void;
+  showPassword: boolean;
+  setShowPassword: (v: boolean) => void;
+  isLogin: boolean;
+  touched: boolean;
+  onBlur: () => void;
+  getInputClasses: (err: boolean) => string;
+  getLabelClasses: (err: boolean) => string;
+  getStrengthBarClass: (level: number) => string;
+  passwordStrength: { score: number };
+  passwordValid: boolean;
+}>) {
+  let autoCompleteValue: string;
+  if (showPassword) autoCompleteValue = 'off';
+  else if (isLogin) autoCompleteValue = 'current-password';
+  else autoCompleteValue = 'new-password';
+
+  return (
+    <div className="space-y-1.5">
+      <div className="relative group">
+        <input
+          id="password"
+          type={showPassword ? 'text' : 'password'}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          onBlur={onBlur}
+          placeholder="Password"
+          autoComplete={autoCompleteValue}
+          className={`pr-12 ${getInputClasses(touched && !passwordValid)}`}
+        />
+        <label htmlFor="password" className={getLabelClasses(touched && !passwordValid)}>
+          Password
+        </label>
+        <button
+          type="button"
+          onClick={() => setShowPassword(!showPassword)}
+          className={`absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-colors focus:outline-none
+            ${isDark ? 'text-white/30 hover:text-white/70' : 'text-black/30 hover:text-black/70'}`}
+        >
+          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+        </button>
+      </div>
+      <div className={`grid transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${!isLogin && password ? 'grid-rows-[1fr] opacity-100 pt-2' : 'grid-rows-[0fr] opacity-0 pt-0'}`}>
+        <div className="overflow-hidden">
+          <div className="flex gap-1">
+            {[1, 2, 3, 4, 5].map((level) => (
+              <div
+                key={level}
+                className={`h-1 flex-1 rounded-full transition-all duration-300 ${getStrengthBarClass(level)} ${passwordStrength.score >= level ? 'opacity-100' : 'opacity-30'}`}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Auth footer links */
+function AuthFooter({ isDark, isLogin, setIsLogin, setError, navigate }: Readonly<{
+  isDark: boolean;
+  isLogin: boolean;
+  setIsLogin: (v: boolean) => void;
+  setError: (v: string) => void;
+  navigate: (path: string) => void;
+}>) {
+  return (
+    <>
+      <p className={`text-center text-[14px] mt-8 ${isDark ? 'text-white/40' : 'text-black/40'}`}>
+        {isLogin ? "Don't have an account?" : 'Already have an account?'}{' '}
+        <button
+          onClick={() => { setIsLogin(!isLogin); setError(''); }}
+          className={`font-medium transition-colors ml-1
+            ${isDark ? 'text-white hover:text-white/80' : 'text-black hover:text-black/80'}`}
+        >
+          <span key={isLogin ? 'signup-link' : 'login-link'} className="animate-in fade-in duration-300 inline-block">
+            {isLogin ? 'Sign up' : 'Log in'}
+          </span>
+        </button>
+      </p>
+      <div className="text-center mt-12">
+        <button
+          onClick={() => navigate('/')}
+          className={`text-xs font-medium transition-colors inline-flex items-center gap-1.5 opacity-50 hover:opacity-100
+            ${isDark ? 'text-white' : 'text-black'}`}
+        >
+          ← Back to home
+        </button>
+      </div>
+      <p className={`text-center text-[11px] mt-8 leading-relaxed
+        ${isDark ? 'text-white/30' : 'text-black/30'}`}
+      >
+        By continuing, you agree to our{' '}
+        <button className="underline hover:no-underline">Terms of Service</button>
+        {' '}and{' '}
+        <button className="underline hover:no-underline">Privacy Policy</button>
+      </p>
+    </>
+  );
+}
+
 // ============================================
 // MINIMAL AUTH PAGE - ChatGPT/Gemini inspired
 // ============================================
@@ -115,10 +243,14 @@ export default function Auth() {
 
   const getLabelClasses = (hasError: boolean) => {
     const baseClasses = "absolute left-4 top-4 origin-[0] -translate-y-3 scale-75 transform text-[11px] font-semibold uppercase tracking-wider duration-200 pointer-events-none peer-placeholder-shown:translate-y-0 peer-placeholder-shown:scale-100 peer-placeholder-shown:font-medium peer-placeholder-shown:normal-case peer-placeholder-shown:tracking-normal peer-focus:-translate-y-3 peer-focus:scale-75 peer-focus:font-semibold peer-focus:uppercase peer-focus:tracking-wider";
-    const colorClasses = isDark
-      ? `text-white/50 peer-focus:text-white/80 ${hasError ? 'text-red-400' : ''}`
-      : `text-black/50 peer-focus:text-black/80 ${hasError ? 'text-red-500' : ''}`;
-
+    let colorClasses: string;
+    if (isDark) {
+      colorClasses = 'text-white/50 peer-focus:text-white/80';
+      if (hasError) colorClasses += ' text-red-400';
+    } else {
+      colorClasses = 'text-black/50 peer-focus:text-black/80';
+      if (hasError) colorClasses += ' text-red-500';
+    }
     return `${baseClasses} ${colorClasses}`;
   };
 
@@ -141,30 +273,13 @@ export default function Auth() {
 
       <div className="w-full max-w-[380px] animate-enter">
 
-        {/* Logo */}
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center justify-center mb-8 transition-transform hover:scale-105 duration-500">
-            <OmLogo variant="minimal" size={42} animated={false} color={isDark ? 'dark' : 'light'} />
-          </div>
-          <h1
-            key={isLogin ? 'login' : 'signup'}
-            className={`text-3xl font-semibold tracking-tight mb-3 animate-in fade-in slide-in-from-bottom-2 duration-300 ${isDark ? 'text-white' : 'text-[#111]'}`}
-          >
-            {isLogin ? 'Welcome back' : 'Create account'}
-          </h1>
-          <p
-            key={`desc-${isLogin ? 'login' : 'signup'}`}
-            className={`text-[15px] animate-in fade-in slide-in-from-bottom-2 duration-300 ${isDark ? 'text-white/50' : 'text-black/50'}`}
-          >
-            {isLogin ? 'Enter your details to sign in.' : 'Start your learning journey today.'}
-          </p>
-        </div>
+        <AuthHeader isLogin={isLogin} isDark={isDark} />
 
         {/* Form */}
         <form id="auth-form" onSubmit={handleSubmit} className="space-y-5" noValidate>
 
           {/* Name (signup only) */}
-          <div className={`grid transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${!isLogin ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+          <div className={`grid transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${isLogin ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100'}`}>
             <div className="overflow-hidden">
               <div className="pb-5">
                 <div className="relative group">
@@ -212,50 +327,21 @@ export default function Auth() {
             </div>
           </div>
 
-          {/* Password */}
-          <div className="space-y-1.5">
-            <div className="relative group">
-              <input
-                id="password"
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onBlur={() => handleBlur('password')}
-                placeholder="Password"
-                autoComplete={showPassword ? 'off' : (isLogin ? 'current-password' : 'new-password')}
-                className={`pr-12 ${getInputClasses(touched.password && !passwordValid)}`}
-              />
-              <label
-                htmlFor="password"
-                className={getLabelClasses(touched.password && !passwordValid)}
-              >
-                Password
-              </label>
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className={`absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-colors focus:outline-none
-                  ${isDark ? 'text-white/30 hover:text-white/70' : 'text-black/30 hover:text-black/70'}`}
-              >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-
-            {/* Password strength indicator (signup only) */}
-            <div className={`grid transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${!isLogin && password ? 'grid-rows-[1fr] opacity-100 pt-2' : 'grid-rows-[0fr] opacity-0 pt-0'}`}>
-              <div className="overflow-hidden">
-                <div className="flex gap-1">
-                  {[1, 2, 3, 4, 5].map((level) => (
-                    <div
-                      key={level}
-                      className={`h-1 flex-1 rounded-full transition-all duration-300 ${getStrengthBarClass(level)}`}
-                      style={{ opacity: passwordStrength.score >= level ? 1 : 0.3 }}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
+          <PasswordField
+            isDark={isDark}
+            password={password}
+            setPassword={setPassword}
+            showPassword={showPassword}
+            setShowPassword={setShowPassword}
+            isLogin={isLogin}
+            touched={touched.password}
+            onBlur={() => handleBlur('password')}
+            getInputClasses={getInputClasses}
+            getLabelClasses={getLabelClasses}
+            getStrengthBarClass={getStrengthBarClass}
+            passwordStrength={passwordStrength}
+            passwordValid={passwordValid}
+          />
 
           {/* Error */}
           {error && (
@@ -293,40 +379,7 @@ export default function Auth() {
           </button>
         </form>
 
-        {/* Toggle */}
-        <p className={`text-center text-[14px] mt-8 ${isDark ? 'text-white/40' : 'text-black/40'}`}>
-          {isLogin ? "Don't have an account?" : 'Already have an account?'}{' '}
-          <button
-            onClick={() => { setIsLogin(!isLogin); setError(''); }}
-            className={`font-medium transition-colors ml-1
-              ${isDark ? 'text-white hover:text-white/80' : 'text-black hover:text-black/80'}`}
-          >
-            <span key={isLogin ? 'signup-link' : 'login-link'} className="animate-in fade-in duration-300 inline-block">
-              {isLogin ? 'Sign up' : 'Log in'}
-            </span>
-          </button>
-        </p>
-
-        {/* Back */}
-        <div className="text-center mt-12">
-          <button
-            onClick={() => navigate('/')}
-            className={`text-xs font-medium transition-colors inline-flex items-center gap-1.5 opacity-50 hover:opacity-100
-              ${isDark ? 'text-white' : 'text-black'}`}
-          >
-            ← Back to home
-          </button>
-        </div>
-
-        {/* Terms */}
-        <p className={`text-center text-[11px] mt-8 leading-relaxed
-          ${isDark ? 'text-white/30' : 'text-black/30'}`}
-        >
-          By continuing, you agree to our{' '}
-          <button className="underline hover:no-underline">Terms of Service</button>
-          {' '}and{' '}
-          <button className="underline hover:no-underline">Privacy Policy</button>
-        </p>
+        <AuthFooter isDark={isDark} isLogin={isLogin} setIsLogin={setIsLogin} setError={setError} navigate={navigate} />
       </div>
     </div>
   );

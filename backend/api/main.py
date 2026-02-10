@@ -28,8 +28,9 @@ FIXES APPLIED:
 - C4: Proper async sleep in startup tasks
 """
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
+from typing import Any
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -69,6 +70,67 @@ logger = setup_logging()
 # FIX M6: Use lifespan instead of deprecated @app.on_event handlers
 
 
+async def _shutdown_cleanup() -> None:
+    """Shutdown cleanup helper — extracted to reduce cognitive complexity."""
+    logger.info(f"Shutting down {settings.APP_NAME}")
+
+    _cancel_warmup_task()
+
+    try:
+        await _stop_gpu_scheduler()
+    except Exception as e:
+        logger.warning(f"GPU Scheduler shutdown failed: {e}")
+
+    _cleanup_memory_coordinator()
+    _log_cache_stats()
+
+    logger.info("V2 API shutdown complete")
+
+
+def _safe_init(label: str, initializer: Callable[[], Any], level: str = "warning") -> None:
+    """Run an initializer with try/except and log on failure."""
+    try:
+        initializer()
+    except Exception as e:
+        msg = f"{label} failed: {e}"
+        if level == "error":
+            logger.error(msg)
+        else:
+            logger.warning(msg)
+
+
+def _init_tracing() -> None:
+    from ..core.tracing import init_tracing
+    init_tracing()
+    logger.info("OpenTelemetry tracing initialized")
+
+
+def _init_circuit_breakers() -> None:
+    from ..core.circuit_breaker import get_database_breaker, get_ml_breaker, get_redis_breaker
+    get_database_breaker()
+    get_redis_breaker()
+    get_ml_breaker()
+    logger.info("Circuit breakers initialized (database, redis, ml_model)")
+
+
+def _init_sentry_tracking() -> None:
+    init_sentry()
+    logger.info("Sentry error tracking initialized")
+
+
+def _init_database() -> None:
+    from ..database import init_db
+    init_db()
+    logger.info("Database initialized successfully")
+
+
+def _init_gpu_scheduler(app: FastAPI) -> None:
+    from ..core.optimized.gpu_pipeline import get_gpu_scheduler
+    scheduler = get_gpu_scheduler()
+    app.state.gpu_scheduler = scheduler
+    logger.info("GPU Pipeline Scheduler initialized (will start with warmup)")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
@@ -86,78 +148,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info(f"Environment: {settings.ENVIRONMENT}")
     logger.info(f"Debug mode: {settings.DEBUG}")
 
-    # Print Policy Engine startup banner
     if _POLICY_AVAILABLE:
-        try:
-            print_startup_banner()
-        except Exception as e:
-            logger.warning(f"Policy banner failed: {e}")
+        _safe_init("Policy banner", print_startup_banner)
 
-    # Initialize Memory Coordinator FIRST
-    try:
-        _init_memory_coordinator()
-    except Exception as e:
-        logger.warning(f"Memory coordinator initialization failed: {e}")
-
-    # Initialize OpenTelemetry tracing
-    try:
-        from ..core.tracing import init_tracing
-
-        init_tracing()
-        logger.info("OpenTelemetry tracing initialized")
-    except Exception as e:
-        logger.warning(
-            f"Tracing initialization failed (continuing without tracing): {e}"
-        )
-
-    # Initialize circuit breakers
-    try:
-        from ..core.circuit_breaker import (
-            get_database_breaker,
-            get_ml_breaker,
-            get_redis_breaker,
-        )
-
-        get_database_breaker()
-        get_redis_breaker()
-        get_ml_breaker()
-        logger.info("Circuit breakers initialized (database, redis, ml_model)")
-    except Exception as e:
-        logger.warning(f"Circuit breaker initialization failed: {e}")
-
-    # Initialize Sentry and validate JWT
-    try:
-        init_sentry()
-        logger.info("Sentry error tracking initialized")
-    except Exception as e:
-        logger.warning(f"Sentry initialization failed: {e}")
-
+    _safe_init("Memory coordinator", _init_memory_coordinator)
+    _safe_init("Tracing", _init_tracing)
+    _safe_init("Circuit breakers", _init_circuit_breakers)
+    _safe_init("Sentry", _init_sentry_tracking)
     _validate_jwt_secret()
-
-    # Initialize database
-    from ..database import init_db
-
-    try:
-        init_db()
-        logger.info("Database initialized successfully")
-    except Exception as e:
-        logger.error(f"Database initialization failed: {e}")
-
-    # Initialize device router and cache
-    try:
-        _init_device_router_and_cache()
-    except Exception as e:
-        logger.warning(f"Optimized components initialization failed: {e}")
-
-    # Initialize GPU Pipeline Scheduler
-    try:
-        from ..core.optimized.gpu_pipeline import get_gpu_scheduler
-
-        scheduler = get_gpu_scheduler()
-        app.state.gpu_scheduler = scheduler
-        logger.info("GPU Pipeline Scheduler initialized (will start with warmup)")
-    except Exception as e:
-        logger.warning(f"GPU Scheduler initialization failed: {e}")
+    _safe_init("Database", _init_database, level="error")
+    _safe_init("Optimized components", _init_device_router_and_cache)
+    _safe_init("GPU Scheduler", lambda: _init_gpu_scheduler(app))
 
     # Start memory coordinator background monitor
     if hasattr(app.state, "memory_coordinator"):
@@ -198,19 +199,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     yield  # Application runs here
 
     # ==================== SHUTDOWN ====================
-    logger.info(f"Shutting down {settings.APP_NAME}")
-
-    _cancel_warmup_task()
-
-    try:
-        await _stop_gpu_scheduler()
-    except Exception as e:
-        logger.warning(f"GPU Scheduler shutdown failed: {e}")
-
-    _cleanup_memory_coordinator()
-    _log_cache_stats()
-
-    logger.info("V2 API shutdown complete")
+    await _shutdown_cleanup()
 
 
 # Initialize FastAPI app with lifespan
@@ -260,7 +249,7 @@ app.add_middleware(
 logger.info("Optimized middleware configured (GZip + CORS + UnifiedMiddleware)")
 
 # ==================== EXCEPTION HANDLERS ====================
-app.add_exception_handler(ShikshaSetuException, exception_handler)
+app.add_exception_handler(ShikshaSetuException, exception_handler)  # type: ignore[arg-type]
 app.add_exception_handler(Exception, generic_exception_handler)
 
 # Register validation error handlers for consistent error format

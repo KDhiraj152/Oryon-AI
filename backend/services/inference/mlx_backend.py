@@ -94,8 +94,8 @@ class MLXInferenceEngine:
         self.model_id = model_id or self.DEFAULT_MODEL_ID
         self.cache_dir = cache_dir or str(Path.home() / ".cache" / "mlx_models")
 
-        self._model = None
-        self._tokenizer = None
+        self._model: Any = None
+        self._tokenizer: Any = None
         self._lock = threading.Lock()
         self._is_loaded = False
         self._load_time: float | None = None
@@ -195,7 +195,7 @@ class MLXInferenceEngine:
                 model_path = self._get_model_path()
 
                 # Load model and tokenizer with lazy evaluation
-                self._model, self._tokenizer = load(
+                self._model, self._tokenizer = load(  # type: ignore[misc]
                     model_path,
                     tokenizer_config={"trust_remote_code": True},
                 )
@@ -410,11 +410,12 @@ class MLXInferenceEngine:
         try:
             # Use tokenizer's chat template
             if hasattr(self._tokenizer, "apply_chat_template"):
-                return self._tokenizer.apply_chat_template(
+                result: str = self._tokenizer.apply_chat_template(
                     messages,
                     tokenize=False,
                     add_generation_prompt=True,
                 )
+                return result
         except Exception as e:
             logger.warning(f"[MLX] Chat template error: {e}")
 
@@ -510,6 +511,7 @@ async def generate_batch(
     Returns:
         List of generated texts in same order as prompts
     """
+    _ = batch_size  # Unused — MLX is serial
     engine = get_mlx_engine(auto_load=True)
     config = config or MLXGenerationConfig()
 

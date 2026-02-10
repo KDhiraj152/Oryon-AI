@@ -133,10 +133,10 @@ For code: Use proper code blocks with language tags"""
         self._memory_pool = get_memory_pool()
 
         # Backends (lazy loaded)
-        self._mlx_engine = None
-        self._mps_engine = None
-        self._coreml_embeddings = None
-        self._hf_embeddings = None
+        self._mlx_engine: Any = None
+        self._mps_engine: Any = None
+        self._coreml_embeddings: Any = None
+        self._hf_embeddings: Any = None
 
         # Lock for thread safety
         self._lock = threading.Lock()
@@ -318,7 +318,7 @@ For code: Use proper code blocks with language tags"""
                     repetition_penalty=config.repetition_penalty,
                 )
 
-                response = await self._mlx_engine.generate(
+                response: str = await self._mlx_engine.generate(
                     prompt,
                     config=mlx_config,
                     system_prompt=config.system_prompt or self.DEFAULT_SYSTEM_PROMPT,
@@ -499,7 +499,8 @@ For code: Use proper code blocks with language tags"""
         routing = self.device_router.route(TaskType.EMBEDDING)
 
         if routing.backend == ComputeBackend.COREML and self._coreml_embeddings:
-            return await self._coreml_embeddings.embed(texts_list)
+            result: np.ndarray = await self._coreml_embeddings.embed(texts_list)
+            return result
 
         if self._hf_embeddings:
             return await self._embed_huggingface(texts_list)

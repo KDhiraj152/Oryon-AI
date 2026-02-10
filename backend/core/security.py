@@ -16,12 +16,12 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against its hash."""
-    return pwd_context.verify(plain_password, hashed_password)
+    return bool(pwd_context.verify(plain_password, hashed_password))
 
 
 def get_password_hash(password: str) -> str:
     """Generate password hash."""
-    return pwd_context.hash(password)
+    return str(pwd_context.hash(password))
 
 
 def validate_password_strength(password: str) -> tuple[bool, str | None]:
@@ -78,7 +78,7 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
     encoded_jwt = jwt.encode(
         to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM
     )
-    return encoded_jwt
+    return str(encoded_jwt)
 
 
 def create_refresh_token(data: dict) -> str:
@@ -97,7 +97,7 @@ def create_refresh_token(data: dict) -> str:
     encoded_jwt = jwt.encode(
         to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM
     )
-    return encoded_jwt
+    return str(encoded_jwt)
 
 
 def decode_token(token: str) -> dict:
@@ -117,7 +117,7 @@ def decode_token(token: str) -> dict:
         payload = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
         )
-        return payload
+        return dict(payload)
     except JWTError as e:
         raise AuthenticationError(f"Invalid token: {e!s}")
 

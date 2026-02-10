@@ -83,7 +83,7 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
         set_request_id(request_id)
 
         # Process request
-        response = await call_next(request)
+        response: Response = await call_next(request)
 
         # Add request ID to response headers
         response.headers["X-Request-ID"] = request_id
@@ -103,7 +103,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     __slots__ = ("app",)
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        response = await call_next(request)
+        response: Response = await call_next(request)
 
         # OPTIMIZATION: Direct tuple iteration is faster than dict.update()
         headers = response.headers
@@ -137,7 +137,7 @@ class RequestTimingMiddleware(BaseHTTPMiddleware):
         start_time = time.perf_counter()
 
         # Process request
-        response = await call_next(request)
+        response: Response = await call_next(request)
 
         # Calculate processing time with perf_counter for accuracy
         process_time = time.perf_counter() - start_time
@@ -173,7 +173,8 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 
         # OPTIMIZATION: Skip logging for high-frequency endpoints (O(1) lookup)
         if path in _SKIP_LOGGING_PATHS:
-            return await call_next(request)
+            result: Response = await call_next(request)
+            return result
 
         # Get request ID from request state (set by RequestIDMiddleware)
         request_id = getattr(request.state, "request_id", None)
@@ -190,7 +191,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         )
 
         # Process request
-        response = await call_next(request)
+        response: Response = await call_next(request)
 
         # OPTIMIZATION: Only log responses for non-2xx or errors
         status = response.status_code
@@ -239,7 +240,8 @@ class AgeConsentMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         if not self._enabled:
-            return await call_next(request)
+            skip_result: Response = await call_next(request)
+            return skip_result
 
         # OPTIMIZATION: Direct get with lowercase comparison
         age_consent = request.headers.get("x-age-consent", "").lower()
@@ -250,7 +252,8 @@ class AgeConsentMiddleware(BaseHTTPMiddleware):
         # We don't block here - routes can check request.state.age_consent
         # if they need to handle mature content specifically
 
-        return await call_next(request)
+        consent_result: Response = await call_next(request)
+        return consent_result
 
 
 def exception_handler(request: Request, exc: ShikshaSetuException) -> JSONResponse:

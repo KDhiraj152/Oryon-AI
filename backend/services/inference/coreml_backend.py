@@ -79,9 +79,9 @@ class CoreMLEmbeddingEngine:
         self.cache_dir = Path(cache_dir or Path.home() / ".cache" / "coreml_models")
         self.use_ane = use_ane
 
-        self._model = None
-        self._tokenizer = None
-        self._coreml_model = None
+        self._model: Any = None
+        self._tokenizer: Any = None
+        self._coreml_model: Any = None
         self._lock = threading.Lock()
         self._is_loaded = False
 
@@ -103,17 +103,17 @@ class CoreMLEmbeddingEngine:
     @property
     def dimension(self) -> int:
         """Get embedding dimension."""
-        return self._config["dimension"]
+        return int(self._config["dimension"])
 
     @property
     def max_length(self) -> int:
         """Get max sequence length."""
-        return self._config["max_length"]
+        return int(self._config["max_length"])
 
     def _get_coreml_path(self) -> Path:
         """Get path to CoreML model."""
         model_hash = hashlib.md5(
-            self._config["hf_id"].encode(), usedforsecurity=False
+            str(self._config["hf_id"]).encode(), usedforsecurity=False
         ).hexdigest()[:8]
         return self.cache_dir / f"{self.model_id}_{model_hash}.mlpackage"
 

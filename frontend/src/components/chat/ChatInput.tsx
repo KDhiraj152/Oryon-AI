@@ -286,7 +286,6 @@ const ChatInput = memo(function ChatInput({
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        role="presentation"
       >
         {/* Drag Overlay */}
         {isDragOver && (

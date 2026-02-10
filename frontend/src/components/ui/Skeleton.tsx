@@ -19,11 +19,12 @@ export const Skeleton = memo(function Skeleton({
   animation = 'pulse',
 }: SkeletonProps) {
   const baseClasses = 'bg-[var(--bg-tertiary)]';
-  const animationClasses = animation === 'pulse'
-    ? 'animate-pulse'
-    : animation === 'wave'
-      ? 'animate-shimmer'
-      : '';
+  let animationClasses = '';
+  if (animation === 'pulse') {
+    animationClasses = 'animate-pulse';
+  } else if (animation === 'wave') {
+    animationClasses = 'animate-shimmer';
+  }
 
   const variantClasses = {
     text: 'rounded-md',
@@ -81,7 +82,7 @@ export const ConversationListSkeleton = memo(function ConversationListSkeleton({
   return (
     <div className="space-y-2 p-2">
       {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="flex items-center gap-3 p-3 rounded-xl">
+        <div key={`conv-skeleton-${i}`} className="flex items-center gap-3 p-3 rounded-xl">
           <Skeleton variant="circular" width={24} height={24} />
           <div className="flex-1 space-y-2">
             <Skeleton variant="text" width="70%" height={14} />
@@ -135,11 +136,11 @@ export const SettingsSkeleton = memo(function SettingsSkeleton() {
   return (
     <div className="space-y-8 p-6">
       {Array.from({ length: 3 }).map((_, i) => (
-        <div key={i} className="space-y-4">
+        <div key={`settings-section-${i}`} className="space-y-4">
           <Skeleton variant="text" width={120} height={20} />
           <div className="space-y-3">
             {Array.from({ length: 4 }).map((_, j) => (
-              <div key={j} className="flex items-center justify-between p-4 rounded-xl border border-[var(--border-color)]">
+              <div key={`settings-row-${i}-${j}`} className="flex items-center justify-between p-4 rounded-xl border border-[var(--border-color)]">
                 <div className="flex items-center gap-3">
                   <Skeleton variant="circular" width={40} height={40} />
                   <div className="space-y-1">
@@ -168,7 +169,7 @@ export const StatsSkeleton = memo(function StatsSkeleton({
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
       {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="p-4 rounded-xl border border-[var(--border-color)] text-center">
+        <div key={`stat-skeleton-${i}`} className="p-4 rounded-xl border border-[var(--border-color)] text-center">
           <Skeleton variant="text" width={60} height={12} className="mx-auto mb-2" />
           <Skeleton variant="text" width={80} height={32} className="mx-auto" />
         </div>
@@ -198,7 +199,7 @@ export const PageSkeleton = memo(function PageSkeleton() {
           <Skeleton variant="text" width="60%" height={32} />
           <div className="space-y-4">
             {Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton key={i} variant="text" width={`${90 - i * 10}%`} height={16} />
+              <Skeleton key={`page-line-${i}`} variant="text" width={`${90 - i * 10}%`} height={16} />
             ))}
           </div>
         </div>

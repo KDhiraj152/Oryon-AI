@@ -178,7 +178,7 @@ class QueryClassifier:
                 self.INTENT_STRATEGIES[QueryIntent.CONVERSATIONAL],
             )
 
-        best_intent = max(scores, key=scores.get)
+        best_intent = max(scores, key=lambda k: scores[k])
         confidence = min(1.0, scores[best_intent] / 3.0)  # Max 3 matches = 100%
 
         return (best_intent, confidence, self.INTENT_STRATEGIES.get(best_intent, {}))
@@ -234,6 +234,42 @@ class SelfOptimizingRetrievalLoop:
         self._attempts: deque = deque(maxlen=100)
         self._lock = threading.Lock()
 
+    async def _execute_retrieval(
+        self, query: str, top_k: int,
+    ) -> list[Any]:
+        """Execute retrieval using sync or async retriever."""
+        if not self.retriever:
+            return []
+        if asyncio.iscoroutinefunction(self.retriever):
+            result: list[Any] = await self.retriever(query, top_k=top_k)
+            return result
+        result = list(self.retriever(query, top_k=top_k))
+        return result
+
+    async def _apply_reranking(
+        self, query: str, results: list[Any], top_k: int,
+    ) -> list[Any]:
+        """Apply reranking using sync or async reranker."""
+        if not self.reranker or not results:
+            return results
+        if asyncio.iscoroutinefunction(self.reranker):
+            reranked: list[Any] = await self.reranker(query, results, top_k=top_k)
+            return reranked
+        reranked = list(self.reranker(query, results, top_k=top_k))
+        return reranked
+
+    @staticmethod
+    def _deduplicate_results(
+        results: list[Any], all_results: list[Any], seen_ids: set[str],
+        get_id: Callable[..., str],
+    ) -> None:
+        """Deduplicate and accumulate results in-place."""
+        for r in results:
+            r_id = get_id(r)
+            if r_id not in seen_ids:
+                all_results.append(r)
+                seen_ids.add(r_id)
+
     async def retrieve_with_optimization(
         self,
         query: str,
@@ -253,13 +289,14 @@ class SelfOptimizingRetrievalLoop:
         """
         max_iter = max_iterations or self.MAX_ITERATIONS
         attempts = []
-        all_results = []
-        seen_ids = set()
+        all_results: list[Any] = []
+        seen_ids: set[str] = set()
 
         # Classify query intent
         intent, _confidence, strategy = self.classifier.classify(query)
 
         current_query = query
+        retrieval_top_k = strategy.get("retrieval_top_k", 20)
         for iteration in range(max_iter):
             attempt = RetrievalAttempt(
                 query=query,
@@ -269,20 +306,7 @@ class SelfOptimizingRetrievalLoop:
             )
 
             start = time.perf_counter()
-
-            # Retrieve
-            if self.retriever:
-                if asyncio.iscoroutinefunction(self.retriever):
-                    results = await self.retriever(
-                        current_query, top_k=strategy.get("retrieval_top_k", 20)
-                    )
-                else:
-                    results = self.retriever(
-                        current_query, top_k=strategy.get("retrieval_top_k", 20)
-                    )
-            else:
-                results = []
-
+            results = await self._execute_retrieval(current_query, retrieval_top_k)
             attempt.latency_ms = (time.perf_counter() - start) * 1000
             attempt.results_count = len(results)
 
@@ -291,22 +315,12 @@ class SelfOptimizingRetrievalLoop:
                 attempt.relevance_score = self._estimate_relevance(query, results)
 
             attempts.append(attempt)
-
-            # Deduplicate and accumulate results
-            for r in results:
-                r_id = self._get_result_id(r)
-                if r_id not in seen_ids:
-                    all_results.append(r)
-                    seen_ids.add(r_id)
+            self._deduplicate_results(results, all_results, seen_ids, self._get_result_id)
 
             # Exit when we have both sufficient coverage AND quality.
-            # The 0.85 early-exit (regardless of count) was removed because
-            # exiting before min_results undermines RAG recall — comparative/
-            # analytical queries need breadth, not just one excellent chunk.
-            if (
-                len(all_results) >= min_results
-                and attempt.relevance_score >= self.MIN_RELEVANCE_THRESHOLD
-            ):
+            has_enough = len(all_results) >= min_results
+            has_quality = attempt.relevance_score >= self.MIN_RELEVANCE_THRESHOLD
+            if has_enough and has_quality:
                 break
 
             # Reformulate query for next iteration
@@ -314,12 +328,8 @@ class SelfOptimizingRetrievalLoop:
                 current_query = self._reformulate_query(query, iteration, results)
 
         # Apply reranking if available
-        if self.reranker and all_results:
-            rerank_k = strategy.get("rerank_top_k", 5)
-            if asyncio.iscoroutinefunction(self.reranker):
-                all_results = await self.reranker(query, all_results, top_k=rerank_k)
-            else:
-                all_results = self.reranker(query, all_results, top_k=rerank_k)
+        rerank_k = strategy.get("rerank_top_k", 5)
+        all_results = await self._apply_reranking(query, all_results, rerank_k)
 
         # Record attempts for learning
         with self._lock:
@@ -345,7 +355,7 @@ class SelfOptimizingRetrievalLoop:
         return sum(scores) / len(scores) if scores else 0.0
 
     def _reformulate_query(
-        self, original: str, iteration: int, prev_results: list[Any]
+        self, original: str, iteration: int, _prev_results: list[Any]
     ) -> str:
         """Reformulate query for next iteration."""
         template = self.REFORMULATION_TEMPLATES[
@@ -356,7 +366,7 @@ class SelfOptimizingRetrievalLoop:
     def _get_result_id(self, result: Any) -> str:
         """Get unique ID for a result."""
         if isinstance(result, dict):
-            return result.get("id", result.get("chunk_id", str(hash(str(result)))))
+            return str(result.get("id", result.get("chunk_id", str(hash(str(result))))))
         return str(hash(str(result)))
 
     def get_learning_stats(self) -> dict[str, Any]:
@@ -840,7 +850,7 @@ class SelfOptimizer:
     def set_target_latency(self, component: str, target_ms: float) -> None:
         """Update target latency for a component."""
         if component in self.TARGET_LATENCIES:
-            self.TARGET_LATENCIES[component] = target_ms
+            self.TARGET_LATENCIES[component] = int(target_ms)
             logger.info(f"Updated target latency for {component}: {target_ms}ms")
 
 
@@ -913,11 +923,12 @@ class FeedbackLearner:
             good_params = []
 
             for feedback in self._feedback:
-                if feedback.rating >= 4:  # Good feedback
-                    if feedback.query_hash in self._query_params:
-                        query_info = self._query_params[feedback.query_hash]
-                        if query_info.get("intent") == intent:
-                            good_params.append(query_info["params"])
+                is_good = feedback.rating >= 4
+                has_params = feedback.query_hash in self._query_params
+                if is_good and has_params:
+                    query_info = self._query_params[feedback.query_hash]
+                    if query_info.get("intent") == intent:
+                        good_params.append(query_info["params"])
 
             if not good_params:
                 return None

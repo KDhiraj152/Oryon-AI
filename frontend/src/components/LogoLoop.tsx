@@ -133,9 +133,8 @@ const useAnimationLoop = (
     if (!track) return;
 
     const prefersReduced =
-      typeof globalThis.window !== 'undefined' &&
-      globalThis.matchMedia &&
-      globalThis.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      globalThis.window !== undefined &&
+      globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
     const seqSize = isVertical ? seqHeight : seqWidth;
 
@@ -329,7 +328,7 @@ export const LogoLoop = React.memo<LogoLoopProps>(
               scaleOnHover &&
                 'transition-transform duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] group-hover/item:scale-120'
             )}
-            aria-hidden={(!!(item as any).href && !(item as any).ariaLabel) || undefined}
+            aria-hidden={(!!(item as any).href && !(item as any).ariaLabel) ? "true" : undefined}
           >
             {(item as any).node}
           </span>
@@ -401,7 +400,7 @@ export const LogoLoop = React.memo<LogoLoopProps>(
           <ul
             className={cx('flex items-center', isVertical && 'flex-col')}
             key={`copy-${copyIndex}`}
-            aria-hidden={copyIndex > 0 || undefined}
+            aria-hidden={copyIndex > 0 ? "true" : undefined}
             ref={copyIndex === 0 ? seqRef : undefined}
           >
             {logos.map((item, itemIndex) => renderLogoItem(item, `${copyIndex}-${itemIndex}`))}
@@ -412,9 +411,12 @@ export const LogoLoop = React.memo<LogoLoopProps>(
 
     const containerStyle = useMemo(
       (): React.CSSProperties => {
-        const computedWidth = isVertical
-          ? (toCssLength(width) === '100%' ? undefined : toCssLength(width))
-          : (toCssLength(width) ?? '100%');
+        let computedWidth: string | undefined;
+        if (isVertical) {
+          computedWidth = toCssLength(width) === '100%' ? undefined : toCssLength(width);
+        } else {
+          computedWidth = toCssLength(width) ?? '100%';
+        }
         return {
           width: computedWidth,
           ...cssVariables,
@@ -479,6 +481,7 @@ export const LogoLoop = React.memo<LogoLoopProps>(
           ref={trackRef}
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
+          role="none"
         >
           {logoLists}
         </div>

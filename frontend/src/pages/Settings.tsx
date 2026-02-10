@@ -69,6 +69,12 @@ function getFocusStyle(isDark: boolean): string {
   return FOCUS_STYLES[isDark ? 'dark' : 'light'];
 }
 
+/** Get toggle button style based on selection and theme */
+function getToggleStyle(isDark: boolean, isSelected: boolean): string {
+  if (isSelected) return isDark ? 'bg-white text-black' : 'bg-gray-900 text-white';
+  return isDark ? 'bg-white/5 text-white/60 hover:bg-white/10' : 'bg-gray-50 text-gray-600 hover:bg-gray-100';
+}
+
 // Delete Confirmation Modal Component
 interface DeleteModalProps {
   readonly isOpen: boolean;
@@ -89,10 +95,8 @@ function DeleteConfirmModal({ isOpen, onClose, onConfirm, conversationCount, isD
       if (!dialog.open) {
         dialog.showModal();
       }
-    } else {
-      if (dialog.open) {
-        dialog.close();
-      }
+    } else if (dialog.open) {
+      dialog.close();
     }
   }, [isOpen]);
 
@@ -192,7 +196,7 @@ const POLICY_MODES: {
 ];
 
 // Policy Mode Section Component
-function PolicyModeSection({ isDark }: { isDark: boolean }) {
+function PolicyModeSection({ isDark }: Readonly<{ isDark: boolean }>) {
   const { policy, switchPolicyMode, isSwitchingPolicy } = useSystemStatus();
   const [error, setError] = useState<string | null>(null);
 
@@ -258,9 +262,10 @@ function PolicyModeSection({ isDark }: { isDark: boolean }) {
                   ${isDark
                     ? 'focus-visible:ring-white focus-visible:ring-offset-[#0a0a0a]'
                     : 'focus-visible:ring-gray-400 focus-visible:ring-offset-white'}
-                  ${isSelected
-                    ? colorStyles[mode.color as keyof typeof colorStyles]
-                    : (isDark ? 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100')}`}
+                  ${(() => {
+                    if (isSelected) return colorStyles[mode.color as keyof typeof colorStyles];
+                    return isDark ? 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100';
+                  })()}`}
               >
                 {isSwitchingPolicy && isSelected && (
                   <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-2xl">
@@ -283,6 +288,253 @@ function PolicyModeSection({ isDark }: { isDark: boolean }) {
             <Shield className="w-3.5 h-3.5" />
             All modes maintain safety: blocking violence, weapons & exploitation content
           </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/** Profile card */
+function ProfileSection({ isDark, user }: Readonly<{
+  isDark: boolean;
+  user: { name?: string; email?: string } | null;
+}>) {
+  return (
+    <section
+      className={`p-6 rounded-3xl border ${isDark ? 'bg-white/[0.03] border-white/[0.05]' : 'bg-white border-gray-100 shadow-sm'}`}
+      aria-label="Profile information"
+    >
+      <div className="flex items-center gap-5">
+        <div className={`w-14 h-14 rounded-full flex items-center justify-center text-xl font-semibold shrink-0
+          ${isDark ? 'bg-white/10 text-white' : 'bg-gray-900 text-white'}`}
+          aria-hidden="true"
+        >
+          {user?.name?.charAt(0).toUpperCase() || 'U'}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className={`text-lg font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+            {user?.name || 'Guest User'}
+          </div>
+          <div className={`text-sm ${isDark ? 'text-white/40' : 'text-gray-500'}`}>
+            {user?.email || 'Not signed in'}
+          </div>
+        </div>
+        <OmLogo variant="minimal" size={32} color={isDark ? 'dark' : 'light'} animated={false} />
+      </div>
+    </section>
+  );
+}
+
+/** Theme appearance section */
+function AppearanceSection({ isDark, theme, setTheme }: Readonly<{
+  isDark: boolean;
+  theme: string;
+  setTheme: (t: 'light' | 'dark' | 'system') => void;
+}>) {
+  return (
+    <section aria-labelledby="appearance-heading">
+      <div className="flex items-center gap-2 mb-4 px-1">
+        <Palette className={`w-4 h-4 ${isDark ? 'text-white/60' : 'text-gray-600'}`} aria-hidden="true" />
+        <h2 id="appearance-heading" className={`text-sm font-semibold uppercase tracking-wider ${isDark ? 'text-white/60' : 'text-gray-500'}`}>
+          Appearance
+        </h2>
+      </div>
+      <div
+        className={`p-1.5 rounded-full border inline-flex ${isDark ? 'bg-black/40 border-white/10' : 'bg-gray-100/50 border-gray-200'}`}
+        role="radiogroup"
+        aria-label="Theme selection"
+      >
+        {[
+          { value: 'light', label: 'Light', icon: Sun },
+          { value: 'dark', label: 'Dark', icon: Moon },
+          { value: 'system', label: 'System', icon: Monitor },
+        ].map((option) => {
+          const isActive = theme === option.value;
+          const activeStyle = isDark ? 'bg-white/10 text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm';
+          const inactiveStyle = isDark ? 'text-white/50 hover:text-white/70' : 'text-gray-500 hover:text-gray-900';
+          return (
+            <button
+              key={option.value}
+              onClick={() => setTheme(option.value as 'light' | 'dark' | 'system')}
+              aria-pressed={isActive ? "true" : "false"}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium
+                transition-all duration-200
+                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2
+                ${isDark
+                  ? 'focus-visible:ring-white focus-visible:ring-offset-black'
+                  : 'focus-visible:ring-gray-400 focus-visible:ring-offset-gray-100'}
+                ${isActive ? activeStyle : inactiveStyle}`}
+            >
+              <option.icon className="w-4 h-4" aria-hidden="true" />
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+/** Voice & Audio settings section */
+function VoiceAudioSection({ isDark, settings, updateSetting }: Readonly<{
+  isDark: boolean;
+  settings: UserSettings;
+  updateSetting: <K extends keyof UserSettings>(key: K, value: UserSettings[K]) => void;
+}>) {
+  return (
+    <section aria-labelledby="voice-heading">
+      <div className="flex items-center gap-2 mb-4 px-1">
+        <Volume2 className={`w-4 h-4 ${isDark ? 'text-white/60' : 'text-gray-600'}`} aria-hidden="true" />
+        <h2 id="voice-heading" className={`text-sm font-semibold uppercase tracking-wider ${isDark ? 'text-white/60' : 'text-gray-500'}`}>
+          Voice & Audio
+        </h2>
+      </div>
+      <div className="space-y-4">
+        <div className={`p-6 rounded-3xl border ${isDark ? 'bg-white/[0.03] border-white/[0.05]' : 'bg-white border-gray-100 shadow-sm'}`}>
+          <span className={`block text-base font-medium mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`} id="voice-type-label">
+            Voice Type
+          </span>
+          <div className="grid grid-cols-2 gap-3" aria-labelledby="voice-type-label">
+            {VOICE_TYPES.map((voice) => {
+              const isSelected = settings.voiceType === voice.value;
+              return (
+                <button
+                  key={voice.value}
+                  onClick={() => updateSetting('voiceType', voice.value)}
+                  aria-pressed={isSelected ? "true" : "false"}
+                  className={`flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-medium
+                    transition-all duration-200
+                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2
+                    ${getFocusStyle(isDark)}
+                    ${getToggleStyle(isDark, isSelected)}`}
+                >
+                  <voice.Icon className="w-4 h-4" aria-hidden="true" />
+                  {voice.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className={`p-6 rounded-3xl border ${isDark ? 'bg-white/[0.03] border-white/[0.05]' : 'bg-white border-gray-100 shadow-sm'}`}>
+          <span className={`block text-base font-medium mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`} id="speed-label">
+            Speech Speed
+          </span>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3" aria-labelledby="speed-label">
+            {SPEECH_SPEEDS.map((speed) => {
+              const isSelected = settings.speechSpeed === speed.value;
+              return (
+                <button
+                  key={speed.value}
+                  onClick={() => updateSetting('speechSpeed', speed.value)}
+                  aria-pressed={isSelected ? "true" : "false"}
+                  className={`py-3 rounded-2xl text-sm font-medium
+                    transition-all duration-200
+                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2
+                    ${getFocusStyle(isDark)}
+                    ${getToggleStyle(isDark, isSelected)}`}
+                >
+                  <div>{speed.label}</div>
+                  <div className={`text-[10px] font-normal mt-0.5 ${isSelected ? 'opacity-80' : 'opacity-50'}`}>
+                    {speed.desc}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <AutoReadToggle isDark={isDark} settings={settings} updateSetting={updateSetting} />
+      </div>
+    </section>
+  );
+}
+
+/** Auto-read toggle extracted for complexity */
+function AutoReadToggle({ isDark, settings, updateSetting }: Readonly<{
+  isDark: boolean;
+  settings: UserSettings;
+  updateSetting: <K extends keyof UserSettings>(key: K, value: UserSettings[K]) => void;
+}>) {
+  const focusStyle = isDark
+    ? 'focus-visible:ring-white focus-visible:ring-offset-[#0a0a0a]'
+    : 'focus-visible:ring-gray-400 focus-visible:ring-offset-gray-50';
+  let trackStyle: string;
+  let thumbStyle: string;
+  if (settings.autoReadResponses) {
+    trackStyle = isDark ? 'bg-white' : 'bg-gray-900';
+    thumbStyle = `translate-x-6 ${isDark ? 'bg-black' : 'bg-white'}`;
+  } else {
+    trackStyle = isDark ? 'bg-white/10' : 'bg-gray-200';
+    thumbStyle = 'translate-x-0 bg-white';
+  }
+  return (
+    <div className={`p-6 rounded-3xl border ${isDark ? 'bg-white/[0.03] border-white/[0.05]' : 'bg-white border-gray-100 shadow-sm'}`}>
+      <div className="flex items-center justify-between">
+        <div className="flex-1">
+          <label
+            htmlFor="auto-read-toggle"
+            className={`text-base font-medium block cursor-pointer ${isDark ? 'text-white' : 'text-gray-900'}`}
+          >
+            Auto-read responses
+          </label>
+          <p className={`text-sm mt-1 ${isDark ? 'text-white/40' : 'text-gray-500'}`}>
+            Automatically play audio for AI responses
+          </p>
+        </div>
+        <button
+          id="auto-read-toggle"
+          type="button"
+          role="switch"
+          aria-checked={settings.autoReadResponses ? "true" : "false"}
+          onClick={() => updateSetting('autoReadResponses', !settings.autoReadResponses)}
+          className={`relative w-14 h-8 rounded-full transition-all duration-200 shrink-0 ml-4
+            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2
+            ${focusStyle} ${trackStyle}`}
+        >
+          <span
+            className={`absolute top-1 left-1 w-6 h-6 rounded-full transition-transform duration-200 shadow-sm ${thumbStyle}`}
+            aria-hidden="true"
+          />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Data & Privacy section */
+function DataPrivacySection({ isDark, conversations, onDeleteClick }: Readonly<{
+  isDark: boolean;
+  conversations: unknown[];
+  onDeleteClick: () => void;
+}>) {
+  return (
+    <section aria-labelledby="privacy-heading">
+      <div className="flex items-center gap-2 mb-4 px-1">
+        <Shield className={`w-4 h-4 ${isDark ? 'text-white/60' : 'text-gray-600'}`} aria-hidden="true" />
+        <h2 id="privacy-heading" className={`text-sm font-semibold uppercase tracking-wider ${isDark ? 'text-white/60' : 'text-gray-500'}`}>
+          Data & Privacy
+        </h2>
+      </div>
+      <div className="space-y-4">
+        <div className={`p-6 rounded-3xl border ${isDark ? 'bg-white/[0.03] border-white/[0.05]' : 'bg-white border-gray-100 shadow-sm'}`}>
+          <div className={`text-base font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>Chat History</div>
+          <p className={`text-sm mt-1 ${isDark ? 'text-white/40' : 'text-gray-500'}`}>
+            {conversations.length} conversation{conversations.length === 1 ? '' : 's'} stored locally on your device
+          </p>
+        </div>
+        <div className={`p-2 rounded-3xl border ${isDark ? 'bg-red-500/5 border-red-500/10' : 'bg-red-50 border-red-100'}`}>
+          <button
+            onClick={onDeleteClick}
+            className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl text-sm font-medium
+              transition-all duration-200 active:scale-[0.98]
+              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2
+              ${isDark
+                ? 'text-red-400 hover:bg-red-500/10 focus-visible:ring-offset-[#0a0a0a]'
+                : 'text-red-700 hover:bg-red-100 focus-visible:ring-offset-red-50'
+              }`}
+          >
+            <Trash2 className="w-4 h-4" aria-hidden="true" />
+            Clear All Chat History
+          </button>
         </div>
       </div>
     </section>
@@ -352,233 +604,11 @@ export default function Settings() {
       </header>
 
       <main id="settings-content" className="max-w-2xl mx-auto px-4 sm:px-6 py-8 space-y-8">
-        {/* Profile Section - Clean Card */}
-        <section
-          className={`p-6 rounded-3xl border ${isDark ? 'bg-white/[0.03] border-white/[0.05]' : 'bg-white border-gray-100 shadow-sm'}`}
-          aria-label="Profile information"
-        >
-          <div className="flex items-center gap-5">
-            <div className={`w-14 h-14 rounded-full flex items-center justify-center text-xl font-semibold shrink-0
-              ${isDark ? 'bg-white/10 text-white' : 'bg-gray-900 text-white'}`}
-              aria-hidden="true"
-            >
-              {user?.name?.charAt(0).toUpperCase() || 'U'}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className={`text-lg font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                {user?.name || 'Guest User'}
-              </div>
-              <div className={`text-sm ${isDark ? 'text-white/40' : 'text-gray-500'}`}>
-                {user?.email || 'Not signed in'}
-              </div>
-            </div>
-            <OmLogo variant="minimal" size={32} color={isDark ? 'dark' : 'light'} animated={false} />
-          </div>
-        </section>
-
-        {/* Appearance - Premium Toggle */}
-        <section aria-labelledby="appearance-heading">
-          <div className="flex items-center gap-2 mb-4 px-1">
-            <Palette className={`w-4 h-4 ${isDark ? 'text-white/60' : 'text-gray-600'}`} aria-hidden="true" />
-            <h2 id="appearance-heading" className={`text-sm font-semibold uppercase tracking-wider ${isDark ? 'text-white/60' : 'text-gray-500'}`}>
-              Appearance
-            </h2>
-          </div>
-
-          <div
-            className={`p-1.5 rounded-full border inline-flex ${isDark ? 'bg-black/40 border-white/10' : 'bg-gray-100/50 border-gray-200'}`}
-            role="radiogroup"
-            aria-label="Theme selection"
-          >
-            {[
-              { value: 'light', label: 'Light', icon: Sun },
-              { value: 'dark', label: 'Dark', icon: Moon },
-              { value: 'system', label: 'System', icon: Monitor },
-            ].map((option) => {
-              const isActive = theme === option.value;
-              const activeStyle = isDark ? 'bg-white/10 text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm';
-              const inactiveStyle = isDark ? 'text-white/50 hover:text-white/70' : 'text-gray-500 hover:text-gray-900';
-              return (
-                <button
-                  key={option.value}
-                  onClick={() => setTheme(option.value as 'light' | 'dark' | 'system')}
-                  aria-pressed={isActive ? "true" : "false"}
-                  className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium
-                    transition-all duration-200
-                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2
-                    ${isDark
-                      ? 'focus-visible:ring-white focus-visible:ring-offset-black'
-                      : 'focus-visible:ring-gray-400 focus-visible:ring-offset-gray-100'}
-                    ${isActive ? activeStyle : inactiveStyle}`}
-                >
-                  <option.icon className="w-4 h-4" aria-hidden="true" />
-                  {option.label}
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* Voice & Audio - Modern Design */}
-        <section aria-labelledby="voice-heading">
-          <div className="flex items-center gap-2 mb-4 px-1">
-            <Volume2 className={`w-4 h-4 ${isDark ? 'text-white/60' : 'text-gray-600'}`} aria-hidden="true" />
-            <h2 id="voice-heading" className={`text-sm font-semibold uppercase tracking-wider ${isDark ? 'text-white/60' : 'text-gray-500'}`}>
-              Voice & Audio
-            </h2>
-          </div>
-
-          <div className="space-y-4">
-            {/* Voice Type */}
-            <div className={`p-6 rounded-3xl border ${isDark ? 'bg-white/[0.03] border-white/[0.05]' : 'bg-white border-gray-100 shadow-sm'}`}>
-              <span className={`block text-base font-medium mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`} id="voice-type-label">
-                Voice Type
-              </span>
-              <div className="grid grid-cols-2 gap-3" aria-labelledby="voice-type-label">
-                {VOICE_TYPES.map((voice) => {
-                  const isSelected = settings.voiceType === voice.value;
-                  return (
-                    <button
-                      key={voice.value}
-                      onClick={() => updateSetting('voiceType', voice.value)}
-                      aria-pressed={isSelected ? "true" : "false"}
-                      className={`flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-medium
-                        transition-all duration-200
-                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2
-                        ${getFocusStyle(isDark)}
-                        ${isSelected
-                          ? (isDark ? 'bg-white text-black' : 'bg-gray-900 text-white')
-                          : (isDark ? 'bg-white/5 text-white/60 hover:bg-white/10' : 'bg-gray-50 text-gray-600 hover:bg-gray-100')}`}
-                    >
-                      <voice.Icon className="w-4 h-4" aria-hidden="true" />
-                      {voice.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Speech Speed */}
-            <div className={`p-6 rounded-3xl border ${isDark ? 'bg-white/[0.03] border-white/[0.05]' : 'bg-white border-gray-100 shadow-sm'}`}>
-              <span className={`block text-base font-medium mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`} id="speed-label">
-                Speech Speed
-              </span>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3" aria-labelledby="speed-label">
-                {SPEECH_SPEEDS.map((speed) => {
-                  const isSelected = settings.speechSpeed === speed.value;
-                  return (
-                    <button
-                      key={speed.value}
-                      onClick={() => updateSetting('speechSpeed', speed.value)}
-                      aria-pressed={isSelected ? "true" : "false"}
-                      className={`py-3 rounded-2xl text-sm font-medium
-                        transition-all duration-200
-                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2
-                        ${getFocusStyle(isDark)}
-                        ${isSelected
-                          ? (isDark ? 'bg-white text-black' : 'bg-gray-900 text-white')
-                          : (isDark ? 'bg-white/5 text-white/60 hover:bg-white/10' : 'bg-gray-50 text-gray-600 hover:bg-gray-100')}`}
-                    >
-                      <div>{speed.label}</div>
-                      <div className={`text-[10px] font-normal mt-0.5 ${isSelected ? 'opacity-80' : 'opacity-50'}`}>
-                        {speed.desc}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Auto Read Toggle */}
-            <div className={`p-6 rounded-3xl border ${isDark ? 'bg-white/[0.03] border-white/[0.05]' : 'bg-white border-gray-100 shadow-sm'}`}>
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <label
-                    htmlFor="auto-read-toggle"
-                    className={`text-base font-medium block cursor-pointer ${isDark ? 'text-white' : 'text-gray-900'}`}
-                  >
-                    Auto-read responses
-                  </label>
-                  <p className={`text-sm mt-1 ${isDark ? 'text-white/40' : 'text-gray-500'}`}>
-                    Automatically play audio for AI responses
-                  </p>
-                </div>
-                {(() => {
-                  const focusStyle = isDark
-                    ? 'focus-visible:ring-white focus-visible:ring-offset-[#0a0a0a]'
-                    : 'focus-visible:ring-gray-400 focus-visible:ring-offset-gray-50';
-                  const trackActiveStyle = isDark ? 'bg-white' : 'bg-gray-900';
-                  const trackInactiveStyle = isDark ? 'bg-white/10' : 'bg-gray-200';
-                  const thumbActiveStyle = isDark ? 'bg-black' : 'bg-white';
-
-                  return (
-                    <button
-                      id="auto-read-toggle"
-                      type="button"
-                      role="switch"
-                      aria-checked={settings.autoReadResponses ? "true" : "false"}
-                      onClick={() => updateSetting('autoReadResponses', !settings.autoReadResponses)}
-                      className={`relative w-14 h-8 rounded-full transition-all duration-200 shrink-0 ml-4
-                        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2
-                        ${focusStyle}
-                        ${settings.autoReadResponses ? trackActiveStyle : trackInactiveStyle}`}
-                    >
-                      <span
-                        className={`absolute top-1 left-1 w-6 h-6 rounded-full transition-transform duration-200 shadow-sm
-                          ${settings.autoReadResponses
-                            ? `translate-x-6 ${thumbActiveStyle}`
-                            : 'translate-x-0 bg-white'}`}
-                        aria-hidden="true"
-                      />
-                    </button>
-                  );
-                })()}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* AI Policy Mode - New Section */}
+        <ProfileSection isDark={isDark} user={user} />
+        <AppearanceSection isDark={isDark} theme={theme} setTheme={setTheme} />
+        <VoiceAudioSection isDark={isDark} settings={settings} updateSetting={updateSetting} />
         <PolicyModeSection isDark={isDark} />
-
-        {/* Data & Privacy - Danger Zone */}
-        <section aria-labelledby="privacy-heading">
-          <div className="flex items-center gap-2 mb-4 px-1">
-            <Shield className={`w-4 h-4 ${isDark ? 'text-white/60' : 'text-gray-600'}`} aria-hidden="true" />
-            <h2 id="privacy-heading" className={`text-sm font-semibold uppercase tracking-wider ${isDark ? 'text-white/60' : 'text-gray-500'}`}>
-              Data & Privacy
-            </h2>
-          </div>
-
-          <div className="space-y-4">
-            {/* Chat History Info */}
-            <div className={`p-6 rounded-3xl border ${isDark ? 'bg-white/[0.03] border-white/[0.05]' : 'bg-white border-gray-100 shadow-sm'}`}>
-              <div className={`text-base font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                Chat History
-              </div>
-              <p className={`text-sm mt-1 ${isDark ? 'text-white/40' : 'text-gray-500'}`}>
-                {conversations.length} conversation{conversations.length === 1 ? '' : 's'} stored locally on your device
-              </p>
-            </div>
-
-            {/* Clear History - Danger Button */}
-            <div className={`p-2 rounded-3xl border ${isDark ? 'bg-red-500/5 border-red-500/10' : 'bg-red-50 border-red-100'}`}>
-              <button
-                onClick={() => setShowDeleteConfirm(true)}
-                className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl text-sm font-medium
-                  transition-all duration-200 active:scale-[0.98]
-                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2
-                  ${isDark
-                    ? 'text-red-400 hover:bg-red-500/10 focus-visible:ring-offset-[#0a0a0a]'
-                    : 'text-red-700 hover:bg-red-100 focus-visible:ring-offset-red-50'
-                  }`}
-              >
-                <Trash2 className="w-4 h-4" aria-hidden="true" />
-                Clear All Chat History
-              </button>
-            </div>
-          </div>
-        </section>
+        <DataPrivacySection isDark={isDark} conversations={conversations} onDeleteClick={() => setShowDeleteConfirm(true)} />
 
         {/* Account - Minimal */}
         <section aria-label="Account actions">
@@ -598,7 +628,6 @@ export default function Settings() {
           </button>
         </section>
 
-        {/* Footer - Subtle */}
         <footer className={`text-center py-8 ${isDark ? 'text-white/20' : 'text-gray-400'}`}>
           <p className="text-xs">Shiksha Setu v1.0.0</p>
           <p className="text-xs mt-1">Made with ❤️ for Indian Education</p>

@@ -96,7 +96,7 @@ class BatchTextItem(BaseModel):
 class BatchProcessRequest(BaseModel):
     """Batch processing request."""
 
-    items: list[BatchTextItem] = Field(..., min_items=1, max_items=100)
+    items: list[BatchTextItem] = Field(..., min_length=1, max_length=100)
     operations: list[str] = Field(default=["simplify"])
     target_language: str = Field(default="Hindi")
     max_concurrency: int = Field(default=4, ge=1, le=16)
@@ -136,7 +136,7 @@ class BatchProcessResponse(BaseModel):
 class EmbeddingRequest(BaseModel):
     """Embedding request."""
 
-    texts: list[str] = Field(..., min_items=1, max_items=1000)
+    texts: list[str] = Field(..., min_length=1, max_length=1000)
 
 
 class EmbeddingResponse(BaseModel):
@@ -154,7 +154,7 @@ class RerankRequest(BaseModel):
     """Rerank request."""
 
     query: str
-    passages: list[str] = Field(..., min_items=1, max_items=100)
+    passages: list[str] = Field(..., min_length=1, max_length=100)
     top_k: int = Field(default=10, ge=1, le=100)
 
 
@@ -389,7 +389,7 @@ async def batch_embed(request: EmbeddingRequest):
             batch = request.texts[i : i + optimal_batch]
             embeddings = await loop.run_in_executor(
                 get_gpu_executor(),
-                lambda b=batch: embedder.encode(b, batch_size=optimal_batch),
+                lambda b=batch: embedder.encode(b, batch_size=optimal_batch),  # type: ignore[misc]
             )
 
             if hasattr(embeddings, "tolist"):
@@ -453,7 +453,7 @@ async def batch_rerank(request: RerankRequest):
                 zip(request.passages, scores, strict=False)
             )
         ]
-        scored_results.sort(key=lambda x: x["score"], reverse=True)
+        scored_results.sort(key=lambda x: float(x["score"]), reverse=True)
 
         for rank, result in enumerate(scored_results[: request.top_k]):
             result["rank"] = rank + 1
@@ -476,6 +476,80 @@ async def batch_rerank(request: RerankRequest):
     except Exception as e:
         logger.error(f"Reranking error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+async def _run_simplification_stage(
+    request: "MultiModelRequest",
+    collaborator: Any,
+    pattern: Any,
+) -> tuple[str | None, float, bool, list[str], dict[str, Any], float]:
+    """Run simplification stage. Returns (text, confidence, consensus, models, scores, time_ms)."""
+    stage_start = time.perf_counter()
+    collab_result = await collaborator.collaborate(
+        task="simplify", text=request.text, pattern=pattern,
+    )
+    elapsed = (time.perf_counter() - stage_start) * 1000
+    return (
+        collab_result.output,
+        collab_result.confidence,
+        collab_result.consensus,
+        list(collab_result.models_used),
+        dict(collab_result.model_scores),
+        elapsed,
+    )
+
+
+async def _run_translation_stage(
+    text: str,
+    collaborator: Any,
+    pattern: Any,
+    target_language: str,
+    prev_confidence: float,
+) -> tuple[str | None, float, list[str], dict[str, Any], float]:
+    """Run translation stage. Returns (text, confidence, models, scores, time_ms)."""
+    stage_start = time.perf_counter()
+    collab_result = await collaborator.collaborate(
+        task="translate", text=text, pattern=pattern,
+        target_language=target_language,
+    )
+    confidence = prev_confidence
+    if collab_result.confidence > 0:
+        confidence = (prev_confidence + collab_result.confidence) / 2
+    elapsed = (time.perf_counter() - stage_start) * 1000
+    return (
+        collab_result.output,
+        confidence,
+        list(collab_result.models_used),
+        dict(collab_result.model_scores),
+        elapsed,
+    )
+
+
+async def _run_audio_stage(
+    result: "MultiModelResponse",
+    request: "MultiModelRequest",
+    pipeline: Any,
+    models_used: list[str],
+) -> tuple[str | None, float]:
+    """Run TTS audio generation stage. Returns (audio_url, time_ms)."""
+    stage_start = time.perf_counter()
+    tts_text = result.translated_text or result.simplified_text or request.text
+    tts_service = pipeline._get_tts_service()
+    audio_url: str | None = None
+
+    if tts_service:
+        language = "hi" if request.target_language.lower() == "hindi" else "en"
+        try:
+            audio_path = await asyncio.get_running_loop().run_in_executor(
+                None,
+                lambda: tts_service.synthesize_file(text=tts_text, language=language),
+            )
+            audio_url = f"/api/v2/audio/{audio_path}"
+            models_used.append("mms-tts")
+        except Exception as e:
+            logger.warning(f"TTS failed: {e}")
+
+    return audio_url, (time.perf_counter() - stage_start) * 1000
 
 
 @router.post(
@@ -525,47 +599,33 @@ async def multimodel_process(request: MultiModelRequest):
             stage_times={},
         )
 
-        models_used = []
-        model_scores = {}
+        models_used: list[str] = []
+        model_scores: dict[str, Any] = {}
 
         # Stage 1: Simplification (if needed)
         if request.task in ("simplify", "full_pipeline"):
-            stage_start = time.perf_counter()
-
-            collab_result = await collaborator.collaborate(
-                task="simplify",
-                text=request.text,
-                pattern=pattern,
+            text, conf, consensus, m, s, t = await _run_simplification_stage(
+                request, collaborator, pattern,
             )
-
-            result.simplified_text = collab_result.output
-            result.collaboration_confidence = collab_result.confidence
-            result.collaboration_consensus = collab_result.consensus
-            models_used.extend(collab_result.models_used)
-            model_scores.update(collab_result.model_scores)
-            stage_times["simplify"] = (time.perf_counter() - stage_start) * 1000
+            result.simplified_text = text
+            result.collaboration_confidence = conf
+            result.collaboration_consensus = consensus
+            models_used.extend(m)
+            model_scores.update(s)
+            stage_times["simplify"] = t
 
         # Stage 2: Translation (if needed)
         if request.task in ("translate", "full_pipeline"):
-            stage_start = time.perf_counter()
-
             text_to_translate = result.simplified_text or request.text
-
-            collab_result = await collaborator.collaborate(
-                task="translate",
-                text=text_to_translate,
-                pattern=pattern,
-                target_language=request.target_language,
+            text, conf, m, s, t = await _run_translation_stage(
+                text_to_translate, collaborator, pattern,
+                request.target_language, result.collaboration_confidence,
             )
-
-            result.translated_text = collab_result.output
-            if collab_result.confidence > 0:
-                result.collaboration_confidence = (
-                    result.collaboration_confidence + collab_result.confidence
-                ) / 2
-            models_used.extend(collab_result.models_used)
-            model_scores.update(collab_result.model_scores)
-            stage_times["translate"] = (time.perf_counter() - stage_start) * 1000
+            result.translated_text = text
+            result.collaboration_confidence = conf
+            models_used.extend(m)
+            model_scores.update(s)
+            stage_times["translate"] = t
 
         # Stage 3: Validation
         if request.task in ("validate", "full_pipeline"):
@@ -587,28 +647,12 @@ async def multimodel_process(request: MultiModelRequest):
 
         # Stage 4: Audio generation (optional)
         if request.generate_audio:
-            stage_start = time.perf_counter()
-
-            tts_text = result.translated_text or result.simplified_text or request.text
-            tts_service = pipeline._get_tts_service()
-
-            if tts_service:
-                try:
-                    audio_path = await asyncio.get_running_loop().run_in_executor(
-                        None,
-                        lambda: tts_service.synthesize_file(
-                            text=tts_text,
-                            language="hi"
-                            if request.target_language.lower() == "hindi"
-                            else "en",
-                        ),
-                    )
-                    result.audio_url = f"/api/v2/audio/{audio_path}"
-                    models_used.append("mms-tts")
-                except Exception as e:
-                    logger.warning(f"TTS failed: {e}")
-
-            stage_times["tts"] = (time.perf_counter() - stage_start) * 1000
+            audio_url, tts_time = await _run_audio_stage(
+                result, request, pipeline, models_used,
+            )
+            if audio_url:
+                result.audio_url = audio_url
+            stage_times["tts"] = tts_time
 
         result.models_used = list(set(models_used))
         result.model_scores = model_scores

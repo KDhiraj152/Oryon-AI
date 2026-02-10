@@ -251,7 +251,7 @@ class CacheCompressor:
 
         # Only use if actually smaller
         if len(compressed) < len(data) - 8:
-            return self.MAGIC_COMPRESSED + compressed
+            return bytes(self.MAGIC_COMPRESSED + compressed)
         return data
 
     def decompress(self, data: bytes) -> bytes:
@@ -261,8 +261,8 @@ class CacheCompressor:
 
         compressed = data[len(self.MAGIC_COMPRESSED) :]
         if self.use_lz4:
-            return lz4.decompress(compressed)
-        return zlib.decompress(compressed)
+            return bytes(lz4.decompress(compressed))
+        return bytes(zlib.decompress(compressed))
 
 
 # ============================================================================
@@ -305,7 +305,7 @@ class WriteBehindQueue:
             max_workers=2, thread_name_prefix="cache_wb"
         )
         self._running = True
-        self._flush_task = None
+        self._flush_task: Any = None
         self._timer: threading.Timer | None = None
 
         # Dedicated event loop for background flush thread
@@ -630,7 +630,7 @@ class L1Cache:
         """Estimate memory size of value."""
         try:
             if hasattr(value, "nbytes"):  # numpy array
-                return value.nbytes
+                return int(value.nbytes)
             elif isinstance(value, (bytes, bytearray)):
                 return len(value)
             elif isinstance(value, str):
@@ -1023,7 +1023,7 @@ class L2Cache:
 
         try:
             result = await client.delete(self._make_key(key))
-            return result > 0
+            return bool(result > 0)
         except Exception as e:
             logger.warning(f"Redis delete error: {e}")
             return False

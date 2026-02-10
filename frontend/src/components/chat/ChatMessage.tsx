@@ -322,53 +322,295 @@ function arePropsEqual(
   );
 }
 
-const ChatMessage = memo(function ChatMessage({
-  message,
-  isStreaming = false,
-  isPlayingAudio = false,
-  onRetry,
-  onCopy,
-  onAudio,
-}: ChatMessageProps) {
-  const [copied, setCopied] = useState(false);
-  const [showCitations, setShowCitations] = useState(false);
+// --- Extracted sub-components to reduce cognitive complexity ---
+
+function getThemedClass(isDark: boolean, darkClass: string, lightClass: string): string {
+  return isDark ? darkClass : lightClass;
+}
+
+/** Avatar icon for message */
+function MessageAvatar({ isUser, isDark, isStreaming }: Readonly<{
+  isUser: boolean;
+  isDark: boolean;
+  isStreaming: boolean;
+}>) {
+  const bg = getThemedClass(isDark, isUser ? 'bg-white/[0.08]' : 'bg-white/[0.06]', 'bg-gray-100');
+  const anim = isStreaming ? 'animate-avatar-pop' : '';
+  return (
+    <div className={`w-8 h-8 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-200 ${bg} ${anim}`}>
+      {isUser
+        ? <User className={`w-4 h-4 ${getThemedClass(isDark, 'text-white/60', 'text-gray-500')}`} />
+        : <OmLogo variant="minimal" size={16} color={isDark ? 'dark' : 'light'} animated={isStreaming} />
+      }
+    </div>
+  );
+}
+
+/** Attachments list extracted from ChatMessage */
+function AttachmentsList({ attachments, isDark }: Readonly<{
+  attachments: NonNullable<Message['attachments']>;
+  isDark: boolean;
+}>) {
+  return (
+    <div className="flex flex-wrap gap-2 pt-3">
+      {attachments.map((attachment) => (
+        <div
+          key={`${attachment.name}-${attachment.url || attachment.type}`}
+          className={`px-3 py-2 rounded-xl text-sm backdrop-blur-md border transition-all duration-200 hover:scale-[1.02]
+            ${getThemedClass(isDark,
+              'bg-white/[0.04] border-white/[0.08] text-white/70 hover:bg-white/[0.08]',
+              'bg-gray-50/80 border-gray-200/60 text-gray-600 hover:bg-gray-100/80'
+            )}`}
+        >
+          <span className="truncate max-w-[200px] block font-medium">{attachment.name}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Message body content - user text or AI markdown */
+function MessageBody({ message, isDark, isUser, isStreaming, markdownComponents }: Readonly<{
+  message: Message;
+  isDark: boolean;
+  isUser: boolean;
+  isStreaming: boolean;
+  markdownComponents: ReturnType<typeof createMarkdownComponents>;
+}>) {
+  if (isUser) {
+    return (
+      <p className={`whitespace-pre-wrap m-0 text-[15px] leading-relaxed ${getThemedClass(isDark, 'text-white/90', 'text-gray-800')}`}>
+        {message.content}
+      </p>
+    );
+  }
+  return (
+    <>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }]]}
+        components={markdownComponents}
+      >
+        {message.content}
+      </ReactMarkdown>
+      {isStreaming && (
+        <span className={`inline-block w-[2px] h-4 ml-0.5 rounded-sm animate-pulse ${getThemedClass(isDark, 'bg-white/70', 'bg-gray-600')}`} />
+      )}
+    </>
+  );
+}
+
+/** Metadata footer showing model, latency, tokens */
+function MetadataFooter({ message, isDark }: Readonly<{
+  message: Message;
+  isDark: boolean;
+}>) {
+  return (
+    <div className="pt-3 flex items-center gap-2">
+      <div className={`flex items-center gap-3 px-3 py-1.5 rounded-full text-[10px] backdrop-blur-sm
+        ${getThemedClass(isDark, 'bg-white/[0.03] text-white/25', 'bg-gray-50 text-gray-400')}`}>
+        {message.modelUsed && <span>{message.modelUsed}</span>}
+        {message.modelUsed && message.latencyMs && <span className="opacity-50">&bull;</span>}
+        {message.latencyMs && <span>{message.latencyMs}ms</span>}
+        {message.tokenCount && <><span className="opacity-50">&bull;</span><span>{message.tokenCount} tokens</span></>}
+      </div>
+    </div>
+  );
+}
+
+/** Error message display extracted from ChatMessage */
+function ErrorMessageView({ message, isDark, onRetry }: Readonly<{
+  message: Message;
+  isDark: boolean;
+  onRetry?: (messageId: string) => void;
+}>) {
+  return (
+    <div className="w-full animate-message-in py-4 [animation-delay:0.05s]">
+      <div className="w-full max-w-3xl mx-auto px-4">
+        <div className="flex gap-4">
+          <div className={`w-8 h-8 flex-shrink-0 rounded-full flex items-center justify-center
+            ${getThemedClass(isDark, 'bg-red-500/20', 'bg-red-100')}`}>
+            <AlertCircle className={`w-4 h-4 ${getThemedClass(isDark, 'text-red-400', 'text-red-500')}`} />
+          </div>
+          <div className="flex-1 min-w-0 space-y-3 overflow-hidden pt-1">
+            <div className={`text-[15px] leading-relaxed break-words ${getThemedClass(isDark, 'text-red-300', 'text-red-600')}`}>
+              {message.content}
+            </div>
+            {onRetry && (
+              <button
+                onClick={() => onRetry(message.id)}
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200
+                  ${getThemedClass(isDark, 'bg-white/[0.08] hover:bg-white/[0.12] text-white/80', 'bg-gray-100 hover:bg-gray-200 text-gray-700')}`}
+              >
+                <RefreshCw className="w-4 h-4" aria-hidden="true" />
+                Retry
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Action buttons extracted from ChatMessage */
+function MessageActionButtons({ isDark, copied, onCopy, onRetry, onAudio, isPlayingAudio, isLoadingAudio }: Readonly<{
+  isDark: boolean;
+  copied: boolean;
+  onCopy?: () => void;
+  onRetry?: () => void;
+  onAudio?: (e: React.MouseEvent) => void;
+  isPlayingAudio: boolean;
+  isLoadingAudio: boolean;
+}>) {
+  const inactiveClass = getThemedClass(isDark, 'text-white/30 hover:text-white/70 hover:bg-white/[0.08]', 'text-gray-400 hover:text-gray-600 hover:bg-gray-100');
+
+  return (
+    <div
+      className="flex items-center gap-1 pt-3 opacity-0 group-hover:opacity-100 transition-all duration-200"
+      role="toolbar"
+      aria-label="Message actions"
+    >
+      {onCopy && (
+        <button
+          onClick={onCopy}
+          className={`p-2 rounded-full transition-all duration-200 backdrop-blur-sm ${copied ? 'text-emerald-500 bg-emerald-500/10' : inactiveClass}`}
+          aria-label={copied ? 'Copied' : 'Copy'}
+          title="Copy"
+        >
+          {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+        </button>
+      )}
+      {onRetry && (
+        <button onClick={onRetry} className={`p-2 rounded-full transition-all duration-200 backdrop-blur-sm ${inactiveClass}`} aria-label="Regenerate" title="Regenerate">
+          <RefreshCw className="w-4 h-4" />
+        </button>
+      )}
+      {onAudio && (
+        <button
+          onClick={onAudio}
+          className={`p-2 rounded-full transition-all duration-200 backdrop-blur-sm ${(() => {
+            if (isPlayingAudio || isLoadingAudio) return getThemedClass(isDark, 'text-orange-400 bg-orange-500/15', 'text-orange-500 bg-orange-50');
+            return inactiveClass;
+          })()}`}
+          aria-label={getAudioAriaLabel(isPlayingAudio, isLoadingAudio)}
+          title={getAudioTitle(isPlayingAudio, isLoadingAudio)}
+        >
+          {isLoadingAudio && <Loader2 className="w-4 h-4 animate-spin" />}
+          {!isLoadingAudio && isPlayingAudio && <VolumeX className="w-4 h-4" />}
+          {!isLoadingAudio && !isPlayingAudio && <Volume2 className="w-4 h-4" />}
+        </button>
+      )}
+      <button className={`p-2 rounded-full transition-all duration-200 backdrop-blur-sm ${inactiveClass}`} aria-label="Good response" title="Good response">
+        <ThumbsUp className="w-4 h-4" />
+      </button>
+      <button className={`p-2 rounded-full transition-all duration-200 backdrop-blur-sm ${inactiveClass}`} aria-label="Bad response" title="Bad response">
+        <ThumbsDown className="w-4 h-4" />
+      </button>
+    </div>
+  );
+}
+
+/** Citations section extracted from ChatMessage */
+function CitationsSection({ message, isDark, showCitations, setShowCitations }: Readonly<{
+  message: Message;
+  isDark: boolean;
+  showCitations: boolean;
+  setShowCitations: (v: boolean) => void;
+}>) {
+  const citations = message.citations!;
+  const toggleClass = (() => {
+    if (showCitations) return getThemedClass(isDark, 'bg-white/[0.08] text-white/70', 'bg-gray-100 text-gray-700');
+    return getThemedClass(isDark, 'text-white/40 hover:text-white/60 hover:bg-white/[0.04]', 'text-gray-400 hover:text-gray-600 hover:bg-gray-50');
+  })();
+
+  return (
+    <div className="pt-4">
+      <button
+        onClick={() => setShowCitations(!showCitations)}
+        className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-medium transition-all duration-200 backdrop-blur-sm ${toggleClass}`}
+      >
+        <BookOpen className="w-4 h-4" />
+        <span>{citations.length} source{citations.length > 1 ? 's' : ''}</span>
+        {showCitations ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+      </button>
+      {showCitations && (
+        <div className="mt-3 space-y-2 animate-fadeIn">
+          {citations.map((citation, idx) => (
+            <CitationCard key={citation.id} citation={citation} idx={idx} isDark={isDark} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CitationCard({ citation, idx, isDark }: Readonly<{
+  citation: NonNullable<Message['citations']>[number];
+  idx: number;
+  isDark: boolean;
+}>) {
+  return (
+    <div
+      className={`p-5 rounded-3xl border backdrop-blur-md transition-all duration-200 hover:scale-[1.01]
+        ${getThemedClass(isDark, 'bg-white/[0.03] border-white/[0.06] hover:bg-white/[0.05]', 'bg-gray-50/80 border-gray-100 hover:bg-gray-100/80')}`}
+    >
+      <div className="flex items-start gap-3">
+        <span className={`flex-shrink-0 w-6 h-6 rounded-lg flex items-center justify-center text-xs font-semibold
+          ${getThemedClass(isDark, 'bg-white/[0.08] text-white/60', 'bg-gray-200 text-gray-600')}`}>
+          {idx + 1}
+        </span>
+        <div className="flex-1 min-w-0">
+          <div className={`font-medium text-sm ${getThemedClass(isDark, 'text-white/80', 'text-gray-700')}`}>
+            {citation.title}
+          </div>
+          {citation.excerpt && (
+            <p className={`mt-1.5 text-xs line-clamp-2 leading-relaxed ${getThemedClass(isDark, 'text-white/40', 'text-gray-500')}`}>
+              {citation.excerpt}
+            </p>
+          )}
+          <div className={`mt-2 flex items-center gap-3 text-xs ${getThemedClass(isDark, 'text-white/30', 'text-gray-400')}`}>
+            <span className={`px-2 py-0.5 rounded-md ${getThemedClass(isDark, 'bg-white/[0.06]', 'bg-gray-100')}`}>
+              {Math.round(citation.score * 100)}% match
+            </span>
+            {citation.url && (
+              <a
+                href={citation.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`flex items-center gap-1 hover:underline
+                  ${getThemedClass(isDark, 'text-white/50 hover:text-white/70', 'text-gray-500 hover:text-gray-700')}`}
+              >
+                <ExternalLink className="w-3 h-3" />
+                View source
+              </a>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Custom hook for audio toggle logic */
+function useAudioHandler(
+  onAudio: (() => void) | undefined,
+  isPlayingAudio: boolean,
+) {
   const [isLoadingAudio, setIsLoadingAudio] = useState(false);
-  const isUser = message.role === 'user';
-  const isError = message.isError;
-  const { resolvedTheme } = useThemeStore();
-  const isDark = resolvedTheme === 'dark';
-  const hasCitations = message.citations && message.citations.length > 0;
 
-  // Memoize markdown components - must be before any early returns
-  const markdownComponents = useMemo(() => createMarkdownComponents(isDark), [isDark]);
-
-  const handleCopy = () => {
-    onCopy?.();
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const handleRetry = () => {
-    onRetry?.(message.id);
-  };
-
-  // Handle audio - toggle play/stop
   const handleAudio = useCallback(async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
-    // If currently playing or loading, clicking will stop
     if (isPlayingAudio || isLoadingAudio) {
       setIsLoadingAudio(false);
-      onAudio?.(); // This will trigger stop in parent
+      onAudio?.();
       return;
     }
 
-    // Start loading
     setIsLoadingAudio(true);
-
     try {
-      // Call the audio handler and wait for it to complete
       const result = onAudio?.();
       if (result && typeof (result as Promise<void>).then === 'function') {
         await (result as Promise<void>);
@@ -380,81 +622,57 @@ const ChatMessage = memo(function ChatMessage({
     }
   }, [onAudio, isPlayingAudio, isLoadingAudio]);
 
-  // Error message display - Same layout as regular messages
+  return { isLoadingAudio, handleAudio };
+}
+
+const ChatMessage = memo(function ChatMessage({
+  message,
+  isStreaming = false,
+  isPlayingAudio = false,
+  onRetry,
+  onCopy,
+  onAudio,
+}: ChatMessageProps) {
+  const [copied, setCopied] = useState(false);
+  const [showCitations, setShowCitations] = useState(false);
+  const isUser = message.role === 'user';
+  const isError = message.isError;
+  const { resolvedTheme } = useThemeStore();
+  const isDark = resolvedTheme === 'dark';
+  const hasCitations = message.citations && message.citations.length > 0;
+  const hasAttachments = message.attachments && message.attachments.length > 0;
+
+  // Memoize markdown components - must be before any early returns
+  const markdownComponents = useMemo(() => createMarkdownComponents(isDark), [isDark]);
+  const { isLoadingAudio, handleAudio } = useAudioHandler(onAudio, isPlayingAudio);
+
+  const handleCopy = () => {
+    onCopy?.();
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  // Error message display
   if (isError) {
-    return (
-      <div
-        className="w-full animate-message-in py-4 [animation-delay:0.05s]"
-      >
-        <div className="w-full max-w-3xl mx-auto px-4">
-          <div className="flex gap-4">
-            {/* Error Icon - Circular like other avatars */}
-            <div className={`w-8 h-8 flex-shrink-0 rounded-full flex items-center justify-center
-              ${isDark
-                ? 'bg-red-500/20'
-                : 'bg-red-100'
-              }`}
-            >
-              <AlertCircle className={`w-4 h-4 ${isDark ? 'text-red-400' : 'text-red-500'}`} />
-            </div>
-
-            {/* Content */}
-            <div className="flex-1 min-w-0 space-y-3 overflow-hidden pt-1">
-              <div className={`text-[15px] leading-relaxed break-words ${isDark ? 'text-red-300' : 'text-red-600'}`}>
-                {message.content}
-              </div>
-
-              {onRetry && (
-                <button
-                  onClick={handleRetry}
-                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium
-                    transition-all duration-200
-                    ${isDark
-                      ? 'bg-white/[0.08] hover:bg-white/[0.12] text-white/80'
-                      : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-                    }`}
-                >
-                  <RefreshCw className="w-4 h-4" aria-hidden="true" />
-                  Retry
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    return <ErrorMessageView message={message} isDark={isDark} onRetry={onRetry} />;
   }
 
-  // Compute class names - minimal design
-  const bgClass = ''; // No background differentiation like ChatGPT
-
-  // Animation class for streaming messages
+  // Compute class names
   const animationClass = isStreaming ? 'animate-message-in' : '';
+  const showActions = !isUser && !isStreaming;
 
   return (
     <div
-      className={`group w-full py-4 ${bgClass} ${animationClass} border-b border-transparent hover:bg-white/[0.02]`}
+      className={`group w-full py-4 ${animationClass} border-b border-transparent hover:bg-white/[0.02]`}
     >
       <div className="w-full max-w-3xl mx-auto px-4">
         <div className="flex gap-4">
-          {/* Avatar - Circular design */}
-          <div
-            className={`w-8 h-8 flex-shrink-0 rounded-full flex items-center justify-center transition-all duration-200
-              ${(() => {
-                if (isUser) return isDark ? 'bg-white/[0.08]' : 'bg-gray-100';
-                return isDark ? 'bg-white/[0.06]' : 'bg-gray-100';
-              })()} ${isStreaming ? 'animate-avatar-pop' : ''}`}
-          >
-            {isUser
-              ? <User className={`w-4 h-4 ${isDark ? 'text-white/60' : 'text-gray-500'}`} />
-              : <OmLogo variant="minimal" size={16} color={isDark ? 'dark' : 'light'} animated={isStreaming} />
-            }
-          </div>
+          <MessageAvatar isUser={isUser} isDark={isDark} isStreaming={isStreaming} />
 
           {/* Content */}
           <div className="flex-1 min-w-0 space-y-0.5 overflow-hidden pt-0.5">
-            {/* Role Label - Subtle */}
-            <div className={`text-xs font-medium mb-2 ${isDark ? 'text-white/40' : 'text-gray-400'}`}>
+            {/* Role Label */}
+            <div className={`text-xs font-medium mb-2 ${getThemedClass(isDark, 'text-white/40', 'text-gray-400')}`}>
               {isUser ? 'You' : 'ShikshaSetu'}
             </div>
 
@@ -466,216 +684,46 @@ const ChatMessage = memo(function ChatMessage({
               prose-strong:font-semibold
               prose-ul:my-3 prose-li:my-1`}
             >
-              {isUser ? (
-                <p className={`whitespace-pre-wrap m-0 text-[15px] leading-relaxed ${isDark ? 'text-white/90' : 'text-gray-800'}`}>
-                  {message.content}
-                </p>
-              ) : (
-                <>
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm, remarkMath]}
-                    rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }]]}
-                    components={markdownComponents}
-                  >
-                    {message.content}
-                  </ReactMarkdown>
-
-                  {/* Streaming cursor - simple blinking line */}
-                  {isStreaming && (
-                    <span
-                      className={`inline-block w-[2px] h-4 ml-0.5 rounded-sm animate-pulse ${isDark ? 'bg-white/70' : 'bg-gray-600'}`}
-                    />
-                  )}
-                </>
-              )}
+              <MessageBody
+                message={message}
+                isDark={isDark}
+                isUser={isUser}
+                isStreaming={isStreaming}
+                markdownComponents={markdownComponents}
+              />
             </div>
 
-            {/* Attachments - Glassmorphic pills */}
-            {message.attachments && message.attachments.length > 0 && (
-              <div className="flex flex-wrap gap-2 pt-3">
-                {message.attachments.map((attachment) => (
-                  <div
-                    key={`${attachment.name}-${attachment.url || attachment.type}`}
-                    className={`px-3 py-2 rounded-xl text-sm backdrop-blur-md border transition-all duration-200 hover:scale-[1.02]
-                      ${isDark
-                        ? 'bg-white/[0.04] border-white/[0.08] text-white/70 hover:bg-white/[0.08]'
-                        : 'bg-gray-50/80 border-gray-200/60 text-gray-600 hover:bg-gray-100/80'
-                      }`}
-                  >
-                    <span className="truncate max-w-[200px] block font-medium">{attachment.name}</span>
-                  </div>
-                ))}
-              </div>
+            {/* Attachments */}
+            {hasAttachments && (
+              <AttachmentsList attachments={message.attachments!} isDark={isDark} />
             )}
 
-            {/* Action buttons - Glassmorphic minimal style */}
-            {!isUser && !isStreaming && (
-              <div
-                className={`flex items-center gap-1 pt-3 opacity-0 group-hover:opacity-100 transition-all duration-200`}
-                role="toolbar"
-                aria-label="Message actions"
-              >
-                {onCopy && (
-                  <button
-                    onClick={handleCopy}
-                    className={`p-2 rounded-full transition-all duration-200 backdrop-blur-sm
-                      ${(() => {
-                        if (copied) return 'text-emerald-500 bg-emerald-500/10';
-                        return isDark
-                          ? 'text-white/30 hover:text-white/70 hover:bg-white/[0.08]'
-                          : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100';
-                      })()}`}
-                    aria-label={copied ? 'Copied' : 'Copy'}
-                    title="Copy"
-                  >
-                    {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                  </button>
-                )}
-                {onRetry && (
-                  <button
-                    onClick={handleRetry}
-                    className={`p-2 rounded-full transition-all duration-200 backdrop-blur-sm
-                      ${isDark
-                        ? 'text-white/30 hover:text-white/70 hover:bg-white/[0.08]'
-                        : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
-                      }`}
-                    aria-label="Regenerate"
-                    title="Regenerate"
-                  >
-                    <RefreshCw className="w-4 h-4" />
-                  </button>
-                )}
-                {onAudio && (
-                  <button
-                    onClick={handleAudio}
-                    className={`p-2 rounded-full transition-all duration-200 backdrop-blur-sm
-                      ${(() => {
-                        if (isPlayingAudio || isLoadingAudio)
-                          return isDark ? 'text-orange-400 bg-orange-500/15' : 'text-orange-500 bg-orange-50';
-                        return isDark
-                          ? 'text-white/30 hover:text-white/70 hover:bg-white/[0.08]'
-                          : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100';
-                      })()}`}
-                    aria-label={getAudioAriaLabel(isPlayingAudio ?? false, isLoadingAudio)}
-                    title={getAudioTitle(isPlayingAudio ?? false, isLoadingAudio)}
-                  >
-                    {isLoadingAudio && <Loader2 className="w-4 h-4 animate-spin" />}
-                    {!isLoadingAudio && isPlayingAudio && <VolumeX className="w-4 h-4" />}
-                    {!isLoadingAudio && !isPlayingAudio && <Volume2 className="w-4 h-4" />}
-                  </button>
-                )}
-                <button
-                  className={`p-2 rounded-full transition-all duration-200 backdrop-blur-sm
-                    ${isDark
-                      ? 'text-white/30 hover:text-white/70 hover:bg-white/[0.08]'
-                      : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
-                    }`}
-                  aria-label="Good response"
-                  title="Good response"
-                >
-                  <ThumbsUp className="w-4 h-4" />
-                </button>
-                <button
-                  className={`p-2 rounded-full transition-all duration-200 backdrop-blur-sm
-                    ${isDark
-                      ? 'text-white/30 hover:text-white/70 hover:bg-white/[0.08]'
-                      : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
-                    }`}
-                  aria-label="Bad response"
-                  title="Bad response"
-                >
-                  <ThumbsDown className="w-4 h-4" />
-                </button>
-              </div>
+            {/* Action buttons */}
+            {showActions && (
+              <MessageActionButtons
+                isDark={isDark}
+                copied={copied}
+                isPlayingAudio={isPlayingAudio}
+                isLoadingAudio={isLoadingAudio}
+                onCopy={onCopy ? handleCopy : undefined}
+                onRetry={onRetry ? () => onRetry(message.id) : undefined}
+                onAudio={onAudio ? handleAudio : undefined}
+              />
             )}
 
-            {/* Citations Section - Glassmorphic */}
+            {/* Citations */}
             {hasCitations && !isStreaming && (
-              <div className="pt-4">
-                <button
-                  onClick={() => setShowCitations(!showCitations)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-medium transition-all duration-200 backdrop-blur-sm
-                    ${(() => {
-                      if (showCitations)
-                        return isDark ? 'bg-white/[0.08] text-white/70' : 'bg-gray-100 text-gray-700';
-                      return isDark
-                        ? 'text-white/40 hover:text-white/60 hover:bg-white/[0.04]'
-                        : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50';
-                    })()}`}
-                >
-                  <BookOpen className="w-4 h-4" />
-                  <span>{message.citations!.length} source{message.citations!.length > 1 ? 's' : ''}</span>
-                  {showCitations ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                </button>
-
-                {showCitations && (
-                  <div className={`mt-3 space-y-2 animate-fadeIn`}>
-                    {message.citations!.map((citation, idx) => (
-                      <div
-                        key={citation.id}
-                        className={`p-5 rounded-3xl border backdrop-blur-md transition-all duration-200 hover:scale-[1.01]
-                          ${isDark
-                            ? 'bg-white/[0.03] border-white/[0.06] hover:bg-white/[0.05]'
-                            : 'bg-gray-50/80 border-gray-100 hover:bg-gray-100/80'
-                          }`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <span className={`flex-shrink-0 w-6 h-6 rounded-lg flex items-center justify-center text-xs font-semibold
-                            ${isDark
-                              ? 'bg-white/[0.08] text-white/60'
-                              : 'bg-gray-200 text-gray-600'
-                            }`}>
-                            {idx + 1}
-                          </span>
-                          <div className="flex-1 min-w-0">
-                            <div className={`font-medium text-sm ${isDark ? 'text-white/80' : 'text-gray-700'}`}>
-                              {citation.title}
-                            </div>
-                            {citation.excerpt && (
-                              <p className={`mt-1.5 text-xs line-clamp-2 leading-relaxed ${isDark ? 'text-white/40' : 'text-gray-500'}`}>
-                                {citation.excerpt}
-                              </p>
-                            )}
-                            <div className={`mt-2 flex items-center gap-3 text-xs ${isDark ? 'text-white/30' : 'text-gray-400'}`}>
-                              <span className={`px-2 py-0.5 rounded-md ${isDark ? 'bg-white/[0.06]' : 'bg-gray-100'}`}>
-                                {Math.round(citation.score * 100)}% match
-                              </span>
-                              {citation.url && (
-                                <a
-                                  href={citation.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className={`flex items-center gap-1 hover:underline
-                                    ${isDark ? 'text-white/50 hover:text-white/70' : 'text-gray-500 hover:text-gray-700'}`}
-                                >
-                                  <ExternalLink className="w-3 h-3" />
-                                  View source
-                                </a>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <CitationsSection
+                message={message}
+                isDark={isDark}
+                showCitations={showCitations}
+                setShowCitations={setShowCitations}
+              />
             )}
 
-            {/* Metadata footer - Glassmorphic pill */}
-            {!isUser && !isStreaming && (message.modelUsed || message.latencyMs) && (
-              <div className={`pt-3 flex items-center gap-2`}>
-                <div className={`flex items-center gap-3 px-3 py-1.5 rounded-full text-[10px] backdrop-blur-sm
-                  ${isDark
-                    ? 'bg-white/[0.03] text-white/25'
-                    : 'bg-gray-50 text-gray-400'
-                  }`}>
-                  {message.modelUsed && <span>{message.modelUsed}</span>}
-                  {message.modelUsed && message.latencyMs && <span className="opacity-50">•</span>}
-                  {message.latencyMs && <span>{message.latencyMs}ms</span>}
-                  {message.tokenCount && <><span className="opacity-50">•</span><span>{message.tokenCount} tokens</span></>}
-                </div>
-              </div>
+            {/* Metadata footer */}
+            {showActions && (message.modelUsed || message.latencyMs) && (
+              <MetadataFooter message={message} isDark={isDark} />
             )}
           </div>
         </div>
