@@ -1,7 +1,7 @@
 """Add HNSW indexes for vector similarity search.
 
 Revision ID: 012_add_hnsw_indexes
-Revises: 011_token_rotation_teacher_eval
+Revises: 011_token_rotation_reviewer_eval
 Create Date: 2024-01-15 10:00:00.000000
 
 HNSW (Hierarchical Navigable Small Worlds) indexes provide:
@@ -21,7 +21,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic
 revision = '012_add_hnsw_indexes'
-down_revision = '011_token_rotation_teacher_eval'
+down_revision = '011_token_rotation_reviewer_eval'
 branch_labels = None
 depends_on = None
 

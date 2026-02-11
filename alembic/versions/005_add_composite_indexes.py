@@ -28,13 +28,13 @@ def upgrade() -> None:
     op.create_index(
         'idx_grade_subject',
         'processed_content',
-        ['grade_level', 'subject'],
+        ['complexity_level', 'subject'],
         unique=False
     )
     op.create_index(
         'idx_language_grade',
         'processed_content',
-        ['language', 'grade_level'],
+        ['language', 'complexity_level'],
         unique=False
     )
     op.create_index(

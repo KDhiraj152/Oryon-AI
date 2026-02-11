@@ -65,8 +65,8 @@ def upgrade() -> None:
     # Add vector column for embeddings (384 dimensions for sentence-transformers/all-MiniLM-L6-v2)
     op.execute("ALTER TABLE embeddings ADD COLUMN embedding vector(384)")
     
-    # Drop student_profiles table (legacy)
-    op.execute("DROP TABLE IF EXISTS student_profiles CASCADE")
+    # Drop user_profiles table (legacy)
+    op.execute("DROP TABLE IF EXISTS user_profiles CASCADE")
     
     # Note: user_id columns and indexes already added in migration 004_add_user_tracking
     # Commenting out duplicate operations:
@@ -83,13 +83,13 @@ def upgrade() -> None:
     # op.create_index(op.f('ix_feedback_content_id'), 'feedback', ['content_id'], unique=False)
     # op.create_index(op.f('ix_feedback_created_at'), 'feedback', ['created_at'], unique=False)
     # op.create_index(op.f('ix_feedback_user_id'), 'feedback', ['user_id'], unique=False)
-    # op.create_index(op.f('ix_ncert_standards_grade_level'), 'ncert_standards', ['grade_level'], unique=False)
-    # op.create_index(op.f('ix_ncert_standards_subject'), 'ncert_standards', ['subject'], unique=False)
+    # op.create_index(op.f('ix_content_standards_complexity_level'), 'content_standards', ['complexity_level'], unique=False)
+    # op.create_index(op.f('ix_content_standards_subject'), 'content_standards', ['subject'], unique=False)
     # op.create_index(op.f('ix_pipeline_logs_content_id'), 'pipeline_logs', ['content_id'], unique=False)
     # op.create_index(op.f('ix_pipeline_logs_stage'), 'pipeline_logs', ['stage'], unique=False)
     # op.create_index(op.f('ix_pipeline_logs_timestamp'), 'pipeline_logs', ['timestamp'], unique=False)
     # op.create_index(op.f('ix_processed_content_created_at'), 'processed_content', ['created_at'], unique=False)
-    # op.create_index(op.f('ix_processed_content_grade_level'), 'processed_content', ['grade_level'], unique=False)
+    # op.create_index(op.f('ix_processed_content_complexity_level'), 'processed_content', ['complexity_level'], unique=False)
     # op.create_index(op.f('ix_processed_content_language'), 'processed_content', ['language'], unique=False)
     # op.create_index(op.f('ix_processed_content_subject'), 'processed_content', ['subject'], unique=False)
     # op.create_index(op.f('ix_processed_content_user_id'), 'processed_content', ['user_id'], unique=False)
@@ -101,27 +101,27 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_processed_content_user_id'), table_name='processed_content')
     op.drop_index(op.f('ix_processed_content_subject'), table_name='processed_content')
     op.drop_index(op.f('ix_processed_content_language'), table_name='processed_content')
-    op.drop_index(op.f('ix_processed_content_grade_level'), table_name='processed_content')
+    op.drop_index(op.f('ix_processed_content_complexity_level'), table_name='processed_content')
     op.drop_index(op.f('ix_processed_content_created_at'), table_name='processed_content')
     op.drop_column('processed_content', 'user_id')
     op.drop_index(op.f('ix_pipeline_logs_timestamp'), table_name='pipeline_logs')
     op.drop_index(op.f('ix_pipeline_logs_stage'), table_name='pipeline_logs')
     op.drop_index(op.f('ix_pipeline_logs_content_id'), table_name='pipeline_logs')
-    op.drop_index(op.f('ix_ncert_standards_subject'), table_name='ncert_standards')
-    op.drop_index(op.f('ix_ncert_standards_grade_level'), table_name='ncert_standards')
+    op.drop_index(op.f('ix_content_standards_subject'), table_name='content_standards')
+    op.drop_index(op.f('ix_content_standards_complexity_level'), table_name='content_standards')
     op.drop_index(op.f('ix_feedback_user_id'), table_name='feedback')
     op.drop_index(op.f('ix_feedback_created_at'), table_name='feedback')
     op.drop_index(op.f('ix_feedback_content_id'), table_name='feedback')
     op.drop_column('feedback', 'user_id')
     op.drop_constraint(None, 'api_keys', type_='foreignkey')
-    op.create_table('student_profiles',
+    op.create_table('user_profiles',
     sa.Column('id', sa.UUID(), autoincrement=False, nullable=False),
     sa.Column('language_preference', sa.VARCHAR(length=50), autoincrement=False, nullable=False),
-    sa.Column('grade_level', sa.INTEGER(), autoincrement=False, nullable=False),
+    sa.Column('complexity_level', sa.INTEGER(), autoincrement=False, nullable=False),
     sa.Column('subjects_of_interest', postgresql.ARRAY(sa.TEXT()), autoincrement=False, nullable=True),
     sa.Column('offline_content_cache', postgresql.JSONB(astext_type=sa.Text()), autoincrement=False, nullable=True),
     sa.Column('created_at', postgresql.TIMESTAMP(), autoincrement=False, nullable=True),
-    sa.PrimaryKeyConstraint('id', name='student_profiles_pkey')
+    sa.PrimaryKeyConstraint('id', name='user_profiles_pkey')
     )
     op.drop_index(op.f('ix_embeddings_content_id'), table_name='embeddings')
     op.drop_index(op.f('ix_embeddings_chunk_id'), table_name='embeddings')

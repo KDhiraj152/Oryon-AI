@@ -1,4 +1,4 @@
-"""Initial schema for education content pipeline.
+"""Initial schema for content processing pipeline.
 
 Revision ID: 001
 Revises: 
@@ -25,10 +25,10 @@ def upgrade() -> None:
         sa.Column('simplified_text', sa.Text()),
         sa.Column('translated_text', sa.Text()),
         sa.Column('language', sa.String(50), nullable=False),
-        sa.Column('grade_level', sa.Integer(), nullable=False),
+        sa.Column('complexity_level', sa.Integer(), nullable=False),
         sa.Column('subject', sa.String(100), nullable=False),
         sa.Column('audio_file_path', sa.Text()),
-        sa.Column('ncert_alignment_score', sa.Float()),
+        sa.Column('content_alignment_score', sa.Float()),
         sa.Column('audio_accuracy_score', sa.Float()),
         sa.Column('created_at', sa.TIMESTAMP(), server_default=sa.func.now()),
         sa.Column('metadata', JSONB())
@@ -36,29 +36,29 @@ def upgrade() -> None:
     
     # Create indexes for common queries
     op.create_index('idx_content_language', 'processed_content', ['language'])
-    op.create_index('idx_content_grade', 'processed_content', ['grade_level'])
+    op.create_index('idx_content_complexity', 'processed_content', ['complexity_level'])
     op.create_index('idx_content_subject', 'processed_content', ['subject'])
     
-    # Create ncert_standards table
+    # Create content_standards table
     op.create_table(
-        'ncert_standards',
+        'content_standards',
         sa.Column('id', UUID(as_uuid=True), primary_key=True),
-        sa.Column('grade_level', sa.Integer(), nullable=False),
+        sa.Column('complexity_level', sa.Integer(), nullable=False),
         sa.Column('subject', sa.String(100), nullable=False),
         sa.Column('topic', sa.String(200), nullable=False),
         sa.Column('learning_objectives', ARRAY(sa.Text())),
         sa.Column('keywords', ARRAY(sa.Text()))
     )
     
-    # Create indexes for NCERT standards lookup
-    op.create_index('idx_ncert_grade_subject', 'ncert_standards', ['grade_level', 'subject'])
+    # Create indexes for content standards lookup
+    op.create_index('idx_standards_complexity_subject', 'content_standards', ['complexity_level', 'subject'])
     
-    # Create student_profiles table
+    # Create user_profiles table
     op.create_table(
-        'student_profiles',
+        'user_profiles',
         sa.Column('id', UUID(as_uuid=True), primary_key=True),
         sa.Column('language_preference', sa.String(50), nullable=False),
-        sa.Column('grade_level', sa.Integer(), nullable=False),
+        sa.Column('complexity_level', sa.Integer(), nullable=False),
         sa.Column('subjects_of_interest', ARRAY(sa.Text())),
         sa.Column('offline_content_cache', JSONB()),
         sa.Column('created_at', sa.TIMESTAMP(), server_default=sa.func.now())
@@ -92,6 +92,6 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_table('pipeline_logs')
-    op.drop_table('student_profiles')
-    op.drop_table('ncert_standards')
+    op.drop_table('user_profiles')
+    op.drop_table('content_standards')
     op.drop_table('processed_content')

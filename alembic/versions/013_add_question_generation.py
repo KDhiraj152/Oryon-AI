@@ -29,7 +29,7 @@ def upgrade() -> None:
         sa.Column('correct_answer', sa.Text(), nullable=False),
         sa.Column('explanation', sa.Text(), nullable=True),
         sa.Column('difficulty', sa.String(20), nullable=False),
-        sa.Column('ncert_objective', sa.String(200), nullable=True),
+        sa.Column('content_objective', sa.String(200), nullable=True),
         sa.Column('bloom_taxonomy_level', sa.String(50), nullable=True),
         sa.Column('quality_score', sa.Integer(), default=0),
         sa.Column('is_approved', sa.Integer(), default=0),
@@ -45,7 +45,7 @@ def upgrade() -> None:
     
     print("✓ generated_questions table created")
     print("  - Supports MCQ, short answer, true/false questions")
-    print("  - NCERT objective tagging")
+    print("  - Content objective tagging")
     print("  - Bloom's taxonomy classification")
     print("  - Quality scoring and approval workflow")
 

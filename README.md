@@ -1,14 +1,11 @@
 <p align="center">
   <h1 align="center">शिक्षा सेतु — Shiksha Setu</h1>
-  <p align="center"><strong>Your Private, Local-First AI Platform</strong></p>
-  <p align="center">
-    <em>ChatGPT-class capabilities. 10 languages. Fully offline. Your hardware, your data.</em>
-  </p>
+  <p align="center"><strong>Self-hosted, offline-capable AI platform with multilingual support</strong></p>
 </p>
 
 <p align="center">
   <a href="#quick-start">Quick Start</a> •
-  <a href="#why-this-exists">Why</a> •
+  <a href="#about">About</a> •
   <a href="#what-it-does">Features</a> •
   <a href="#architecture">Architecture</a> •
   <a href="#performance">Performance</a> •
@@ -17,20 +14,14 @@
 
 ---
 
-## Why This Exists
+## About
 
-**ChatGPT, Gemini, and Claude are powerful — but your data leaves your machine every single time you use them.**
+Shiksha Setu is a self-hosted AI platform that runs LLM chat, RAG, voice I/O, document analysis, semantic search, and multilingual translation on your own hardware.
 
-Shiksha Setu is a self-hosted AI platform that brings LLM chat, RAG, voice I/O, document analysis, semantic search, and multilingual translation to your own hardware. No API keys. No subscriptions. No data exfiltration.
-
-| Problem with Cloud AI | How Shiksha Setu Solves It |
-|:----------------------|:--------------------------|
-| **Your data is their training data** | **Zero data leaves your device.** No telemetry, no analytics, no cloud calls. |
-| **Internet required, always** | **Fully offline** after a one-time ~10GB model download. Works on airplanes, in basements, behind firewalls. |
-| **English-first, everything else second** | **Native support for 10 languages** via IndicTrans2 — Hindi, Tamil, Telugu, Bengali + 6 more. |
-| **Pay-per-token pricing** | **Unlimited usage. Free. Forever.** Run it on a laptop or a server cluster. |
-
-> If you can run Docker, you can run your own ChatGPT.
+- **Local-first** — all processing happens on-device. No external API calls or telemetry.
+- **Offline-capable** — works without internet after a one-time ~10GB model download.
+- **Multilingual** — supports 10 Indian languages + English via IndicTrans2.
+- **Open source** — MIT licensed. Swap models, tune prompts, extend as needed.
 
 ---
 
@@ -56,9 +47,9 @@ Shiksha Setu is a self-hosted AI platform that brings LLM chat, RAG, voice I/O, 
 - **Admin Dashboard** — Content review, approval workflows, and usage analytics
 - **Multi-Tenancy** — Organization-level data isolation with role-based access control
 
-### Universal File Upload
+### File Upload
 
-Drop **any file** and get intelligent processing:
+Supported input formats:
 
 ```
 Audio  (mp3, wav, m4a, flac, ogg)     → Whisper V3 transcription
@@ -83,20 +74,9 @@ Benchmarked on Apple Silicon M4 Pro (16GB unified memory):
 | Reranking Latency | **2.6ms/document** (BGE-Reranker-v2-M3) |
 | Q&A Latency (p50) | **450ms** |
 | Translation Latency | **120ms** |
-| Memory Efficiency | **75% reduction** vs FP16 (INT4 quantization) |
+| Memory Efficiency | **75% reduction** from FP16 baseline (INT4 quantization) |
 
-**Voice-to-voice end-to-end** (speak a question in Hindi → hear the answer): **under 4 seconds.**
-
-### vs. ChatGPT / Gemini / Claude
-
-| | Cloud AI (GPT-4, Gemini, Claude) | Shiksha Setu |
-|:--|:----------------------------------|:-------------|
-| **Privacy** | Data sent to third-party servers | All processing on your hardware |
-| **Offline** | Requires internet, always | Full offline after one-time setup |
-| **Languages** | English-first, others bolted on | Native multilingual (10 Indian languages) |
-| **Cost** | $20-200/month, pay-per-token | Free. Unlimited. Forever. |
-| **Customization** | Closed-source, no control | Open-source, swap models, tune prompts |
-| **Data Ownership** | Provider retains usage data | You own everything, zero telemetry |
+**Voice-to-voice end-to-end** (speak a question in Hindi → hear the answer): **~4 seconds.**
 
 ---
 
@@ -360,12 +340,10 @@ Detailed documentation in [`docs/`](docs/):
 
 ## License
 
-[MIT](LICENSE) — use it, modify it, deploy it.
+[MIT](LICENSE)
 
 ---
 
 <p align="center">
-  <strong>Private AI. No compromises. No cloud. No limits.</strong>
-  <br><br>
   <sub>Created by <strong>K Dhiraj</strong> · <a href="mailto:k.dhiraj.srihari@gmail.com">k.dhiraj.srihari@gmail.com</a> · <a href="https://github.com/KDhiraj152">GitHub</a> · <a href="https://linkedin.com/in/kdhiraj">LinkedIn</a></sub>
 </p>

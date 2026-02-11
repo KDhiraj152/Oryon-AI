@@ -6,7 +6,7 @@ Validates content against content domain standards.
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, ClassVar
 
 import numpy as np
 
@@ -48,7 +48,6 @@ class ContentValidator:
         text: str,
         complexity_level: int | None,
         subject: str,
-        standards: list[ContentStandard],
     ) -> dict[str, Any]:
         """
         Validate content against content domain standards.
@@ -64,16 +63,16 @@ class ContentValidator:
         """
         logger.info(f"Validating content for Grade {complexity_level or 'any'}, {subject}")
 
-        errors = []
-        warnings = []
-        suggestions = []
-        matched_topics = []
-        missing_topics = []
-        terminology_issues = []
+        errors: list[str] = []
+        warnings: list[str] = []
+        suggestions: list[str] = []
+        matched_topics: list[str] = []
+        missing_topics: list[str] = []
+        terminology_issues: list[str] = []
 
         # Find matching standards using embeddings
         matching_standards = self.standards_loader.find_matching_standards(
-            content=text, complexity_level=complexity_level, subject=subject, top_k=5
+            content=text, complexity_level=complexity_level or 0, subject=subject, top_k=5
         )
 
         if not matching_standards:
@@ -187,7 +186,7 @@ class ContentValidator:
         }
 
     # Terminology rules: (subject, min_grade_for_complex, complex_terms)
-    TERMINOLOGY_RULES = {
+    TERMINOLOGY_RULES: ClassVar[dict[str, tuple[int, list[str]]]] = {
         "mathematics": (11, ["calculus", "derivative", "integral"]),
         "science": (9, ["quantum", "thermodynamics", "electromagnetism"]),
     }
