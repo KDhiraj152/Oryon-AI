@@ -1,8 +1,8 @@
 <p align="center">
   <h1 align="center">शिक्षा सेतु — Shiksha Setu</h1>
-  <p align="center"><strong>AI-Powered Education for Every Student in India</strong></p>
+  <p align="center"><strong>Your Private, Local-First AI Platform</strong></p>
   <p align="center">
-    <em>6 AI models. 10 languages. Zero cloud. Runs on a laptop.</em>
+    <em>ChatGPT-class capabilities. 10 languages. Fully offline. Your hardware, your data.</em>
   </p>
 </p>
 
@@ -19,19 +19,18 @@
 
 ## Why This Exists
 
-**800 million students in India lack access to quality AI tutoring in their own language.**
+**ChatGPT, Gemini, and Claude are powerful — but your data leaves your machine every single time you use them.**
 
-Every major EdTech platform requires internet, charges subscriptions, and speaks English first. A student in rural Tamil Nadu gets a worse education than one in Mumbai — not because they're less capable, but because the tools don't work for them.
+Shiksha Setu is a self-hosted AI platform that brings LLM chat, RAG, voice I/O, document analysis, semantic search, and multilingual translation to your own hardware. No API keys. No subscriptions. No data exfiltration.
 
-Shiksha Setu fixes this with three architectural constraints:
+| Problem with Cloud AI | How Shiksha Setu Solves It |
+|:----------------------|:--------------------------|
+| **Your data is their training data** | **Zero data leaves your device.** No telemetry, no analytics, no cloud calls. |
+| **Internet required, always** | **Fully offline** after a one-time ~10GB model download. Works on airplanes, in basements, behind firewalls. |
+| **English-first, everything else second** | **Native support for 10 languages** via IndicTrans2 — Hindi, Tamil, Telugu, Bengali + 6 more. |
+| **Pay-per-token pricing** | **Unlimited usage. Free. Forever.** Run it on a laptop or a server cluster. |
 
-| Problem | How We Solve It |
-|---------|:-----------------|
-| **Language exclusion** | Native support for **10 Indian languages** via IndicTrans2 — not translation-as-afterthought, but multilingual from the ground up |
-| **Internet dependency** | **Fully offline** after a one-time ~10GB model download. No APIs. No subscriptions. No metered usage. |
-| **Privacy concerns** | **Zero data leaves the device.** No telemetry, no analytics, no cloud calls. Students explore freely. |
-
-> A school in a remote village runs the same AI stack as elite urban institutions.
+> If you can run Docker, you can run your own ChatGPT.
 
 ---
 
@@ -39,23 +38,23 @@ Shiksha Setu fixes this with three architectural constraints:
 
 ### Core AI Pipeline
 
-| Capability | Model | What Happens |
+| Capability | Model | What It Does |
 |:-----------|:------|:-------------|
-| **Question Answering** | Qwen3-8B (MLX 4-bit) | RAG-enhanced answers aligned to NCERT curriculum |
-| **Translation** | IndicTrans2-1B | Hindi, Tamil, Telugu, Bengali, Marathi, Gujarati, Kannada, Malayalam, Punjabi, Odia |
-| **Voice Input** | Whisper V3 Turbo | Speak in any language, get AI responses — 8x faster than Whisper V3 |
-| **Voice Output** | MMS-TTS + Edge-TTS | Natural speech synthesis with automatic failover |
-| **Smart Search** | BGE-M3 + BGE-Reranker-v2-M3 | Multilingual semantic search with cross-encoder reranking |
-| **Document Processing** | GOT-OCR2 + PyMuPDF | Upload PDFs, images, spreadsheets — AI extracts and understands |
+| **Chat & Reasoning** | Qwen3-8B (MLX 4-bit) | RAG-enhanced conversational AI with streaming responses |
+| **Translation** | IndicTrans2-1B | Real-time translation across 10 Indian languages + English |
+| **Voice Input** | Whisper V3 Turbo | Speech-to-text in any supported language — 8x faster than Whisper V3 |
+| **Voice Output** | MMS-TTS + Edge-TTS | Natural text-to-speech with automatic failover |
+| **Semantic Search** | BGE-M3 + BGE-Reranker-v2-M3 | Multilingual vector search with cross-encoder reranking |
+| **Document Intelligence** | GOT-OCR2 + PyMuPDF | Upload PDFs, images, spreadsheets — extract, parse, and query |
 
-### Beyond Tutoring
+### Platform Capabilities
 
-- **Adaptive Learning** — Personalized content based on grade level and learning profile
-- **Question Generation** — Auto-generate quizzes from any uploaded material
-- **Teacher Dashboard** — Content review and approval workflows
-- **A/B Testing Framework** — Experiment with content optimization strategies
-- **Multi-Agent System** — Specialized agents for hardware optimization, quality evaluation, and self-improvement
-- **Multi-Tenancy** — Organization-level isolation for schools and institutions
+- **RAG Pipeline** — Ingest documents, build vector indexes, query with context-aware retrieval
+- **Content Generation** — Summarize, simplify, expand, or restructure any text
+- **Multi-Agent System** — 7 specialized agents for orchestration, evaluation, and self-improvement
+- **A/B Testing Framework** — Experiment with prompt strategies and model configurations
+- **Admin Dashboard** — Content review, approval workflows, and usage analytics
+- **Multi-Tenancy** — Organization-level data isolation with role-based access control
 
 ### Universal File Upload
 
@@ -88,15 +87,16 @@ Benchmarked on Apple Silicon M4 Pro (16GB unified memory):
 
 **Voice-to-voice end-to-end** (speak a question in Hindi → hear the answer): **under 4 seconds.**
 
-### vs. Cloud Solutions
+### vs. ChatGPT / Gemini / Claude
 
-| | Cloud AI Tutors | Shiksha Setu |
-|:--|:----------------|:-------------|
-| **Privacy** | Data sent to foreign servers | All processing on-device |
-| **Offline** | Requires internet | Full offline after setup |
-| **Languages** | English-first | Native multilingual |
-| **Cost** | ₹500-2000/month subscription | Free. Forever. |
-| **Curriculum** | Generic responses | NCERT/CBSE aligned |
+| | Cloud AI (GPT-4, Gemini, Claude) | Shiksha Setu |
+|:--|:----------------------------------|:-------------|
+| **Privacy** | Data sent to third-party servers | All processing on your hardware |
+| **Offline** | Requires internet, always | Full offline after one-time setup |
+| **Languages** | English-first, others bolted on | Native multilingual (10 Indian languages) |
+| **Cost** | $20-200/month, pay-per-token | Free. Unlimited. Forever. |
+| **Customization** | Closed-source, no control | Open-source, swap models, tune prompts |
+| **Data Ownership** | Provider retains usage data | You own everything, zero telemetry |
 
 ---
 
@@ -163,7 +163,7 @@ A custom **Memory Coordinator** orchestrates 6+ concurrent AI models in shared m
 
 ### Prerequisites
 
-- Python 3.11 ([why 3.11?](#python-311-requirement))
+- Python 3.11–3.13 (3.12 recommended; [details](#python-version))
 - Node.js 20+
 - PostgreSQL 17+ with pgvector
 - Redis 7+
@@ -193,20 +193,25 @@ cd Shiksha-setu
 ### Try It
 
 ```bash
-# Ask a question in Hindi (no auth required)
+# Chat (no auth required for guest mode)
 curl -X POST http://localhost:8000/api/v2/chat/guest \
   -H "Content-Type: application/json" \
-  -d '{"message": "प्रकाश संश्लेषण क्या है?", "language": "hi", "grade_level": 8}'
+  -d '{"message": "Explain the observer pattern with a Python example", "language": "en"}'
 
-# Simplify text for a 5th grader
+# Summarize complex text
 curl -X POST http://localhost:8000/api/v2/content/simplify \
   -H "Content-Type: application/json" \
-  -d '{"text": "Mitochondria are membrane-bound organelles...", "target_grade": 5}'
+  -d '{"text": "Transformer architectures utilize self-attention mechanisms..."}'
 
 # Streaming chat with SSE
 curl -N -X POST http://localhost:8000/api/v2/chat/stream \
   -H "Content-Type: application/json" \
-  -d '{"message": "Explain Newton'"'"'s laws", "language": "en"}'
+  -d '{"message": "Compare REST vs GraphQL — pros, cons, when to use each", "language": "en"}'
+
+# Translate to Hindi
+curl -X POST http://localhost:8000/api/v2/content/translate \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Machine learning is transforming software engineering", "target_language": "hi"}'
 ```
 
 ### Stop
@@ -305,16 +310,17 @@ pytest tests/ --cov=backend           # With coverage report
 
 ---
 
-## Python 3.11 Requirement
+## Python Version
 
-This project requires **Python 3.11** specifically — not newer — for full ML stack compatibility:
+This project supports **Python 3.11, 3.12, and 3.13**. Python 3.12 is recommended for the best balance of compatibility and performance.
 
-- All ML packages (PyTorch, MLX, Transformers) ship pre-built wheels for 3.11
-- MLX and CoreML tools are optimized and tested for 3.11 on Apple Silicon
-- Some dependencies don't yet support Python 3.13+ without compilation
+- All ML packages (PyTorch, MLX, Transformers) ship pre-built wheels for 3.11–3.13
+- MLX and CoreML tools work on 3.11+ on Apple Silicon
+- Python 3.12 offers 5–25% faster startup and execution over 3.11
 
 ```bash
-brew install python@3.11    # macOS
+brew install python@3.12    # macOS (recommended)
+brew install python@3.11    # macOS (minimum supported)
 ```
 
 ---
@@ -359,7 +365,7 @@ Detailed documentation in [`docs/`](docs/):
 ---
 
 <p align="center">
-  <strong>Built for India. Built for learning. Built to run anywhere.</strong>
+  <strong>Private AI. No compromises. No cloud. No limits.</strong>
   <br><br>
   <sub>Created by <strong>K Dhiraj</strong> · <a href="mailto:k.dhiraj.srihari@gmail.com">k.dhiraj.srihari@gmail.com</a> · <a href="https://github.com/KDhiraj152">GitHub</a> · <a href="https://linkedin.com/in/kdhiraj">LinkedIn</a></sub>
 </p>
