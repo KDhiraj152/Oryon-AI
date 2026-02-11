@@ -384,7 +384,7 @@ services:
     container_name: shikshasetu_vllm_prod
     restart: unless-stopped
     command: >
-      --model ${VLLM_MODEL_NAME:-Qwen/Qwen2.5-3B-Instruct}
+      --model ${VLLM_MODEL_NAME:-Qwen/Qwen3-8B}
       --dtype float16
       --max-model-len 4096
       --gpu-memory-utilization 0.9
