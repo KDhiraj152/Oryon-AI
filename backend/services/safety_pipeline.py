@@ -415,7 +415,7 @@ class SafetyPipeline:
         contradiction_pairs = [
             ("always", "never"),
             ("all", "none"),
-            ("definitely", "uncertain"),
+            ("definitely", "ucontent_domainain"),
             ("must", "cannot"),
             ("yes", "no"),
         ]

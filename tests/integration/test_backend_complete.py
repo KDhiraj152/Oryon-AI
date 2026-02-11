@@ -107,7 +107,7 @@ class TestFileUpload:
     def test_upload_text_file(self, client, auth_headers):
         """Test uploading a text file."""
         # Create test file
-        test_content = "This is a test document for educational content processing."
+        test_content = "This is a test document for content processing."
         files = {"file": ("test.txt", test_content.encode(), "text/plain")}
 
         response = client.post(

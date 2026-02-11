@@ -182,7 +182,7 @@ class TranslatedText:
 
 class TranslationEngine:
     """
-    Translation engine component that converts educational content
+    Translation engine component that converts content
     into Indian languages using IndicTrans2 model.
 
     Supports: Hindi, Tamil, Telugu, Bengali, Marathi (MVP)
@@ -644,7 +644,7 @@ class TranslationEngine:
                 original_text=text,
                 initial_output=initial_translation,
                 task=RefinementTask.TRANSLATION,
-                grade_level=8,  # Default grade level
+                complexity_level=8,  # Default complexity level
                 subject=subject,
             )
 

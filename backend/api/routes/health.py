@@ -44,24 +44,24 @@ def _get_policy_modes_response():
                 {
                     "id": "open",
                     "name": "OPEN",
-                    "description": "Open AI for education, research & noble purposes",
+                    "description": "Open AI for AI, research & noble purposes",
                     "default": True,
                     "settings": {
                         "unrestricted_mode": True,
                         "policy_filters": False,
-                        "curriculum_enforcement": False,
+                        "content_moderation": False,
                         "harmful_content_blocking": True,
                     },
                 },
                 {
                     "id": "education",
-                    "name": "EDUCATION",
-                    "description": "Education mode with NCERT curriculum alignment",
+                    "name": "MODERATED",
+                    "description": "Education mode with content domain alignment",
                     "default": False,
                     "settings": {
                         "unrestricted_mode": False,
                         "policy_filters": True,
-                        "curriculum_enforcement": True,
+                        "content_moderation": True,
                         "harmful_content_blocking": True,
                     },
                 },
@@ -73,7 +73,7 @@ def _get_policy_modes_response():
                     "settings": {
                         "unrestricted_mode": True,
                         "policy_filters": False,
-                        "curriculum_enforcement": False,
+                        "content_moderation": False,
                         "harmful_content_blocking": True,
                         "external_calls": True,
                     },
@@ -86,7 +86,7 @@ def _get_policy_modes_response():
                     "settings": {
                         "unrestricted_mode": False,
                         "policy_filters": True,
-                        "curriculum_enforcement": True,
+                        "content_moderation": True,
                         "harmful_content_blocking": True,
                         "jailbreak_detection": True,
                     },
@@ -145,7 +145,7 @@ class BackupRequest(BaseModel):
 
 
 # Error constants
-ERROR_TEACHER_ADMIN_REQUIRED = "Teacher or admin access required"
+ERROR_REVIEWER_ADMIN_REQUIRED = "Teacher or admin access required"
 
 
 # ==================== Health Endpoints ====================
@@ -182,8 +182,8 @@ async def get_policy_status():
         "settings": {
             "unrestricted_mode": config.allow_unrestricted_mode,
             "policy_filters": config.policy_filters_enabled,
-            "curriculum_enforcement": config.curriculum_enforcement,
-            "grade_adaptation": config.grade_level_adaptation,
+            "content_moderation": config.content_moderation,
+            "complexity_adaptation": config.complexity_adaptation,
             "harmful_content_blocking": config.block_harmful_content,
             "jailbreak_detection": config.detect_jailbreaks,
             "external_calls": config.allow_external_calls,
@@ -229,7 +229,7 @@ async def switch_policy_mode(
 
     Available modes:
     - OPEN: Open AI with essential safety only (default)
-    - EDUCATION: Education mode with NCERT curriculum alignment
+    - EDUCATION: Education mode with content domain alignment
     - RESEARCH: Maximum freedom for academic work
     - RESTRICTED: Full policy enforcement
     """
@@ -240,7 +240,7 @@ async def switch_policy_mode(
     try:
         target_mode = PolicyMode(mode_str.lower())
     except ValueError:
-        valid_modes = ["OPEN", "EDUCATION", "RESEARCH", "RESTRICTED"]
+        valid_modes = ["OPEN", "MODERATED", "RESEARCH", "RESTRICTED"]
         raise HTTPException(
             status_code=400,
             detail=f"Invalid mode '{mode_str}'. Valid modes: {valid_modes}",
@@ -357,7 +357,7 @@ async def generate_quiz(request: QuizGenerateRequest):
 
         prompt = f"""Generate exactly {request.num_questions} {request.difficulty} difficulty multiple choice questions about {request.topic}.
 
-IMPORTANT: Generate questions based on actual {request.subject} curriculum. Each question must be factually accurate.
+IMPORTANT: Generate questions based on actual {request.subject} content_domain. Each question must be factually accurate.
 
 Format each question as:
 Q1: [question text]
@@ -445,7 +445,7 @@ async def get_pending_reviews(
 ):
     """Get pending AI responses flagged for review."""
     if current_user.role not in ("teacher", "admin"):
-        raise HTTPException(status_code=403, detail=ERROR_TEACHER_ADMIN_REQUIRED)
+        raise HTTPException(status_code=403, detail=ERROR_REVIEWER_ADMIN_REQUIRED)
 
     try:
         from ...services.review_queue import get_review_queue
@@ -472,7 +472,7 @@ async def get_review_by_id(
 ):
     """Get a specific flagged response by ID."""
     if current_user.role not in ("teacher", "admin"):
-        raise HTTPException(status_code=403, detail=ERROR_TEACHER_ADMIN_REQUIRED)
+        raise HTTPException(status_code=403, detail=ERROR_REVIEWER_ADMIN_REQUIRED)
 
     try:
         from ...services.review_queue import get_review_queue
@@ -502,7 +502,7 @@ async def submit_review(
 ):
     """Submit a review for a flagged response."""
     if current_user.role not in ("teacher", "admin"):
-        raise HTTPException(status_code=403, detail=ERROR_TEACHER_ADMIN_REQUIRED)
+        raise HTTPException(status_code=403, detail=ERROR_REVIEWER_ADMIN_REQUIRED)
 
     if status not in ("approved", "rejected", "improved"):
         raise HTTPException(status_code=400, detail="Invalid status")
@@ -542,7 +542,7 @@ async def submit_review(
 async def get_review_stats(current_user: TokenData = Depends(get_current_user)):
     """Get review queue statistics."""
     if current_user.role not in ("teacher", "admin"):
-        raise HTTPException(status_code=403, detail=ERROR_TEACHER_ADMIN_REQUIRED)
+        raise HTTPException(status_code=403, detail=ERROR_REVIEWER_ADMIN_REQUIRED)
 
     try:
         from ...services.review_queue import get_review_queue
@@ -563,7 +563,7 @@ async def get_review_stats(current_user: TokenData = Depends(get_current_user)):
 async def get_my_profile(current_user: TokenData = Depends(get_current_user)):
     """Get current user's profile."""
     try:
-        from ...services.student_profile import get_profile_service
+        from ...services.user_profile import get_profile_service
 
         service = get_profile_service()
 
@@ -586,7 +586,7 @@ async def update_my_profile(
 ):
     """Update user profile."""
     try:
-        from ...services.student_profile import get_profile_service
+        from ...services.user_profile import get_profile_service
 
         service = get_profile_service()
 

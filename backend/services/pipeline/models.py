@@ -429,7 +429,7 @@ _RE_SCORE = re.compile(r"SCORE:\s*(\d+)/10")
 
 
 def validate_response(
-    response: str, question: str, grade_level: int = 8
+    response: str, question: str, complexity_level: int = 8
 ) -> dict[str, Any]:
     """Validate response quality using Qwen3-8B (via MLX).
 
@@ -439,7 +439,7 @@ def validate_response(
     Args:
         response: The generated response to validate
         question: The original question
-        grade_level: Target grade level (default: 8)
+        complexity_level: Target complexity level (default: 8)
 
     Returns:
         Dict with 'valid' (bool), 'score' (float), 'reason' (str)
@@ -451,7 +451,7 @@ def validate_response(
     try:
         import torch
 
-        prompt = f"""Rate this educational response for Class {grade_level}:
+        prompt = f"""Rate this educational response for Class {complexity_level}:
 
 Q: {question[:200]}
 A: {response[:800]}

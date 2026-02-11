@@ -1,7 +1,7 @@
 """
-NCERT Curriculum Validator
+Content Quality Validator
 
-Validates educational content against NCERT curriculum standards.
+Validates content against content domain standards.
 """
 
 import logging
@@ -10,8 +10,8 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-from ...models import NCERTStandard
-from .standards import NCERTStandardsLoader
+from ...models import ContentStandard
+from .content_standards import ContentStandardsLoader
 
 logger = logging.getLogger(__name__)
 
@@ -29,40 +29,40 @@ class ValidationResult:
     terminology_issues: list[str]
 
 
-class NCERTValidator:
-    """Validates content against NCERT curriculum standards."""
+class ContentValidator:
+    """Validates content against content domain standards."""
 
     def __init__(self, embedding_client: Any | None = None):
         """
-        Initialize NCERT validator.
+        Initialize content_domain validator.
 
         Args:
             embedding_client: Optional embedding client for semantic matching
         """
         self.embedding_client = embedding_client
-        self.standards_loader = NCERTStandardsLoader(self.embedding_client)
+        self.standards_loader = ContentStandardsLoader(self.embedding_client)
         self.alignment_threshold = 0.70
 
     def validate_content(
         self,
         text: str,
-        grade_level: int | None,
+        complexity_level: int | None,
         subject: str,
-        standards: list[NCERTStandard],
+        standards: list[ContentStandard],
     ) -> dict[str, Any]:
         """
-        Validate content against NCERT curriculum standards.
+        Validate content against content domain standards.
 
         Args:
             text: Content text to validate
-            grade_level: Optional grade level (1-12), None for unconstrained
+            complexity_level: Optional complexity level (1-12), None for unconstrained
             subject: Subject area
-            standards: List of NCERT standards to validate against
+            standards: List of content standards to validate against
 
         Returns:
             Dictionary with validation results
         """
-        logger.info(f"Validating content for Grade {grade_level or 'any'}, {subject}")
+        logger.info(f"Validating content for Grade {complexity_level or 'any'}, {subject}")
 
         errors = []
         warnings = []
@@ -73,13 +73,13 @@ class NCERTValidator:
 
         # Find matching standards using embeddings
         matching_standards = self.standards_loader.find_matching_standards(
-            content=text, grade_level=grade_level, subject=subject, top_k=5
+            content=text, complexity_level=complexity_level, subject=subject, top_k=5
         )
 
         if not matching_standards:
-            grade_msg = f"Grade {grade_level}, " if grade_level else ""
+            grade_msg = f"Grade {complexity_level}, " if complexity_level else ""
             errors.append(
-                f"No matching curriculum standards found for {grade_msg}{subject}"
+                f"No matching content_domain standards found for {grade_msg}{subject}"
             )
             return {
                 "alignment_score": 0.0,
@@ -128,13 +128,13 @@ class NCERTValidator:
 
         # Provide suggestions based on alignment score
         if overall_alignment < 0.5:
-            grade_msg = f"Grade {grade_level} " if grade_level else ""
+            grade_msg = f"Grade {complexity_level} " if complexity_level else ""
             errors.append(
                 f"Content alignment too low ({overall_alignment:.1%}). "
                 f"Content may not be appropriate for {grade_msg}{subject}."
             )
             suggestions.append(
-                "Review NCERT curriculum guidelines and adjust content to better match "
+                "Review content domain guidelines and adjust content to better match "
                 "expected learning outcomes."
             )
         elif overall_alignment < self.alignment_threshold:
@@ -196,35 +196,35 @@ class NCERTValidator:
         self,
         text: str,
         terms: list[str],
-        grade_level: int,
+        complexity_level: int,
         min_grade: int,
     ) -> list[str]:
-        """Check if complex terms are used below appropriate grade level."""
-        if grade_level >= min_grade:
+        """Check if complex terms are used below appropriate complexity level."""
+        if complexity_level >= min_grade:
             return []
 
         text_lower = text.lower()
         return [
-            f"Advanced term '{term}' may be inappropriate for Grade {grade_level}"
+            f"Advanced term '{term}' may be inappropriate for Grade {complexity_level}"
             for term in terms
             if term.lower() in text_lower
         ]
 
     def validate_terminology(
-        self, text: str, subject: str, grade_level: int | None = None
+        self, text: str, subject: str, complexity_level: int | None = None
     ) -> list[str]:
         """
-        Validate terminology appropriateness for grade level.
+        Validate terminology appropriateness for complexity level.
 
         Args:
             text: Content text
             subject: Subject area
-            grade_level: Optional grade level (None skips grade-based checks)
+            complexity_level: Optional complexity level (None skips grade-based checks)
 
         Returns:
             List of terminology issues
         """
-        if grade_level is None:
+        if complexity_level is None:
             return []  # Skip grade-based terminology checks for unconstrained
 
         subject_lower = subject.lower()
@@ -234,4 +234,4 @@ class NCERTValidator:
             return []
 
         min_grade, complex_terms = rule
-        return self._check_complex_terms(text, complex_terms, grade_level, min_grade)
+        return self._check_complex_terms(text, complex_terms, complexity_level, min_grade)

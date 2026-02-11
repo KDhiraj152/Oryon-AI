@@ -16,7 +16,7 @@ Shiksha Setu supports multiple deployment configurations:
 | Mode | Use Case | Hardware | Complexity |
 |------|----------|----------|------------|
 | **Development** | Local testing | Any Mac/PC | Simple |
-| **Single-Node Production** | Small school/organization | M4 Pro or RTX 4060+ | Moderate |
+| **Single-Node Production** | Small team/organization | M4 Pro or RTX 4060+ | Moderate |
 | **Multi-Node Production** | Large institution | Multiple GPUs | Advanced |
 
 ---

@@ -73,7 +73,7 @@ class ModelCollaborator:
             task: Type of task (simplify, translate, evaluate, etc.)
             input_text: Input text to process
             pattern: Collaboration pattern to use
-            context: Additional context (grade_level, subject, language, etc.)
+            context: Additional context (complexity_level, subject, language, etc.)
 
         Returns:
             CollaborationResult with output and metrics
@@ -137,12 +137,12 @@ class ModelCollaborator:
 
             engine = get_ai_engine()
 
-            grade = context.get("grade_level", 8)
+            grade = context.get("complexity_level", 8)
             subject = context.get("subject", "General")
 
             config = GenerationConfig(max_tokens=1024)
             simplified = await engine.chat(
-                message=f"Simplify this text for grade {grade} students studying {subject}:\n\n{text}",
+                message=f"Simplify this text for grade {grade} users studying {subject}:\n\n{text}",
                 config=config,
             )
 

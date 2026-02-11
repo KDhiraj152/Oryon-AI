@@ -18,7 +18,7 @@ INVALID_FILE_TYPE = "Invalid file type"
 FILE_NOT_FOUND = "File not found"
 
 # Validation Messages
-INVALID_GRADE_LEVEL = "Grade level must be between 5 and 12"
+INVALID_COMPLEXITY = "Grade level must be between 5 and 12"
 INVALID_LANGUAGE = "Unsupported language"
 TEXT_TOO_SHORT = "Text is too short for processing"
 TEXT_TOO_LONG = "Text exceeds maximum length"
@@ -35,7 +35,7 @@ DATABASE_ERROR = "Database error occurred"
 CONNECTION_ERROR = "Failed to connect to database"
 
 # Default Values
-DEFAULT_GRADE_LEVEL = 8
+DEFAULT_COMPLEXITY = 8
 DEFAULT_SUBJECT = "General"
 DEFAULT_LANGUAGE = "English"
 DEFAULT_CHUNK_SIZE = 512
@@ -43,9 +43,9 @@ DEFAULT_CHUNK_OVERLAP = 50
 DEFAULT_MAX_UPLOAD_SIZE_MB = 100
 DEFAULT_RATE_LIMIT_PER_MINUTE = 60
 
-# Grade Level Bounds
-MIN_GRADE_LEVEL = 1
-MAX_GRADE_LEVEL = 12
+# Complexity Level Bounds
+MIN_COMPLEXITY = 1
+MAX_COMPLEXITY = 12
 
 # Supported Languages
 SUPPORTED_LANGUAGES = [
@@ -83,7 +83,7 @@ __all__ = [
     "DATABASE_ERROR",
     "DEFAULT_CHUNK_OVERLAP",
     "DEFAULT_CHUNK_SIZE",
-    "DEFAULT_GRADE_LEVEL",
+    "DEFAULT_COMPLEXITY",
     "DEFAULT_LANGUAGE",
     "DEFAULT_MAX_UPLOAD_SIZE_MB",
     "DEFAULT_RATE_LIMIT_PER_MINUTE",
@@ -92,10 +92,10 @@ __all__ = [
     "FILE_TOO_LARGE",
     "INVALID_CREDENTIALS",
     "INVALID_FILE_TYPE",
-    "INVALID_GRADE_LEVEL",
+    "INVALID_COMPLEXITY",
     "INVALID_LANGUAGE",
-    "MAX_GRADE_LEVEL",
-    "MIN_GRADE_LEVEL",
+    "MAX_COMPLEXITY",
+    "MIN_COMPLEXITY",
     "NO_TEXT_AVAILABLE",
     "QUESTION_TOO_SHORT",
     "RATE_LIMIT_EXCEEDED",

@@ -11,7 +11,7 @@
 # - Pre-built binaries available (no compilation needed)
 #
 # Features (v4.0 - Universal Mode):
-#   ✓ UNIVERSAL_MODE - All topics enabled (no NCERT/grade limits)
+#   ✓ UNIVERSAL_MODE - All topics enabled (no content_domain/grade limits)
 #   ✓ Self-Optimizing Retrieval Loop (learns from queries)
 #   ✓ 3-Pass Safety Pipeline (semantic, logical, safety)
 #   ✓ Adaptive Context Allocator (dynamic token budgeting)
@@ -137,7 +137,7 @@ if ! $QUIET; then
     echo ""
     echo -e "${MAGENTA}   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo -e "${CYAN}   ॐ  ${WHITE}${BOLD}SHIKSHA SETU - SETUP${NC}${CYAN}  ॐ${NC}"
-    echo -e "${DIM}   AI-Powered Bilingual Education Platform${NC}"
+    echo -e "${DIM}   Local-First Multilingual AI Platform${NC}"
     $MINIMAL_MODE && echo -e "${YELLOW}   ⚡ MINIMAL MODE${NC}"
     $FORCE_REINSTALL && echo -e "${YELLOW}   🔄 FORCE REINSTALL${NC}"
     echo -e "${MAGENTA}   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -204,7 +204,7 @@ fi
 # DIRECTORY STRUCTURE
 # ============================================================================
 step "Creating directories..."
-mkdir -p logs data/{cache,uploads,models,audio} storage/{cache,uploads,models,audio,curriculum}
+mkdir -p logs data/{cache,uploads,models,audio} storage/{cache,uploads,models,audio,content_domain}
 ok "Directories ready"
 
 # ============================================================================

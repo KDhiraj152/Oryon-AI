@@ -86,7 +86,7 @@ class ModelWarmupMixin:
 
         warmup_texts = [
             "The process of photosynthesis in plants.",
-            "Mathematical equations and formulas for students.",
+            "Mathematical equations and formulas for users.",
             "History of ancient civilizations and cultures.",
         ]
 

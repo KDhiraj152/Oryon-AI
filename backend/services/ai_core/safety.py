@@ -286,9 +286,9 @@ class SafetyGuard:
     ]
 
     # Allow patterns (educational context)
-    EDUCATIONAL_PATTERNS = [
+    CONTENT_PATTERNS = [
         r"(?i)(explain|understand|learn about|history of|science of)",
-        r"(?i)(for educational purposes|in theory|academically)",
+        r"(?i)(for legitimate purposes|in theory|academically)",
         r"(?i)(what is|how does|why does)",
     ]
 
@@ -303,8 +303,8 @@ class SafetyGuard:
         self._harmful_patterns = [
             (re.compile(pattern), risk) for pattern, risk in self.HARMFUL_PATTERNS
         ]
-        self._educational_patterns = [
-            re.compile(pattern) for pattern in self.EDUCATIONAL_PATTERNS
+        self._content_patterns = [
+            re.compile(pattern) for pattern in self.CONTENT_PATTERNS
         ]
 
     def _get_policy_engine(self):
@@ -343,11 +343,11 @@ class SafetyGuard:
         for pattern, risk in self._harmful_patterns:
             if pattern.search(text):
                 # Check if it's in educational context
-                is_educational = any(
-                    ep.search(text) for ep in self._educational_patterns
+                is_legitimate = any(
+                    ep.search(text) for ep in self._content_patterns
                 )
 
-                if not is_educational:
+                if not is_legitimate:
                     issues.append("Potentially harmful content detected")
                     if risk.value > max_risk.value:
                         max_risk = risk
@@ -445,7 +445,7 @@ class SafetyGuard:
             return (
                 "I'm sorry, but I can't help with that request as it may involve "
                 "harmful or dangerous content. If you're researching a topic for "
-                "educational purposes, please rephrase your question to clarify the context."
+                "legitimate purposes, please rephrase your question to clarify the context."
             )
         elif result.risk_level == RiskLevel.HIGH:
             return (

@@ -37,7 +37,7 @@ class Settings:
     # =================================================================
     # APPLICATION
     # =================================================================
-    APP_NAME: str = "ShikshaSetu AI Education API"
+    APP_NAME: str = "ShikshaSetu AI Platform API"
     APP_VERSION: str = "4.0.0"
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "production")
     DEBUG: bool = os.getenv("DEBUG", "true").lower() == "true"  # Enabled until stable
@@ -318,8 +318,8 @@ class Settings:
     # =================================================================
     # UNIVERSAL MODE (AI for India - No Content Restrictions)
     # =================================================================
-    # When enabled, the system operates like ChatGPT/Perplexity - no NCERT,
-    # grade level, or subject restrictions. Handles philosophy, politics,
+    # When enabled, the system operates like ChatGPT/Perplexity - no content_domain,
+    # complexity level, or subject restrictions. Handles philosophy, politics,
     # music, poetry, history, art, and all human knowledge.
     UNIVERSAL_MODE: bool = os.getenv("UNIVERSAL_MODE", "true").lower() == "true"
 

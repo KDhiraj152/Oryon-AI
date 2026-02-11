@@ -10,19 +10,19 @@ from .content import (
     ContentTranslation,
     ContentValidation,
     Feedback,
-    NCERTStandard,
+    ContentStandard,
     PipelineLog,
     ProcessedContent,
 )
 from .progress import (
     Achievement,
-    LearningSession,
-    ParentReport,
+    InteractionSession,
+    UsageReport,
     QuizScore,
-    StudentProgress,
+    UserProgress,
 )
 from .rag import ChatHistory, DocumentChunk, Embedding
-from .student import LearningStyle, StudentProfile
+from .user_profile import UserPreference, UserProfile
 
 __all__ = [
     "APIKey",
@@ -36,18 +36,18 @@ __all__ = [
     "Embedding",
     "Feedback",
     "FileUpload",
-    "LearningSession",
-    "LearningStyle",
+    "InteractionSession",
+    "UserPreference",
     "Message",
     "MessageRole",
-    "NCERTStandard",
-    "ParentReport",
+    "ContentStandard",
+    "UsageReport",
     "PipelineLog",
     "ProcessedContent",
     "QuizScore",
     "RefreshToken",
-    "StudentProfile",
-    "StudentProgress",
+    "UserProfile",
+    "UserProgress",
     "TokenBlacklist",
     "User",
 ]

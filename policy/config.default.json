@@ -1,24 +1,24 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "version": "2.0.0",
-  "description": "Policy configuration for ShikshaSetu AI Engine. A safe, general-purpose AI for education and noble purposes.",
+  "description": "Policy configuration for ShikshaSetu AI Engine. A safe, general-purpose AI for general-purpose AI.",
   "last_updated": "2025-12-04T04:00:00Z",
 
   "meta": {
-    "vision": "A safe AI that empowers users for education, research, creativity, and noble purposes without artificial restrictions",
+    "vision": "A safe AI that empowers users for research, creativity, and productivity, and noble purposes without artificial restrictions",
     "principles": [
       "Safety without unnecessary restrictions",
       "Empower users to learn and create",
       "Block only genuinely harmful content",
       "Trust users with good intent",
-      "Enable noble purposes beyond education"
+      "Enable noble purposes general-purpose"
     ],
     "extracted_from": [
       "backend/services/ai_core/safety.py",
       "backend/services/ai_core/engine.py",
-      "backend/services/curriculum_validator.py",
-      "backend/services/grade_adaptation.py",
-      "backend/services/validate/ncert.py"
+      "backend/services/content_validator.py",
+      "backend/services/complexity_adaptation.py",
+      "backend/services/validate/content_domain.py"
     ],
     "purpose": "Minimal safety guardrails that block real harm while enabling maximum utility"
   },
@@ -27,21 +27,21 @@
     "OPEN": {
       "description": "Default mode - open AI with essential safety only",
       "policy_filters_enabled": false,
-      "curriculum_enforcement": false,
+      "content_moderation": false,
       "harmful_content_blocking": true,
       "allow_general_queries": true
     },
-    "EDUCATION": {
-      "description": "Education-focused mode with curriculum alignment",
+    "MODERATED": {
+      "description": "Moderated mode with content alignment",
       "policy_filters_enabled": true,
-      "curriculum_enforcement": true,
+      "content_moderation": true,
       "harmful_content_blocking": true,
       "allow_general_queries": true
     },
     "RESEARCH": {
       "description": "Research mode - maximum freedom for academic work",
       "policy_filters_enabled": false,
-      "curriculum_enforcement": false,
+      "content_moderation": false,
       "harmful_content_blocking": true,
       "allow_external_calls": true
     }
@@ -109,18 +109,18 @@
     }
   ],
 
-  "educational_context_patterns": [
+  "content_context_patterns": [
     {
       "id": "edu_explain",
       "pattern": "(?i)(explain|understand|learn about|history of|science of)",
       "origin": "backend/services/ai_core/safety.py:232",
-      "description": "Educational explanation context"
+      "description": "Explanation context"
     },
     {
       "id": "edu_purpose",
-      "pattern": "(?i)(for educational purposes|in theory|academically)",
+      "pattern": "(?i)(for legitimate purposes|in theory|academically)",
       "origin": "backend/services/ai_core/safety.py:233",
-      "description": "Explicit educational purpose statement"
+      "description": "Explicit purpose statement"
     },
     {
       "id": "edu_questions",
@@ -206,9 +206,9 @@
     }
   ],
 
-  "curriculum": {
-    "ncert_alignment_threshold": 0.70,
-    "require_grade_level_match": false,
+  "content_domain": {
+    "content_quality_threshold": 0.70,
+    "require_complexity_match": false,
     "allowed_grade_range": [1, 12],
     "grade_configs": {
       "primary": {
@@ -216,28 +216,28 @@
         "max_sentence_length": 15,
         "min_flesch_score": 80.0,
         "vocabulary_complexity": "simple",
-        "origin": "backend/services/grade_adaptation.py:45-60"
+        "origin": "backend/services/complexity_adaptation.py:45-60"
       },
       "middle": {
         "grades": [6, 7, 8],
         "max_sentence_length": 20,
         "min_flesch_score": 70.0,
         "vocabulary_complexity": "moderate",
-        "origin": "backend/services/grade_adaptation.py:61-70"
+        "origin": "backend/services/complexity_adaptation.py:61-70"
       },
       "secondary": {
         "grades": [9, 10],
         "max_sentence_length": 25,
         "min_flesch_score": 60.0,
         "vocabulary_complexity": "advanced",
-        "origin": "backend/services/grade_adaptation.py:71-80"
+        "origin": "backend/services/complexity_adaptation.py:71-80"
       },
       "senior_secondary": {
         "grades": [11, 12],
         "max_sentence_length": 30,
         "min_flesch_score": 50.0,
         "vocabulary_complexity": "very_advanced",
-        "origin": "backend/services/grade_adaptation.py:81-90"
+        "origin": "backend/services/complexity_adaptation.py:81-90"
       }
     },
     "subjects": [
@@ -248,9 +248,9 @@
       "hindi",
       "languages",
       "arts",
-      "physical_education"
+      "physical_sciences"
     ],
-    "origin": "backend/services/curriculum_validator.py:36-40"
+    "origin": "backend/services/content_validator.py:36-40"
   },
 
   "response_filters": {
@@ -268,7 +268,7 @@
 
   "rejection_messages": {
     "critical": {
-      "message": "I'm sorry, but I can't help with that request as it may involve harmful or dangerous content. If you're researching a topic for educational purposes, please rephrase your question to clarify the context.",
+      "message": "I'm sorry, but I can't help with that request as it may involve harmful or dangerous content. If you're researching a topic for legitimate purposes, please rephrase your question to clarify the context.",
       "origin": "backend/services/ai_core/safety.py:339-343"
     },
     "high": {
@@ -313,11 +313,11 @@
 
   "system_prompts": {
     "base": {
-      "identity": "ShikshaSetu, an intelligent educational AI assistant",
-      "goals": ["help students learn effectively"],
+      "identity": "ShikshaSetu, an intelligent AI assistant",
+      "goals": ["provide helpful, accurate responses"],
       "guidelines": [
         "Be clear, accurate, and helpful",
-        "Use appropriate language for the student's grade level",
+        "Use appropriate language for the student's complexity level",
         "Provide examples when explaining concepts",
         "Encourage curiosity and critical thinking",
         "Admit when you don't know something"

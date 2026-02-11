@@ -791,7 +791,7 @@ async def rerank_documents(
 
 # OPTIMIZATION: Pre-compute style guides as module-level constant
 _STYLE_GUIDES = {
-    "simple": "Use simple words and short sentences. Explain like you're teaching a young student.",
+    "simple": "Use simple words and short sentences. Explain like you're explaining to a beginner.",
     "detailed": "Provide a comprehensive explanation with examples and context.",
     "technical": "Use appropriate technical terminology while still being clear.",
     "storytelling": "Explain using a narrative or story-based approach.",
@@ -821,7 +821,7 @@ async def explain_content(
 CONTENT TO EXPLAIN:
 {text}
 
-Provide a clear, accurate, and educational explanation. If the content contains any inaccuracies, correct them."""
+Provide a clear, accurate, and explanation. If the content contains any inaccuracies, correct them."""
 
         config = GenerationConfig(max_tokens=2048, temperature=0.4, use_rag=True)
 
@@ -842,7 +842,7 @@ async def list_prompts():
     """List available prompt templates."""
     return {
         "prompts": [
-            {"name": "simplify", "description": "Simplify educational content"},
+            {"name": "simplify", "description": "Simplify content"},
             {"name": "translate", "description": "Translate to Indian languages"},
             {"name": "quiz", "description": "Generate quiz questions"},
             {"name": "explain", "description": "Explain concepts"},

@@ -26,12 +26,12 @@ try:
         QwenSimplificationClient,
     )
     from backend.pipeline.orchestrator import ContentPipelineOrchestrator, PipelineStage
-    from backend.services.curriculum_validation import CurriculumValidationService
-    from backend.services.grade_adaptation import GradeAdaptationService
+    from backend.services.content_validation import ContentValidationService
+    from backend.services.complexity_adaptation import GradeAdaptationService
     from backend.services.question_generator import QuestionGeneratorService
     from backend.services.rag import RAGService
-    from backend.validate.ncert import NCERTValidator
-    from backend.validate.standards import NCERTStandardsLoader
+    from backend.services.validate.content_domain import ContentValidator
+    from backend.services.validate.standards import ContentStandardsLoader
 
     print("   ✓ All AI/ML modules imported successfully!")
     print()
@@ -88,15 +88,15 @@ except Exception as e:
     print("   Note: This is expected if models aren't downloaded yet")
     print()
 
-# Test 5: NCERT Validator
-print("✅ Test 5: Testing NCERT Curriculum Validator...")
+# Test 5: Content Validator
+print("✅ Test 5: Testing Content Quality Validator...")
 try:
-    validator = NCERTValidator()
-    print("   ✓ NCERT Validator initialized")
+    validator = ContentValidator()
+    print("   ✓ Content Validator initialized")
     print(f"   ✓ Alignment threshold: {validator.alignment_threshold}")
     print()
 except Exception as e:
-    print(f"   ✗ NCERT Validator failed: {e}")
+    print(f"   ✗ Content Validator failed: {e}")
     print()
 
 # Test 6: Check Device Configuration
@@ -153,7 +153,7 @@ services_to_check = [
         "backend.services.question_generator",
         "QuestionGeneratorService",
     ),
-    ("Grade Adaptation", "backend.services.grade_adaptation", "GradeAdaptationService"),
+    ("Grade Adaptation", "backend.services.complexity_adaptation", "GradeAdaptationService"),
     ("Cultural Context", "backend.services.cultural_context", "CulturalContextService"),
     ("A/B Testing", "backend.services.ab_testing", "ABTestingService"),
 ]
@@ -179,7 +179,7 @@ print()
 print("✅ Core AI/ML Infrastructure: READY")
 print("✅ Pipeline Orchestrator: INITIALIZED")
 print("✅ Model Clients: CONFIGURED")
-print("✅ NCERT Validator: OPERATIONAL")
+print("✅ Content Validator: OPERATIONAL")
 print("✅ API Endpoints: REGISTERED")
 print(f"✅ AI/ML Services: {sum(services_status)}/{len(services_status)} AVAILABLE")
 print()

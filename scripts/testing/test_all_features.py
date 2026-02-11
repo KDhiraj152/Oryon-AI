@@ -140,7 +140,7 @@ def test_content_generation():
         print("⏳ Testing Qwen3-8B content generation...")
         try:
             client = QwenSimplificationClient()
-            test_prompt = "Explain photosynthesis in simple terms for grade 5 students."
+            test_prompt = "Explain photosynthesis in simple terms for grade 5 users."
             print(f"\n📝 Test Prompt: {test_prompt}")
 
             # Try API mode first (faster, no download)
@@ -255,17 +255,17 @@ def test_embeddings():
         return False
 
 # ============================================================================
-# TEST 7: Curriculum Validator (NEW)
+# TEST 7: Content Validator (NEW)
 # ============================================================================
-def test_curriculum_validator():
-    """Test curriculum validator."""
-    print_section("TEST 7: Curriculum Validator (Qwen3-8B)")
+def test_content_validator():
+    """Test content_domain validator."""
+    print_section("TEST 7: Content Validator (Qwen3-8B)")
 
     try:
-        from backend.services.curriculum_validator import get_curriculum_validator
+        from backend.services.content_validator import get_content_validator
 
-        print("⏳ Initializing curriculum validator...")
-        validator = get_curriculum_validator()
+        print("⏳ Initializing content_domain validator...")
+        validator = get_content_validator()
 
         # Test readability metrics first (doesn't require model)
         test_text = "The mitochondria is the powerhouse of the cell. It produces energy through cellular respiration."
@@ -282,8 +282,8 @@ def test_curriculum_validator():
 
         # Try grade validation (may fail if model not downloaded)
         try:
-            print("\n⏳ Testing grade-level validation (requires Qwen3-8B model)...")
-            result = validator.validate_grade_level(
+            print("\n⏳ Testing complexity-level validation (requires Qwen3-8B model)...")
+            result = validator.validate_complexity_level(
                 text=test_text,
                 target_grade=9,
                 subject="biology"
@@ -300,7 +300,7 @@ def test_curriculum_validator():
             return True  # Readability still worked
 
     except Exception as e:
-        print_result("Curriculum Validator Init", "❌", str(e))
+        print_result("Content Validator Init", "❌", str(e))
         return False
 
 # ============================================================================
@@ -475,7 +475,7 @@ def main():
     test_model_loader()
     test_embeddings()  # Test this first (no model download needed)
     test_document_processing()
-    test_curriculum_validator()
+    test_content_validator()
     test_translation()
     test_content_generation()
     test_text_to_speech()

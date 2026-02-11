@@ -42,7 +42,7 @@ def download_models():
         {
             "name": "Qwen3-8B (MLX 4-bit)",
             "id": "mlx-community/Qwen3-8B-4bit",
-            "description": "Text simplification, validation & grade-level adaptation",
+            "description": "Text simplification, validation & complexity-level adaptation",
             "size": "~4.6GB (MLX 4-bit)",
             "type": "causal_lm",
         },

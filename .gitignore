@@ -126,3 +126,4 @@ alembic/versions/*.pyc
 # Supabase
 .supabase/
 .projectx/
+.mypy_cache/

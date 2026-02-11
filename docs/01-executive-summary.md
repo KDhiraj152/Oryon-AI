@@ -11,14 +11,14 @@
 
 ## Project Overview
 
-**Shiksha Setu v4.0** is a production-grade AI education platform engineered to deliver world-class tutoring to every student in India. This is not a wrapper around existing APIs—it is a complete, vertically integrated system designed from first principles to solve real problems in Indian education.
+**Shiksha Setu v4.0** is a production-grade AI education platform engineered to deliver world-class AI capabilities to every user. This is not a wrapper around existing APIs—it is a complete, vertically integrated system designed from first principles to solve real problems in multilingual AI.
 
 The platform achieves what cloud-based solutions cannot: **full local deployment with zero data transmission, native multilingual support across 10 Indian languages, and hardware-optimized inference that runs on consumer devices.**
 
 The architecture prioritizes three non-negotiables:
-1. **Privacy**: All AI processing occurs on-device. No student data leaves the local network.
+1. **Privacy**: All AI processing occurs on-device. No user data leaves the local network.
 2. **Accessibility**: Works offline after initial setup. No subscriptions, no metered usage.
-3. **Quality**: Curriculum-aligned responses that match NCERT standards across grade levels.
+3. **Quality**: Domain-aware responses that match content standards across complexity levels.
 
 ---
 
@@ -28,7 +28,7 @@ Three systemic failures define the current EdTech landscape in India:
 
 ### 1. Language Exclusion
 
-India has 22 officially recognized languages. The overwhelming majority of quality educational AI operates exclusively in English, creating an artificial barrier for 800+ million non-English-speaking students. A student in rural Tamil Nadu has the same intellectual capacity as one in Mumbai—they simply lack access to tools that understand their language.
+India has 22 officially recognized languages. The overwhelming majority of quality content AI operates exclusively in English, creating an artificial barrier for 800+ million non-English-speaking users. A student in rural Tamil Nadu has the same intellectual capacity as one in Mumbai—they simply lack access to tools that understand their language.
 
 Shiksha Setu integrates **IndicTrans2**, the state-of-the-art Indian language translation model, directly into the inference pipeline. The system provides native-quality responses in Hindi, Tamil, Telugu, Bengali, Marathi, Gujarati, Kannada, Malayalam, Punjabi, and Odia.
 
@@ -36,13 +36,13 @@ Shiksha Setu integrates **IndicTrans2**, the state-of-the-art Indian language tr
 
 Cloud-based AI solutions require consistent high-speed internet and charge per-API-call fees. This model is fundamentally incompatible with Tier 2/3 cities and rural areas where connectivity is unreliable and cost-prohibitive.
 
-Shiksha Setu eliminates this dependency entirely. After a one-time ~10GB model download, the system operates fully offline. A school in a remote village runs the same powerful AI stack as urban institutions.
+Shiksha Setu eliminates this dependency entirely. After a one-time ~10GB model download, the system operates fully offline. A user in a remote area runs the same powerful AI stack as urban institutions.
 
 ### 3. Pedagogical Misalignment
 
-General-purpose language models produce technically accurate but pedagogically inappropriate responses. They lack understanding of curriculum structure, grade-appropriate complexity, and the specific context Indian students require.
+General-purpose language models produce technically accurate but pedagogically inappropriate responses. They lack understanding of content structure, complexity-appropriate complexity, and the specific context users require.
 
-Shiksha Setu is purpose-built for education. The system understands grade levels, aligns with NCERT curriculum standards, and adapts explanations based on the student's learning profile.
+Shiksha Setu is purpose-built for AI. The system understands complexity levels, aligns with content domain standards, and adapts explanations based on the student's learning profile.
 
 ---
 
@@ -84,7 +84,7 @@ The RAG implementation goes beyond basic vector search:
 
 ### Universal Mode with Intelligent Safety
 
-The platform implements **Universal Mode**—a configuration that enables unrestricted educational exploration while maintaining genuine safety. The 3-Pass Safety Pipeline:
+The platform implements **Universal Mode**—a configuration that enables unrestricted open exploration while maintaining genuine safety. The 3-Pass Safety Pipeline:
 
 1. **Semantic Pass**: Analyzes query intent using embedding similarity
 2. **Logical Pass**: Evaluates potential for real-world harm
@@ -103,7 +103,7 @@ The GPU Resource Scheduler makes dynamic decisions based on real-time conditions
 
 ### Privacy by Design
 
-This is not a feature—it is an architectural constraint. There are no external API calls, no telemetry, no analytics pipelines. Students can ask questions freely without surveillance, struggle with concepts without performance tracking, and explore topics without data collection.
+This is not a feature—it is an architectural constraint. There are no external API calls, no telemetry, no analytics pipelines. Users can ask questions freely without surveillance, struggle with concepts without performance tracking, and explore topics without data collection.
 
 ---
 
@@ -135,7 +135,7 @@ Shiksha Setu occupies a unique position in the market:
 | Offline Operation | Requires internet | Full offline capability |
 | Language Support | English-first, translation as afterthought | Native multilingual from ground up |
 | Cost Structure | Subscription/per-call | One-time setup, zero ongoing cost |
-| Curriculum Alignment | Generic responses | NCERT-aligned, grade-aware |
+| Curriculum Alignment | Generic responses | domain-aligned, grade-aware |
 
 ---
 

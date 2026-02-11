@@ -23,9 +23,9 @@ For new code, prefer importing from backend.core.optimized:
 
 from .config import Settings, get_settings, settings
 from .constants import (
-    DEFAULT_GRADE_LEVEL,
-    MAX_GRADE_LEVEL,
-    MIN_GRADE_LEVEL,
+    DEFAULT_COMPLEXITY,
+    MAX_COMPLEXITY,
+    MIN_COMPLEXITY,
     SUPPORTED_LANGUAGES,
 )
 from .correlation import (
@@ -79,9 +79,9 @@ from .storage import (
 )
 
 __all__ = [
-    "DEFAULT_GRADE_LEVEL",
-    "MAX_GRADE_LEVEL",
-    "MIN_GRADE_LEVEL",
+    "DEFAULT_COMPLEXITY",
+    "MAX_COMPLEXITY",
+    "MIN_COMPLEXITY",
     "SUPPORTED_LANGUAGES",
     "AudioGenerationError",
     "CircuitBreaker",

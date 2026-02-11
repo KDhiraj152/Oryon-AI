@@ -33,13 +33,13 @@ class TestContentPipelineIntegration:
     def test_content_upload_with_validation(
         self, client: TestClient, auth_headers: dict
     ):
-        """Test content upload with curriculum validation."""
+        """Test content upload with content_domain validation."""
         content_data = {
             "title": "Introduction to Photosynthesis",
             "content": "Photosynthesis is the process by which plants make their food using sunlight.",
             "subject": "science",
             "language": "en",
-            "curriculum_standard": "NCERT_6_SCIENCE_CH7",
+            "content_domain_standard": "content_domain_6_SCIENCE_CH7",
         }
 
         response = client.post(
@@ -78,11 +78,11 @@ class TestContentPipelineIntegration:
         assert "sensitivity_issues" in data
         assert "inclusivity_score" in data
 
-    def test_content_grade_adaptation(self, client: TestClient, auth_headers: dict):
-        """Test grade-level content adaptation."""
+    def test_content_complexity_adaptation(self, client: TestClient, auth_headers: dict):
+        """Test complexity-level content adaptation."""
         content_id = self.test_content_upload_with_validation(client, auth_headers)
 
-        # Adapt content for different grade level
+        # Adapt content for different complexity level
         response = client.post(
             f"/api/v2/content/{content_id}/adapt-grade",
             json={"target_grade": 8, "maintain_accuracy": True},
@@ -283,7 +283,7 @@ class TestABTestingIntegration:
 class TestRateLimitingIntegration:
     """Test rate limiting across different user roles."""
 
-    def test_student_rate_limit(self, client: TestClient, auth_headers: dict):
+    def test_user_rate_limit(self, client: TestClient, auth_headers: dict):
         """Test that rate limiting headers are present."""
         # Make a request to a valid endpoint
         response = client.get("/api/v2/health", headers=auth_headers)
@@ -295,7 +295,7 @@ class TestRateLimitingIntegration:
         if response.status_code == 429:
             assert "Retry-After" in response.headers or "retry" in response.text.lower()
 
-    def test_teacher_rate_limit(self, client: TestClient, auth_headers: dict):
+    def test_reviewer_rate_limit(self, client: TestClient, auth_headers: dict):
         """Test that authenticated requests get proper rate limiting."""
         # Make several requests to a valid endpoint
         responses = []
@@ -381,7 +381,7 @@ class TestEndToEndScenarios:
     @pytest.mark.skip(
         reason="/api/v2/content/ CRUD endpoints not implemented - uses /api/v2/content/process instead"
     )
-    def test_teacher_content_creation_workflow(
+    def test_reviewer_content_creation_workflow(
         self, client: TestClient, auth_headers: dict
     ):
         """Test complete teacher workflow: create → validate → publish."""
@@ -399,10 +399,10 @@ class TestEndToEndScenarios:
         assert response.status_code == 201
         content_id = response.json()["id"]
 
-        # Step 2: Validate curriculum alignment (requires validation_data body)
+        # Step 2: Validate content alignment (requires validation_data body)
         response = client.post(
             f"/api/v2/content/{content_id}/validate",
-            json={"check_curriculum": True},
+            json={"check_content_domain": True},
             headers=auth_headers,
         )
         assert response.status_code == 200
@@ -420,7 +420,7 @@ class TestEndToEndScenarios:
     @pytest.mark.skip(
         reason="/api/v2/content/ CRUD endpoints not implemented - uses /api/v2/content/process instead"
     )
-    def test_student_learning_workflow(self, client: TestClient, auth_headers: dict):
+    def test_user_workflow(self, client: TestClient, auth_headers: dict):
         """Test student workflow: create content → view → get audio."""
         # First create some content
         response = client.post(

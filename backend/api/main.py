@@ -18,8 +18,8 @@ Features:
 - Configurable policy engine for content filtering
 
 Policy Modes (controlled via ALLOW_UNRESTRICTED_MODE env var):
-- RESTRICTED (default): Full curriculum/safety enforcement
-- UNRESTRICTED: Educational filters bypassed, system safety active
+- RESTRICTED (default): Full content_domain/safety enforcement
+- UNRESTRICTED: Content filters bypassed, system safety active
 - EXTERNAL_ALLOWED: Unrestricted + external API calls enabled
 
 FIXES APPLIED:
@@ -83,6 +83,24 @@ async def _shutdown_cleanup() -> None:
 
     _cleanup_memory_coordinator()
     _log_cache_stats()
+
+    # Close cache Redis connections (L2 + L3)
+    if hasattr(app.state, "cache") and app.state.cache:
+        try:
+            await app.state.cache.close()
+            logger.info("Cache connections closed")
+        except Exception as e:
+            logger.warning(f"Cache close failed: {e}")
+
+    # Close storage Redis connections
+    try:
+        from ..core.storage import get_storage
+
+        storage = get_storage()
+        await storage.close()
+        logger.info("Storage connections closed")
+    except Exception as e:
+        logger.warning(f"Storage close failed: {e}")
 
     logger.info("V2 API shutdown complete")
 

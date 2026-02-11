@@ -307,7 +307,7 @@ class UnifiedCulturalContextService:
         text: str,
         region: Region = Region.GENERAL,
         subject: Subject = Subject.GENERAL,
-        grade_level: int | None = None,
+        complexity_level: int | None = None,
         check_sensitivity: bool = True,
     ) -> AdaptedContent:
         """
@@ -317,7 +317,7 @@ class UnifiedCulturalContextService:
             text: Original text to adapt
             region: Target region
             subject: Subject area
-            grade_level: Optional target grade level (None for unconstrained)
+            complexity_level: Optional target complexity level (None for unconstrained)
             check_sensitivity: Whether to flag sensitive content
 
         Returns:
@@ -341,7 +341,7 @@ class UnifiedCulturalContextService:
                     sensitivity_flags.append(f"Contains sensitive term: {term}")
 
         # Add relevant examples if space permits
-        relevant_examples = self._get_relevant_examples(subject, region, grade_level)
+        relevant_examples = self._get_relevant_examples(subject, region, complexity_level)
 
         return AdaptedContent(
             original_text=text,
@@ -353,7 +353,7 @@ class UnifiedCulturalContextService:
         )
 
     def _get_relevant_examples(
-        self, subject: Subject, region: Region, grade_level: int | None = None
+        self, subject: Subject, region: Region, complexity_level: int | None = None
     ) -> list[CulturalExample]:
         """Get relevant cultural examples for subject and region."""
         examples = []
@@ -370,15 +370,15 @@ class UnifiedCulturalContextService:
             if Region.GENERAL in subject_examples:
                 examples.extend(subject_examples[Region.GENERAL])
 
-        # Only filter by grade level if specified
-        if grade_level is not None:
+        # Only filter by complexity level if specified
+        if complexity_level is not None:
             return [
                 ex
                 for ex in examples
-                if ex.grade_range[0] <= grade_level <= ex.grade_range[1]
+                if ex.grade_range[0] <= complexity_level <= ex.grade_range[1]
             ]
 
-        # Return all examples when grade_level is unconstrained
+        # Return all examples when complexity_level is unconstrained
         return examples
 
     def inject_local_references(

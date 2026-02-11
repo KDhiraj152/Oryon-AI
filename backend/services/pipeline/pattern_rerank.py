@@ -55,7 +55,7 @@ class RerankPatternsMixin:
             return self._fallback_result(CollaborationPattern.RERANK, input_text)  # type: ignore
 
         num_candidates = context.get("num_candidates", 3)
-        grade_level = context.get("grade_level", 8)
+        complexity_level = context.get("complexity_level", 8)
         # subject available in context for task-specific ranking
 
         # Step 1: Generate multiple candidates
@@ -69,7 +69,7 @@ class RerankPatternsMixin:
                 if task == "simplify":
                     candidate = await self._simplify_text(  # type: ignore
                         input_text,
-                        grade_level,
+                        complexity_level,
                         {**context, "temperature": temperature},
                     )
                 else:
@@ -214,12 +214,12 @@ class RerankPatternsMixin:
         context: dict[str, Any],
     ) -> str:
         """Create a query string for reranking based on task requirements."""
-        grade_level = context.get("grade_level", 8)
+        complexity_level = context.get("complexity_level", 8)
         subject = context.get("subject", "General")
 
         if task == "simplify":
-            return f"""Find the best simplified version of educational content that:
-- Is appropriate for grade {grade_level} students
+            return f"""Find the best simplified version of content that:
+- Is appropriate for complexity level {complexity_level} users
 - Preserves all key concepts from: {original_text[:200]}...
 - Uses clear, simple language
 - Is engaging and easy to understand for {subject} learning"""
@@ -229,8 +229,8 @@ class RerankPatternsMixin:
             return f"""Find the best translation that:
 - Accurately conveys the meaning of: {original_text[:200]}...
 - Is natural and fluent in {target_lang}
-- Preserves educational context and terminology
-- Is appropriate for students"""
+- Preserves semantic context and terminology
+- Is appropriate for users"""
 
         else:
             return f"""Find the best version that:

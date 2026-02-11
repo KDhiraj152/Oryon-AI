@@ -16,10 +16,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from backend.database import Base
 # Import all models so they are registered with Base.metadata
 from backend.models import (
-    ProcessedContent, NCERTStandard, ContentTranslation, ContentAudio,
+    ProcessedContent, ContentStandard, ContentTranslation, ContentAudio,
     ContentValidation, Feedback, PipelineLog,
     User, APIKey, TokenBlacklist, RefreshToken,
-    StudentProgress, QuizScore, LearningSession, ParentReport, Achievement,
+    UserProgress, QuizScore, InteractionSession, UsageReport, Achievement,
     DocumentChunk, Embedding, ChatHistory
 )
 

@@ -50,7 +50,7 @@ class RefinementConfig:
         default_factory=lambda: {
             RefinementTask.SIMPLIFICATION: {
                 "factual_accuracy": 0.35,
-                "educational_clarity": 0.35,  # High - main goal
+                "content_clarity": 0.35,  # High - main goal
                 "semantic_preservation": 0.15,  # Lower - simplification changes text
                 "completeness": 0.10,
                 "cultural_appropriateness": 0.05,
@@ -58,13 +58,13 @@ class RefinementConfig:
             RefinementTask.TRANSLATION: {
                 "factual_accuracy": 0.30,
                 "semantic_preservation": 0.35,  # High - preserve meaning
-                "educational_clarity": 0.15,
+                "content_clarity": 0.15,
                 "completeness": 0.15,
                 "cultural_appropriateness": 0.05,
             },
             RefinementTask.EXPLANATION: {
                 "factual_accuracy": 0.40,  # Critical for explanations
-                "educational_clarity": 0.30,
+                "content_clarity": 0.30,
                 "completeness": 0.20,
                 "semantic_preservation": 0.05,
                 "cultural_appropriateness": 0.05,
@@ -76,10 +76,10 @@ class RefinementConfig:
     refinement_prompts: dict[str, str] = field(
         default_factory=lambda: {
             "low_factual_accuracy": "Ensure all facts and information are accurate. Double-check numbers, dates, and scientific terms.",
-            "low_educational_clarity": "Use simpler words and shorter sentences. Add examples where helpful.",
+            "low_content_clarity": "Use simpler words and shorter sentences. Add examples where helpful.",
             "low_semantic_preservation": "Maintain the core meaning while simplifying. Don't remove key concepts.",
             "low_completeness": "Include all important points from the original. Don't skip key concepts.",
-            "low_cultural_appropriateness": "Use examples and context relevant to Indian students.",
+            "low_cultural_appropriateness": "Use examples and context relevant to users.",
         }
     )
 
@@ -174,7 +174,7 @@ class SemanticRefinementPipeline:
         original_text: str,
         initial_output: str,
         task: RefinementTask = RefinementTask.SIMPLIFICATION,
-        grade_level: int = 8,
+        complexity_level: int = 8,
         subject: str = "General",
     ) -> RefinementResult:
         """
@@ -184,7 +184,7 @@ class SemanticRefinementPipeline:
             original_text: Original source text
             initial_output: First-pass generated output
             task: Type of task (affects weight distribution)
-            grade_level: Target grade level
+            complexity_level: Target complexity level
             subject: Subject area
 
         Returns:
@@ -210,7 +210,7 @@ class SemanticRefinementPipeline:
             eval_result = await evaluator.evaluate(
                 original_text=original_text,
                 processed_text=current_text,
-                grade_level=grade_level,
+                complexity_level=complexity_level,
                 subject=subject,
             )
 
@@ -267,7 +267,7 @@ class SemanticRefinementPipeline:
                     score=score,
                     dimension_scores=dimension_scores,
                     task=task,
-                    grade_level=grade_level,
+                    complexity_level=complexity_level,
                 )
 
                 # Re-generate with feedback
@@ -297,7 +297,7 @@ class SemanticRefinementPipeline:
         score: float,
         dimension_scores: dict[str, float],
         task: RefinementTask,
-        grade_level: int,
+        complexity_level: int,
     ) -> str:
         """Build prompt for refinement iteration."""
 
@@ -311,7 +311,7 @@ class SemanticRefinementPipeline:
             [f"- {dim}: {s:.1f}/10" for dim, s in dimension_scores.items()]
         )
 
-        prompt = f"""You are refining educational content for Grade {grade_level} Indian students.
+        prompt = f"""You are refining content for Grade {complexity_level} users.
 
 TASK: {task.value}
 
@@ -366,7 +366,7 @@ async def refine_for_accuracy(
     original_text: str,
     processed_text: str,
     task: str = "simplification",
-    grade_level: int = 8,
+    complexity_level: int = 8,
     target_score: float = 8.2,
 ) -> RefinementResult:
     """
@@ -377,7 +377,7 @@ async def refine_for_accuracy(
             original_text="Complex physics explanation...",
             processed_text="Simplified version...",
             task="simplification",
-            grade_level=8,
+            complexity_level=8,
             target_score=8.2,
         )
 
@@ -399,7 +399,7 @@ async def refine_for_accuracy(
         original_text=original_text,
         initial_output=processed_text,
         task=task_enum,
-        grade_level=grade_level,
+        complexity_level=complexity_level,
     )
 
 

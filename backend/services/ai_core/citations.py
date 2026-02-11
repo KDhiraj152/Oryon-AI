@@ -27,7 +27,7 @@ class SourceType(str, Enum):
     WEB = "web"
     DATABASE = "database"
     USER_UPLOAD = "user_upload"
-    CURRICULUM = "curriculum"
+    CURRICULUM = "content_domain"
     MEMORY = "memory"
 
 
@@ -331,7 +331,7 @@ class CitationManager:
             return SourceType.CODE
         elif any(ext in filename for ext in [".pdf", ".docx", ".txt"]):
             return SourceType.DOCUMENT
-        elif "curriculum" in source or "ncert" in source:
+        elif "content_domain" in source or "content_domain" in source:
             return SourceType.CURRICULUM
         elif metadata.get("user_uploaded"):
             return SourceType.USER_UPLOAD

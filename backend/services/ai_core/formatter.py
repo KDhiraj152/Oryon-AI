@@ -176,7 +176,7 @@ class ResponseFormatter:
         ],
         Intent.SIMPLIFICATION: [
             r"\b(simplify|simpler|easier|dumb\s+down)\b",
-            r"\b(for\s+(kids|children|beginners|students))\b",
+            r"\b(for\s+(kids|children|beginners|users))\b",
         ],
         Intent.TASK: [
             r"\b(do|make|build|generate|run|execute)\b",
@@ -269,9 +269,9 @@ class ResponseFormatter:
         # Enhance content based on intent
         enhanced_content = self._enhance_content(content, intent)
 
-        # Add uncertainty markers if low confidence
+        # Add ucontent_domainainty markers if low confidence
         if confidence < 0.7:
-            enhanced_content = self._add_uncertainty_markers(
+            enhanced_content = self._add_ucontent_domainainty_markers(
                 enhanced_content, confidence
             )
 
@@ -354,7 +354,7 @@ class ResponseFormatter:
 
         return ""  # Unknown
 
-    def _add_uncertainty_markers(self, content: str, confidence: float) -> str:
+    def _add_ucontent_domainainty_markers(self, content: str, confidence: float) -> str:
         """Add markers when response confidence is low."""
         if confidence < 0.5:
             prefix = (

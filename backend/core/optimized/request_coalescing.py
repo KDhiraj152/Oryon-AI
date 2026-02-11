@@ -159,12 +159,12 @@ class RequestCoalescer:
         coalescer = RequestCoalescer()
 
         async def process_with_coalescing(text: str):
-            fingerprint = compute_fingerprint("simplify", (text, grade_level))
+            fingerprint = compute_fingerprint("simplify", (text, complexity_level))
 
             result = await coalescer.coalesce_or_execute(
                 fingerprint=fingerprint,
                 task_type=CoalesceTaskType.SIMPLIFY,
-                executor=lambda: simplify_text(text, grade_level)
+                executor=lambda: simplify_text(text, complexity_level)
             )
             return result
     """
@@ -357,9 +357,9 @@ def coalesce(
     Usage:
         @coalesce(
             task_type=CoalesceTaskType.SIMPLIFY,
-            key_extractor=lambda text, grade_level: (text, grade_level)
+            key_extractor=lambda text, complexity_level: (text, complexity_level)
         )
-        async def simplify_text(text: str, grade_level: int) -> str:
+        async def simplify_text(text: str, complexity_level: int) -> str:
             ...
     """
 

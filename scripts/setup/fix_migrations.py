@@ -7,7 +7,7 @@ def main():
     # Get database URL from environment or use default with explicit password
     db_url = os.getenv(
         'DATABASE_URL', 
-        'postgresql://postgres:postgres@localhost:5432/education_content'  # Default password
+        'postgresql://postgres:postgres@localhost:5432/shiksha_setu'  # Default password
     )
     
     engine = create_engine(db_url)

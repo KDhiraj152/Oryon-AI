@@ -39,7 +39,7 @@ echo "     $HEALTH"
 echo "   - Guest Chat (no auth): "
 CHAT=$(curl -s -w "%{http_code}" -o /dev/null -X POST http://localhost:8000/api/v2/chat/guest \
   -H "Content-Type: application/json" \
-  -d '{"message": "Hello", "language": "en", "grade_level": 5}')
+  -d '{"message": "Hello", "language": "en", "complexity_level": 5}')
 if [ "$CHAT" = "200" ]; then
     echo "     ✅ Returns 200 (working)"
 else

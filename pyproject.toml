@@ -11,24 +11,26 @@
 
 [project]
 name = "shiksha-setu"
-version = "4.1.0"
-description = "AI Education Platform for India - Universal Learning Assistant"
+version = "5.1.0"
+description = "Local-First Multilingual AI Platform - Universal Learning Assistant"
 readme = "README.md"
 license = {file = "LICENSE"}
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.14"
 authors = [
     {name = "K Dhiraj", email = "kdhiraj@example.com"}
 ]
-keywords = ["education", "ai", "llm", "translation", "india", "ncert"]
+keywords = ["ai", "local-first", "llm", "translation", "india", "content_domain"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Web Environment",
     "Framework :: FastAPI",
-    "Intended Audience :: Education",
+    "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Operating System :: MacOS",
     "Programming Language :: Python :: 3.11",
-    "Topic :: Education",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 
@@ -41,8 +43,8 @@ Repository = "https://github.com/KDhiraj152/shiksha_setu"
 # RUFF - Linting & Formatting
 # ============================================================================
 [tool.ruff]
-# Target Python 3.11
-target-version = "py311"
+# Target Python 3.12 (minimum supported: 3.11)
+target-version = "py312"
 
 # Line length (match black)
 line-length = 88
@@ -225,7 +227,7 @@ directory = "htmlcov"
 # MYPY - Type Checking (Optional)
 # ============================================================================
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 warn_return_any = true
 warn_unused_ignores = true
 ignore_missing_imports = true
@@ -237,6 +239,7 @@ exclude = [
     ".venv",
     "tests",
     "alembic",
+    "scripts",
 ]
 
 [[tool.mypy.overrides]]

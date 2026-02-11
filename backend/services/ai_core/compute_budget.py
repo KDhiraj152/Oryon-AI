@@ -131,7 +131,7 @@ def get_budget(cls: ComputeClass) -> ComputeBudget:
 # Unified classifier — deterministic, O(n) in message length, zero I/O
 # ---------------------------------------------------------------------------
 
-# --- CRITICAL-tier keyword groups (education safety-critical domains) ---
+# --- CRITICAL-tier keyword groups (safety-critical domains) ---
 _CRITICAL_PATTERNS: list[str] = [
     # Health / medical
     "medicine", "medication", "dosage", "symptom", "disease", "diagnosis",
@@ -143,7 +143,7 @@ _CRITICAL_PATTERNS: list[str] = [
     "flammable", "combustion", "explosive",
     # Electrical safety
     "high voltage", "electric shock", "short circuit",
-    # Precision-required educational content
+    # Precision-required content
     "exam answer", "correct answer", "mark scheme", "board exam",
     "entrance exam", "competitive exam",
 ]

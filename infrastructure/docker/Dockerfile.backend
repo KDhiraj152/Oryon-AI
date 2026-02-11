@@ -15,7 +15,7 @@ FROM python:3.11-slim-bookworm AS builder
 
 LABEL maintainer="Shiksha Setu Team <team@shikshasetu.in>"
 LABEL org.opencontainers.image.title="Shiksha Setu Backend API"
-LABEL org.opencontainers.image.description="AI-Powered Bilingual Education Platform - Production Build"
+LABEL org.opencontainers.image.description="Local-First Multilingual AI Platform - Production Build"
 LABEL org.opencontainers.image.version="4.0.0"
 LABEL org.opencontainers.image.vendor="Shiksha Setu"
 LABEL org.opencontainers.image.licenses="MIT"

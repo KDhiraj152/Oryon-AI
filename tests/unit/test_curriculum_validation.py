@@ -9,9 +9,9 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from backend.models import ContentValidation, NCERTStandard, ProcessedContent
-from backend.services.curriculum_validation import (
-    CurriculumValidationService,
+from backend.models import ContentValidation, ContentStandard, ProcessedContent
+from backend.services.content_validation import (
+    ContentValidationService,
     validate_in_pipeline,
 )
 
@@ -29,7 +29,7 @@ def mock_db():
 
 @pytest.fixture
 def mock_validator():
-    """Mock NCERT validator."""
+    """Mock content_domain validator."""
     validator = Mock()
     validator.validate_content = AsyncMock()
     validator.check_factual_accuracy = AsyncMock()
@@ -39,15 +39,15 @@ def mock_validator():
 
 @pytest.fixture
 def sample_standards():
-    """Sample NCERT standards."""
+    """Sample content standards."""
     return [
-        NCERTStandard(
+        ContentStandard(
             id=1,
             subject="Mathematics",
             topic="Algebra",
             description="Basic algebraic expressions",
         ),
-        NCERTStandard(
+        ContentStandard(
             id=2,
             subject="Mathematics",
             topic="Geometry",
@@ -58,10 +58,10 @@ def sample_standards():
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_validate_content_against_curriculum_success(
+async def test_validate_content_against_content_domain_success(
     mock_db, mock_validator, sample_standards
 ):
-    """Test successful curriculum validation."""
+    """Test successful content_domain validation."""
     # Setup
     mock_db.query.return_value.filter.return_value.all.return_value = sample_standards
 
@@ -75,13 +75,13 @@ async def test_validate_content_against_curriculum_success(
         "terminology_issues": [],
     }
 
-    service = CurriculumValidationService(mock_db)
+    service = ContentValidationService(mock_db)
     service.validator = mock_validator
 
     # Execute
-    validation = await service.validate_content_against_curriculum(
+    validation = await service.validate_content_against_content_domain(
         content_id="test-content-123",
-        grade_level=10,
+        complexity_level=10,
         subject="Mathematics",
         text="This lesson covers algebraic expressions and geometric properties.",
         language="en",
@@ -89,7 +89,7 @@ async def test_validate_content_against_curriculum_success(
 
     # Assert
     assert validation.content_id == "test-content-123"
-    assert validation.validation_type == "ncert"
+    assert validation.validation_type == "content_domain"
     assert validation.alignment_score == 0.85
     assert validation.passed is True
     assert len(validation.issues_found["errors"]) == 0
@@ -118,13 +118,13 @@ async def test_validate_content_below_threshold(
         "terminology_issues": ["Unclear definition of 'variable'"],
     }
 
-    service = CurriculumValidationService(mock_db)
+    service = ContentValidationService(mock_db)
     service.validator = mock_validator
 
     # Execute
-    validation = await service.validate_content_against_curriculum(
+    validation = await service.validate_content_against_content_domain(
         content_id="test-content-456",
-        grade_level=10,
+        complexity_level=10,
         subject="Mathematics",
         text="Basic algebra content.",
         language="en",
@@ -140,17 +140,17 @@ async def test_validate_content_below_threshold(
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_validate_no_standards_available(mock_db, mock_validator):
-    """Test handling when no curriculum standards exist."""
+    """Test handling when no content_domain standards exist."""
     # Setup - no standards found
     mock_db.query.return_value.filter.return_value.all.return_value = []
 
-    service = CurriculumValidationService(mock_db)
+    service = ContentValidationService(mock_db)
     service.validator = mock_validator
 
     # Execute
-    validation = await service.validate_content_against_curriculum(
+    validation = await service.validate_content_against_content_domain(
         content_id="test-content-789",
-        grade_level=11,
+        complexity_level=11,
         subject="Physics",
         text="Physics content.",
         language="en",
@@ -159,7 +159,7 @@ async def test_validate_no_standards_available(mock_db, mock_validator):
     # Assert
     assert validation.passed is False
     assert validation.alignment_score == 0.0
-    assert "No curriculum standards available" in validation.issues_found["errors"][0]
+    assert "No content_domain standards available" in validation.issues_found["errors"][0]
 
     # Validator should not be called
     mock_validator.validate_content.assert_not_called()
@@ -177,7 +177,7 @@ async def test_validate_factual_accuracy(mock_db, mock_validator):
         "corrections": [],
     }
 
-    service = CurriculumValidationService(mock_db)
+    service = ContentValidationService(mock_db)
     service.validator = mock_validator
 
     # Execute
@@ -212,7 +212,7 @@ async def test_validate_factual_accuracy_failure(mock_db, mock_validator):
         ],
     }
 
-    service = CurriculumValidationService(mock_db)
+    service = ContentValidationService(mock_db)
     service.validator = mock_validator
 
     # Execute
@@ -242,7 +242,7 @@ async def test_validate_language_appropriateness(mock_db, mock_validator):
         "simplification_suggestions": ["Break down complex sentences"],
     }
 
-    service = CurriculumValidationService(mock_db)
+    service = ContentValidationService(mock_db)
     service.validator = mock_validator
 
     # Execute
@@ -250,7 +250,7 @@ async def test_validate_language_appropriateness(mock_db, mock_validator):
         content_id="test-content-lang",
         text="Photosynthesis is the process by which plants make food.",
         language="en",
-        grade_level=10,
+        complexity_level=10,
     )
 
     # Assert
@@ -293,21 +293,21 @@ async def test_comprehensive_validation(mock_db, mock_validator, sample_standard
         "simplification_suggestions": [],
     }
 
-    service = CurriculumValidationService(mock_db)
+    service = ContentValidationService(mock_db)
     service.validator = mock_validator
 
     # Execute
     validations = await service.comprehensive_validation(
         content_id="test-content-comp",
-        text="Sample educational content.",
+        text="Sample content.",
         subject="Mathematics",
         language="en",
-        grade_level=10,
+        complexity_level=10,
     )
 
     # Assert
     assert len(validations) == 3
-    assert "ncert" in validations
+    assert "content_domain" in validations
     assert "factual" in validations
     assert "language" in validations
     assert all(v.passed for v in validations.values())
@@ -320,7 +320,7 @@ def test_get_validation_summary(mock_db):
     validations = [
         ContentValidation(
             content_id="test-123",
-            validation_type="ncert",
+            validation_type="content_domain",
             alignment_score=0.85,
             passed=True,
             issues_found={"errors": [], "warnings": ["Minor issue"]},
@@ -346,7 +346,7 @@ def test_get_validation_summary(mock_db):
 
     mock_db.query.return_value.filter.return_value.all.return_value = validations
 
-    service = CurriculumValidationService(mock_db)
+    service = ContentValidationService(mock_db)
 
     # Execute
     summary = service.get_validation_summary("test-123")
@@ -367,7 +367,7 @@ def test_get_improvement_suggestions(mock_db):
     validations = [
         ContentValidation(
             content_id="test-456",
-            validation_type="ncert",
+            validation_type="content_domain",
             alignment_score=0.65,
             passed=False,
             issues_found={
@@ -391,7 +391,7 @@ def test_get_improvement_suggestions(mock_db):
 
     mock_db.query.return_value.filter.return_value.all.return_value = validations
 
-    service = CurriculumValidationService(mock_db)
+    service = ContentValidationService(mock_db)
 
     # Execute
     suggestions = service.get_improvement_suggestions("test-456")

@@ -43,8 +43,8 @@ class UserRole(str, Enum):
     """User roles with different rate limits."""
 
     ADMIN = "admin"
-    TEACHER = "teacher"
-    STUDENT = "student"
+    REVIEWER = "reviewer"
+    USER = "user"
     GUEST = "guest"
     API = "api"
 
@@ -69,8 +69,8 @@ class RateLimitConfig:
 # Role-based defaults
 ROLE_LIMITS: dict[UserRole, RateLimitConfig] = {
     UserRole.ADMIN: RateLimitConfig(per_minute=1000, per_hour=10000),
-    UserRole.TEACHER: RateLimitConfig(per_minute=200, per_hour=2000),
-    UserRole.STUDENT: RateLimitConfig(per_minute=60, per_hour=600),
+    UserRole.REVIEWER: RateLimitConfig(per_minute=200, per_hour=2000),
+    UserRole.USER: RateLimitConfig(per_minute=60, per_hour=600),
     UserRole.GUEST: RateLimitConfig(per_minute=20, per_hour=100),
     UserRole.API: RateLimitConfig(per_minute=500, per_hour=5000),
 }
@@ -325,7 +325,7 @@ class UnifiedRateLimiter:
             try:
                 role = UserRole(role_str)
             except ValueError:
-                role = UserRole.STUDENT
+                role = UserRole.USER
             if user_id:
                 return f"user:{user_id}", role
 

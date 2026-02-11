@@ -1,4 +1,4 @@
-"""NCERT standards database loader and indexer using BGE-M3 embeddings."""
+"""content standards database loader and indexer using BGE-M3 embeddings."""
 
 import json
 import logging
@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 import numpy as np
 
 from ...database import get_db
-from ...models import NCERTStandard
+from ...models import ContentStandard
 
 if TYPE_CHECKING:
     from ..rag import BGEM3Embedder
@@ -19,11 +19,11 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class NCERTStandardData:
-    """Data structure for NCERT standard with embeddings."""
+class ContentStandardData:
+    """Data structure for content_domain standard with embeddings."""
 
     id: str
-    grade_level: int
+    complexity_level: int
     subject: str
     topic: str
     learning_objectives: list[str]
@@ -32,12 +32,12 @@ class NCERTStandardData:
     combined_text: str | None = None
 
 
-class NCERTStandardsLoader:
-    """Loads and indexes NCERT standards database with BGE-M3 embeddings."""
+class ContentStandardsLoader:
+    """Loads and indexes content standards database with BGE-M3 embeddings."""
 
     def __init__(self, embedder: Optional["BGEM3Embedder"] = None):
         self._embedder = embedder
-        self.standards: list[NCERTStandardData] = []
+        self.standards: list[ContentStandardData] = []
         self.embeddings_cache: dict[str, np.ndarray] = {}
         self.db = get_db()
 
@@ -51,10 +51,10 @@ class NCERTStandardsLoader:
             )  # Use singleton instead of creating new instance
         return self._embedder
 
-    def load_standards_from_json(self, json_path: str) -> list[NCERTStandardData]:
-        """Load NCERT standards from JSON file."""
+    def load_standards_from_json(self, json_path: str) -> list[ContentStandardData]:
+        """Load content standards from JSON file."""
         if not os.path.exists(json_path):
-            raise FileNotFoundError(f"NCERT standards file not found: {json_path}")
+            raise FileNotFoundError(f"content standards file not found: {json_path}")
 
         with open(json_path, encoding="utf-8") as f:
             data = json.load(f)
@@ -64,9 +64,9 @@ class NCERTStandardsLoader:
             # Create combined text for embedding
             combined_text = self._create_combined_text(standard)
 
-            standard_data = NCERTStandardData(
-                id=f"ncert_{standard['grade_level']}_{standard['subject']}_{idx}",
-                grade_level=standard["grade_level"],
+            standard_data = ContentStandardData(
+                id=f"content_domain_{standard['complexity_level']}_{standard['subject']}_{idx}",
+                complexity_level=standard["complexity_level"],
                 subject=standard["subject"],
                 topic=standard["topic"],
                 learning_objectives=standard["learning_objectives"],
@@ -81,7 +81,7 @@ class NCERTStandardsLoader:
     def _create_combined_text(self, standard: dict[str, Any]) -> str:
         """Create combined text representation for embedding generation."""
         parts = [
-            f"Grade {standard['grade_level']}",
+            f"Grade {standard['complexity_level']}",
             f"Subject: {standard['subject']}",
             f"Topic: {standard['topic']}",
             "Learning Objectives: " + "; ".join(standard["learning_objectives"]),
@@ -128,12 +128,12 @@ class NCERTStandardsLoader:
 
         try:
             # Clear existing standards
-            session.query(NCERTStandard).delete()
+            session.query(ContentStandard).delete()
 
             # Insert new standards
             for standard in self.standards:
-                db_standard = NCERTStandard(
-                    grade_level=standard.grade_level,
+                db_standard = ContentStandard(
+                    complexity_level=standard.complexity_level,
                     subject=standard.subject,
                     topic=standard.topic,
                     learning_objectives=standard.learning_objectives,
@@ -154,18 +154,18 @@ class NCERTStandardsLoader:
         finally:
             session.close()
 
-    def load_from_database(self) -> list[NCERTStandardData]:
+    def load_from_database(self) -> list[ContentStandardData]:
         """Load standards from database."""
         session = self.db.get_session()
 
         try:
-            db_standards = session.query(NCERTStandard).all()
+            db_standards = session.query(ContentStandard).all()
             standards = []
 
             for db_standard in db_standards:
                 combined_text = self._create_combined_text(
                     {
-                        "grade_level": db_standard.grade_level,
+                        "complexity_level": db_standard.complexity_level,
                         "subject": db_standard.subject,
                         "topic": db_standard.topic,
                         "learning_objectives": db_standard.learning_objectives,
@@ -173,9 +173,9 @@ class NCERTStandardsLoader:
                     }
                 )
 
-                standard_data = NCERTStandardData(
+                standard_data = ContentStandardData(
                     id=str(db_standard.id),
-                    grade_level=db_standard.grade_level,
+                    complexity_level=db_standard.complexity_level,
                     subject=db_standard.subject,
                     topic=db_standard.topic,
                     learning_objectives=db_standard.learning_objectives,
@@ -191,17 +191,17 @@ class NCERTStandardsLoader:
             session.close()
 
     def find_matching_standards(
-        self, content: str, grade_level: int, subject: str, top_k: int = 5
-    ) -> list[tuple[NCERTStandardData, float]]:
-        """Find NCERT standards that match the given content."""
+        self, content: str, complexity_level: int, subject: str, top_k: int = 5
+    ) -> list[tuple[ContentStandardData, float]]:
+        """Find content standards that match the given content."""
         if not self.standards:
             self.load_from_database()
 
-        # Filter by grade level and subject
+        # Filter by complexity level and subject
         filtered_standards = [
             s
             for s in self.standards
-            if s.grade_level == grade_level and s.subject.lower() == subject.lower()
+            if s.complexity_level == complexity_level and s.subject.lower() == subject.lower()
         ]
 
         if not filtered_standards:
@@ -246,7 +246,7 @@ class NCERTStandardsLoader:
 
         return dot_product / (norm1 * norm2)
 
-    def check_keyword_overlap(self, content: str, standard: NCERTStandardData) -> float:
+    def check_keyword_overlap(self, content: str, standard: ContentStandardData) -> float:
         """Check keyword overlap between content and standard."""
         content_words = set(content.lower().split())
         standard_keywords = {keyword.lower() for keyword in standard.keywords}
@@ -258,7 +258,7 @@ class NCERTStandardsLoader:
         return overlap / len(standard_keywords)
 
     def get_learning_objectives_match(
-        self, content: str, standard: NCERTStandardData
+        self, content: str, standard: ContentStandardData
     ) -> float:
         """Calculate match score for learning objectives."""
         if not standard.learning_objectives:
@@ -274,31 +274,31 @@ class NCERTStandardsLoader:
         return total_score / len(standard.learning_objectives)
 
 
-def initialize_ncert_standards(json_path: str | None = None) -> NCERTStandardsLoader:
-    """Initialize NCERT standards database."""
+def initialize_content_standards(json_path: str | None = None) -> ContentStandardsLoader:
+    """Initialize content standards database."""
     if json_path is None:
         # Use default path
         current_dir = Path(__file__).parent.parent.parent
-        json_path = current_dir / "data" / "curriculum" / "ncert_standards_sample.json"
+        json_path = current_dir / "data" / "content_domain" / "content_standards_sample.json"
 
-    loader = NCERTStandardsLoader()
+    loader = ContentStandardsLoader()
 
     try:
         # Try to load from database first
         standards = loader.load_from_database()
         if not standards:
             # Load from JSON if database is empty
-            logger.info("Loading NCERT standards from JSON...")
+            logger.info("Loading content standards from JSON...")
             loader.load_standards_from_json(str(json_path))
             loader.generate_embeddings()
             loader.save_to_database()
         else:
-            logger.info(f"Loaded {len(standards)} NCERT standards from database")
+            logger.info(f"Loaded {len(standards)} content standards from database")
             # Generate embeddings for loaded standards
             loader.generate_embeddings()
 
     except Exception as e:
-        logger.error(f"Error initializing NCERT standards: {e}")
+        logger.error(f"Error initializing content standards: {e}")
         # Fallback to JSON loading
         loader.load_standards_from_json(str(json_path))
         loader.generate_embeddings()

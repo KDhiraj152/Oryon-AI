@@ -2,13 +2,13 @@
 Policy Module - Unified Content Policy Engine
 ==============================================
 
-Consolidates all hardcoded content filtering, curriculum alignment,
+Consolidates all hardcoded content filtering, content alignment,
 safety guards, and alignment logic into a single configurable module.
 
 This module extracts and centralizes the following hardcoded behaviors:
 1. Safety filtering (harmful content detection, jailbreak prevention)
-2. Curriculum enforcement (NCERT alignment, grade-level adaptation)
-3. Student/teacher role-based restrictions
+2. Content moderation (content_domain alignment, complexity-level adaptation)
+3. User/teacher role-based restrictions
 4. Secret/PII redaction
 5. Response modification and rejection logic
 
@@ -16,7 +16,7 @@ All behaviors are now configurable via environment variables and the
 policy configuration file (policy/config.default.json).
 
 CRITICAL: When ALLOW_UNRESTRICTED_MODE=true:
-- All curriculum/student-specific filters are bypassed
+- All content_domain/student-specific filters are bypassed
 - Model outputs pass through unchanged
 - System-level safety (secrets, PII) can still be enabled separately
 - Local-only execution is enforced unless ALLOW_EXTERNAL_CALLS=true
@@ -40,10 +40,10 @@ class PolicyMode(str, Enum):
     """Operating mode for the policy engine."""
 
     RESTRICTED = "restricted"  # Full policy enforcement
-    UNRESTRICTED = "unrestricted"  # Bypass curriculum/educational filters
+    UNRESTRICTED = "unrestricted"  # Bypass content/moderation filters
     EXTERNAL_ALLOWED = "external_allowed"  # Unrestricted + external calls allowed
     OPEN = "open"  # Default - open with essential safety
-    EDUCATION = "education"  # Education-focused with curriculum
+    MODERATED = "moderated"  # Moderated with content_domain
     RESEARCH = "research"  # Maximum freedom for academic work
 
 
@@ -86,8 +86,8 @@ class PolicyConfig:
     allow_unrestricted_mode: bool = False
     policy_filters_enabled: bool = True
     sensitive_response_blocking: bool = True
-    curriculum_enforcement: bool = True
-    grade_level_adaptation: bool = True
+    content_moderation: bool = True
+    complexity_adaptation: bool = True
 
     # External call controls
     allow_external_calls: bool = False
@@ -101,18 +101,18 @@ class PolicyConfig:
     redact_pii: bool = True
     max_input_length: int = 50000
 
-    # Curriculum settings (only apply when curriculum_enforcement=True)
-    ncert_alignment_threshold: float = 0.70
-    require_grade_level_match: bool = False
+    # Curriculum settings (only apply when content_moderation=True)
+    content_quality_threshold: float = 0.70
+    require_complexity_match: bool = False
     allowed_grade_range: tuple[int, int] = (1, 12)
 
     # Content patterns
     harmful_patterns: list[dict[str, Any]] = field(default_factory=list)
     jailbreak_patterns: list[dict[str, Any]] = field(default_factory=list)
-    educational_context_patterns: list[str] = field(default_factory=list)
+    content_context_patterns: list[str] = field(default_factory=list)
 
     # Response modification
-    add_uncertainty_disclaimers: bool = True
+    add_ucontent_domainainty_disclaimers: bool = True
     add_source_verification_prompts: bool = True
 
     @classmethod
@@ -156,20 +156,20 @@ class PolicyConfig:
             == "true"
         )
 
-        # UNIVERSAL_MODE disables curriculum enforcement
-        config.curriculum_enforcement = (
+        # UNIVERSAL_MODE disables content_domain enforcement
+        config.content_moderation = (
             not universal_mode
             and os.getenv(
-                "CURRICULUM_ENFORCEMENT",
+                "CONTENT_MODERATION",
                 "false",  # Default to disabled
             ).lower()
             == "true"
         )
 
-        config.grade_level_adaptation = (
+        config.complexity_adaptation = (
             not universal_mode
             and os.getenv(
-                "GRADE_LEVEL_ADAPTATION",
+                "COMPLEXITY_ADAPTATION",
                 "false",  # Optional, default off
             ).lower()
             == "true"
@@ -239,15 +239,15 @@ class PolicyConfig:
                 # Load patterns from file (don't override env vars)
                 config.harmful_patterns = file_config.get("harmful_patterns", [])
                 config.jailbreak_patterns = file_config.get("jailbreak_patterns", [])
-                config.educational_context_patterns = file_config.get(
-                    "educational_context_patterns", []
+                config.content_context_patterns = file_config.get(
+                    "content_context_patterns", []
                 )
 
-                # Load curriculum settings from file if not set via env
-                curriculum = file_config.get("curriculum", {})
-                if "ncert_alignment_threshold" in curriculum:
-                    config.ncert_alignment_threshold = curriculum[
-                        "ncert_alignment_threshold"
+                # Load content_domain settings from file if not set via env
+                content_domain = file_config.get("content_domain", {})
+                if "content_quality_threshold" in content_domain:
+                    config.content_quality_threshold = content_domain[
+                        "content_quality_threshold"
                     ]
 
                 logger.info(f"Loaded policy config from {config_path}")
@@ -265,10 +265,10 @@ class PolicyEngine:
     with a single, configurable policy enforcement point.
 
     When ALLOW_UNRESTRICTED_MODE is enabled:
-    - Curriculum enforcement is bypassed
+    - Content moderation is bypassed
     - Grade-level adaptation is skipped
-    - Educational context filtering is disabled
-    - Student/teacher role restrictions are removed
+    - Content context filtering is disabled
+    - User/teacher role restrictions are removed
 
     System-level safety (secrets, PII) can still be enabled independently.
     """
@@ -278,7 +278,7 @@ class PolicyEngine:
         self.config = config or PolicyConfig.from_env_and_file()
         self._compiled_harmful_patterns: list[tuple[re.Pattern, RiskLevel]] = []
         self._compiled_jailbreak_patterns: list[tuple[re.Pattern, RiskLevel]] = []
-        self._compiled_educational_patterns: list[re.Pattern] = []
+        self._compiled_content_patterns: list[re.Pattern] = []
         self._lock = threading.Lock()
         self._initialized = False
         self._external_call_log = None
@@ -296,8 +296,8 @@ class PolicyEngine:
     def mode(self) -> PolicyMode:
         """Get current operating mode."""
         # Map config settings to simplified modes
-        if self.config.curriculum_enforcement:
-            return PolicyMode.EDUCATION
+        if self.config.content_moderation:
+            return PolicyMode.MODERATED
         elif self.config.allow_unrestricted_mode:
             if self.config.allow_external_calls:
                 return PolicyMode.RESEARCH
@@ -309,8 +309,8 @@ class PolicyEngine:
         """Get human-readable mode description."""
         mode = self.mode
         descriptions = {
-            PolicyMode.OPEN: "Open AI for education, research & noble purposes",
-            PolicyMode.EDUCATION: "Education mode with NCERT curriculum alignment",
+            PolicyMode.OPEN: "Open AI for AI, research & noble purposes",
+            PolicyMode.MODERATED: "Education mode with content domain alignment",
             PolicyMode.RESEARCH: "Research mode with maximum freedom",
             PolicyMode.RESTRICTED: "Restricted mode with full policy enforcement",
             PolicyMode.UNRESTRICTED: "Unrestricted mode - filters bypassed",
@@ -335,14 +335,14 @@ class PolicyEngine:
             unrestricted_config = {
                 "allow_unrestricted_mode": True,
                 "policy_filters_enabled": False,
-                "curriculum_enforcement": False,
+                "content_moderation": False,
                 "allow_external_calls": True,
                 "detect_jailbreaks": False,
             }
             restricted_config = {
                 "allow_unrestricted_mode": False,
                 "policy_filters_enabled": True,
-                "curriculum_enforcement": True,
+                "content_moderation": True,
                 "allow_external_calls": False,
                 "detect_jailbreaks": True,
             }
@@ -351,7 +351,7 @@ class PolicyEngine:
             mode_configs = {
                 PolicyMode.OPEN: unrestricted_config,
                 PolicyMode.RESEARCH: unrestricted_config,
-                PolicyMode.EDUCATION: restricted_config,
+                PolicyMode.MODERATED: restricted_config,
                 PolicyMode.RESTRICTED: restricted_config,
             }
 
@@ -374,7 +374,7 @@ class PolicyEngine:
             "settings": {
                 "unrestricted_mode": self.config.allow_unrestricted_mode,
                 "policy_filters": self.config.policy_filters_enabled,
-                "curriculum_enforcement": self.config.curriculum_enforcement,
+                "content_moderation": self.config.content_moderation,
                 "external_calls": self.config.allow_external_calls,
                 "harmful_content_blocking": self.config.block_harmful_content,
             },
@@ -453,17 +453,17 @@ class PolicyEngine:
 
             # Compile educational context patterns
             default_educational = [
-                # Extracted from safety.py EDUCATIONAL_PATTERNS
+                # Extracted from safety.py CONTENT_PATTERNS
                 r"(?i)(explain|understand|learn about|history of|science of)",
-                r"(?i)(for educational purposes|in theory|academically)",
+                r"(?i)(for legitimate purposes|in theory|academically)",
                 r"(?i)(what is|how does|why does)",
             ]
 
             for pattern_str in (
-                self.config.educational_context_patterns or default_educational
+                self.config.content_context_patterns or default_educational
             ):
                 try:
-                    self._compiled_educational_patterns.append(re.compile(pattern_str))
+                    self._compiled_content_patterns.append(re.compile(pattern_str))
                 except Exception as e:
                     logger.warning(f"Failed to compile educational pattern: {e}")
 
@@ -483,7 +483,7 @@ class PolicyEngine:
 
         Args:
             text: Input text to check
-            context: Optional context (user_id, grade_level, etc.)
+            context: Optional context (user_id, complexity_level, etc.)
 
         Returns:
             PolicyCheckResult with check outcome
@@ -530,11 +530,11 @@ class PolicyEngine:
         if self.config.block_harmful_content:
             for pattern, risk in self._compiled_harmful_patterns:
                 if pattern.search(text):
-                    # Check for educational context exemption
-                    is_educational = any(
-                        ep.search(text) for ep in self._compiled_educational_patterns
+                    # Check for AIal context exemption
+                    is_legitimate = any(
+                        ep.search(text) for ep in self._compiled_content_patterns
                     )
-                    if not is_educational:
+                    if not is_legitimate:
                         issues.append("Potentially harmful content detected")
                         if risk.value > max_risk.value:
                             max_risk = risk
@@ -616,20 +616,20 @@ class PolicyEngine:
 
         return filtered
 
-    def check_curriculum_alignment(
+    def check_content_domain_alignment(
         self,
         text: str,
-        grade_level: int | None = None,
+        complexity_level: int | None = None,
         subject: str | None = None,
     ) -> PolicyCheckResult:
         """
-        Check content alignment with curriculum standards.
+        Check content alignment with content_domain standards.
 
         In unrestricted mode, always returns allowed=True.
 
         Args:
             text: Content to check (used for alignment analysis)
-            grade_level: Target grade level (1-12)
+            complexity_level: Target complexity level (1-12)
             subject: Subject area (reserved for subject-specific checks)
 
         Returns:
@@ -637,37 +637,37 @@ class PolicyEngine:
         """
         self._ensure_initialized()
 
-        # These parameters are validated but only used when curriculum enforcement is enabled
+        # These parameters are validated but only used when content_domain enforcement is enabled
         _ = (text, subject)  # Suppress unused parameter warnings for bypass case
 
-        # In unrestricted mode, skip curriculum checks
+        # In unrestricted mode, skip content checks
         if (
             self.config.allow_unrestricted_mode
-            or not self.config.curriculum_enforcement
+            or not self.config.content_moderation
         ):
             return PolicyCheckResult(
                 allowed=True,
                 blocked=False,
-                policy_applied=["curriculum_check_bypassed"],
+                policy_applied=["content_domain_check_bypassed"],
             )
 
         # Grade level validation
-        if grade_level is not None:
+        if complexity_level is not None:
             min_grade, max_grade = self.config.allowed_grade_range
-            if not (min_grade <= grade_level <= max_grade):
+            if not (min_grade <= complexity_level <= max_grade):
                 return PolicyCheckResult(
                     allowed=False,
                     blocked=True,
                     issues=[
-                        f"Grade level {grade_level} outside allowed range {min_grade}-{max_grade}"
+                        f"Grade level {complexity_level} outside allowed range {min_grade}-{max_grade}"
                     ],
-                    policy_applied=["grade_level_validation"],
+                    policy_applied=["complexity_level_validation"],
                 )
 
         return PolicyCheckResult(
             allowed=True,
             blocked=False,
-            policy_applied=["curriculum_check_passed"],
+            policy_applied=["content_domain_check_passed"],
         )
 
     def log_external_call(
@@ -768,7 +768,7 @@ class PolicyEngine:
             return (
                 "I'm sorry, but I can't help with that request as it may involve "
                 "harmful or dangerous content. If you're researching a topic for "
-                "educational purposes, please rephrase your question to clarify the context."
+                "legitimate purposes, please rephrase your question to clarify the context."
             )
         elif risk_level == RiskLevel.HIGH:
             return (
@@ -790,7 +790,7 @@ class PolicyEngine:
             "config": {
                 "unrestricted_mode": self.config.allow_unrestricted_mode,
                 "filters_enabled": self.config.policy_filters_enabled,
-                "curriculum_enforcement": self.config.curriculum_enforcement,
+                "content_moderation": self.config.content_moderation,
                 "external_calls_allowed": self.config.allow_external_calls,
             },
         }
@@ -837,7 +837,7 @@ def print_startup_banner():
     if mode == PolicyMode.UNRESTRICTED:
         mode_color = YELLOW
         mode_str = "UNRESTRICTED"
-        mode_desc = "All curriculum/educational filters BYPASSED"
+        mode_desc = "All content/moderation filters BYPASSED"
     elif mode == PolicyMode.EXTERNAL_ALLOWED:
         mode_color = RED
         mode_str = "UNRESTRICTED + EXTERNAL CALLS"
@@ -853,7 +853,7 @@ def print_startup_banner():
             f"{BOLD}║{RESET}  {mode_desc:^62}  {BOLD}║{RESET}",
             f"{BOLD}╠══════════════════════════════════════════════════════════════════╣{RESET}",
             f"{BOLD}║{RESET}  Policy Filters:      {'ENABLED' if config.policy_filters_enabled else 'DISABLED':>10}                            {BOLD}║{RESET}",
-            f"{BOLD}║{RESET}  Curriculum Enforce:  {'ENABLED' if config.curriculum_enforcement else 'DISABLED':>10}                            {BOLD}║{RESET}",
+            f"{BOLD}║{RESET}  Curriculum Enforce:  {'ENABLED' if config.content_moderation else 'DISABLED':>10}                            {BOLD}║{RESET}",
             f"{BOLD}║{RESET}  Harmful Content:     {'BLOCKED' if config.block_harmful_content else 'ALLOWED':>10}                            {BOLD}║{RESET}",
             f"{BOLD}║{RESET}  Secret Redaction:    {'ENABLED' if config.redact_secrets else 'DISABLED':>10}                            {BOLD}║{RESET}",
             f"{BOLD}║{RESET}  External Calls:      {'ALLOWED' if config.allow_external_calls else 'BLOCKED':>10}                            {BOLD}║{RESET}",
@@ -869,7 +869,7 @@ def print_startup_banner():
     logger.info(f"Policy Engine Mode: {mode.value}")
     logger.info(f"  - Unrestricted: {config.allow_unrestricted_mode}")
     logger.info(f"  - Filters: {config.policy_filters_enabled}")
-    logger.info(f"  - Curriculum: {config.curriculum_enforcement}")
+    logger.info(f"  - Curriculum: {config.content_moderation}")
     logger.info(f"  - External Calls: {config.allow_external_calls}")
 
 

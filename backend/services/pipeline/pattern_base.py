@@ -29,7 +29,7 @@ class BasePatternsMixin:
     async def _chain_step_simplify(
         self,
         text: str,
-        grade_level: int,
+        complexity_level: int,
         subject: str,
     ) -> tuple[str, list[str], dict[str, float]]:
         """Chain step: LLM simplification."""
@@ -38,7 +38,7 @@ class BasePatternsMixin:
             return text, [], {}
 
         try:
-            prompt = f"""Simplify this text for Grade {grade_level} {subject} students:
+            prompt = f"""Simplify this text for Grade {complexity_level} {subject} users:
 
 {text}
 
@@ -115,7 +115,7 @@ Simplified version (keep key facts, use simple words):"""
 
         models_used: list[str] = []
         scores: dict[str, float] = {}
-        grade_level = context.get("grade_level", 8)
+        complexity_level = context.get("complexity_level", 8)
         subject = context.get("subject", "General")
         target_language = context.get("target_language", "Hindi")
 
@@ -127,7 +127,7 @@ Simplified version (keep key facts, use simple words):"""
 
         # Step 1: Simplify
         current_text, step_models, step_scores = await self._chain_step_simplify(
-            input_text, grade_level, subject
+            input_text, complexity_level, subject
         )
         models_used.extend(step_models)
         scores.update(step_scores)
@@ -162,19 +162,19 @@ Simplified version (keep key facts, use simple words):"""
         )
 
     async def _verify_initial_generate(
-        self, llm: Any, input_text: str, task: str, grade_level: int, subject: str,
+        self, llm: Any, input_text: str, task: str, complexity_level: int, subject: str,
     ) -> str:
         """Generate initial output for verify pattern."""
-        prompt = f"""You are an expert educational content creator.
+        prompt = f"""You are an expert content creator.
 
 Task: {task}
-Grade Level: {grade_level}
+Complexity Level: {complexity_level}
 Subject: {subject}
 
 Input:
 {input_text}
 
-Provide high-quality output suitable for the specified grade level:"""
+Provide high-quality output suitable for the specified complexity level:"""
         result = await llm.generate_async(prompt, max_tokens=4096)
         self._log_message("qwen", "validator", result, {"iteration": 1, "action": "generate"})  # type: ignore
         return str(result)
@@ -217,13 +217,13 @@ Please improve the content to address these issues while maintaining accuracy:""
         iteration_idx: int,
         best_score: float,
         best_text: str,
-        grade_level: int,
+        complexity_level: int,
         subject: str,
     ) -> tuple[float, str, str, bool]:
         """Run one verify-refine iteration. Returns (best_score, best_text, current_text, should_stop)."""
         eval_result = await validator.evaluate(
             original_text=input_text, processed_text=current_text,
-            grade_level=grade_level, subject=subject,
+            complexity_level=complexity_level, subject=subject,
         )
         score = eval_result.overall_score
         scores[f"iteration_{iteration_idx + 1}"] = score
@@ -267,7 +267,7 @@ Please improve the content to address these issues while maintaining accuracy:""
         scores: dict[str, float] = {}
         iterations = 0
 
-        grade_level = context.get("grade_level", 8)
+        complexity_level = context.get("complexity_level", 8)
         subject = context.get("subject", "General")
 
         llm = self._get_llm()  # type: ignore
@@ -280,7 +280,7 @@ Please improve the content to address these issues while maintaining accuracy:""
         best_score = 0.0
 
         # Initial generation
-        current_text = await self._verify_initial_generate(llm, input_text, task, grade_level, subject)
+        current_text = await self._verify_initial_generate(llm, input_text, task, complexity_level, subject)
         models_used.append("qwen-3b")
 
         for i in range(self.config.max_iterations):  # type: ignore
@@ -294,7 +294,7 @@ Please improve the content to address these issues while maintaining accuracy:""
                     await self._verify_evaluate_step(
                         validator, llm, input_text, current_text,
                         models_used, scores, i, best_score, best_text,
-                        grade_level, subject,
+                        complexity_level, subject,
                     )
                 )
                 if should_stop:

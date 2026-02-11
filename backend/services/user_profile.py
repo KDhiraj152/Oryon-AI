@@ -1,8 +1,8 @@
 """
-Student Profile Service
+User Profile Service
 =======================
 
-Manages student profiles - simplified version without personalization constraints.
+Manages user profiles - simplified version without personalization constraints.
 """
 
 import logging
@@ -17,9 +17,9 @@ from sqlalchemy.orm import Session
 logger = logging.getLogger(__name__)
 
 
-class StudentProfileService:
+class UserProfileService:
     """
-    Service for loading and managing student profiles.
+    Service for loading and managing user profiles.
 
     Simplified version - no personalization constraints.
     Just stores user preferences like language and subjects.
@@ -55,7 +55,7 @@ class StudentProfileService:
 
     def get_profile(self, user_id: str) -> dict[str, Any]:
         """
-        Get student profile for user, with caching.
+        Get user profile for user, with caching.
 
         Returns context dict with user preferences:
         {
@@ -96,12 +96,12 @@ class StudentProfileService:
     def _load_from_db(self, user_id: str) -> dict[str, Any]:
         """Load profile from database or return defaults."""
         try:
-            from ..models.student import StudentProfile
+            from ..models.student import UserProfile
 
             with self._get_db() as db:
                 profile = (
-                    db.query(StudentProfile)
-                    .filter(StudentProfile.user_id == UUID(user_id))
+                    db.query(UserProfile)
+                    .filter(UserProfile.user_id == UUID(user_id))
                     .first()
                 )
 
@@ -134,16 +134,16 @@ class StudentProfileService:
         language: str | None,
         subjects: list | None,
     ):
-        """Create a new student profile."""
+        """Create a new user profile."""
         import uuid
 
-        from ..models.student import StudentProfile
+        from ..models.student import UserProfile
 
-        profile = StudentProfile(
+        profile = UserProfile(
             id=uuid.uuid4(),
             user_id=UUID(user_id),
             language_preference=language or "en",
-            grade_level=8,  # Keep default for DB compatibility
+            complexity_level=8,  # Keep default for DB compatibility
             subjects_of_interest=subjects or [],
             offline_content_cache={},
         )
@@ -174,11 +174,11 @@ class StudentProfileService:
         """
         with self._get_db() as db:
             try:
-                from ..models.student import StudentProfile
+                from ..models.student import UserProfile
 
                 profile = (
-                    db.query(StudentProfile)
-                    .filter(StudentProfile.user_id == UUID(user_id))
+                    db.query(UserProfile)
+                    .filter(UserProfile.user_id == UUID(user_id))
                     .first()
                 )
 
@@ -211,11 +211,11 @@ class StudentProfileService:
 
 
 # Singleton instance (thread-safe)
-_profile_service: StudentProfileService | None = None
+_profile_service: UserProfileService | None = None
 _profile_lock = None  # Lazy init
 
 
-def get_profile_service(db: Session | None = None) -> StudentProfileService:
+def get_profile_service(db: Session | None = None) -> UserProfileService:
     """Get or create the profile service singleton (thread-safe with double-checked locking)."""
     global _profile_service, _profile_lock
     import threading
@@ -225,5 +225,5 @@ def get_profile_service(db: Session | None = None) -> StudentProfileService:
     if _profile_service is None:
         with _profile_lock:
             if _profile_service is None:
-                _profile_service = StudentProfileService(db)
+                _profile_service = UserProfileService(db)
     return _profile_service

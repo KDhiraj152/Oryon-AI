@@ -8,8 +8,8 @@
 #   /api/v2/chat/stream    - Streaming chat (SSE)
 #   /api/v2/content/*      - OCR, translate, simplify, TTS
 #   /api/v2/auth/*         - Authentication
-#   /api/v2/profile/me     - Student profile (personalization)
-#   /api/v2/review/*       - Teacher review queue
+#   /api/v2/profile/me     - User profile (personalization)
+#   /api/v2/review/*       - Content review queue
 #   /health                - Health check
 # ===================================================================
 
@@ -148,7 +148,7 @@ echo "  POST /api/v2/content/ocr     OCR processing"
 echo "  POST /api/v2/content/simplify Text simplification"
 echo "  POST /api/v2/content/translate Translation"
 echo "  POST /api/v2/content/tts     Text-to-speech"
-echo "  GET  /api/v2/profile/me      Student profile"
+echo "  GET  /api/v2/profile/me      User profile"
 echo "  PUT  /api/v2/profile/me      Update profile"
 echo "  GET  /api/v2/review/pending  Flagged responses"
 echo "  =============================================="

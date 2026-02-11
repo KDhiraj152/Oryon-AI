@@ -116,6 +116,10 @@ class StorageBackend(ABC):
         """Check if backend is available."""
         pass
 
+    async def close(self) -> None:
+        """Close connections and release resources. Override in subclasses."""
+        pass
+
 
 # =============================================================================
 # REDIS BACKEND
@@ -323,6 +327,16 @@ class RedisBackend(StorageBackend):
             return await client.llen(key)
         except Exception:
             return 0
+
+    async def close(self) -> None:
+        """Close the async Redis connection."""
+        if self._client is not None:
+            try:
+                await self._client.aclose()
+            except Exception:
+                pass
+            self._client = None
+            self._available = None
 
 
 # =============================================================================
@@ -587,6 +601,10 @@ class HybridStorage:
     async def llen(self, key: str) -> int:
         await self.initialize()
         return await self._backend.llen(key)
+
+    async def close(self) -> None:
+        """Close the active backend connection."""
+        await self._backend.close()
 
 
 # =============================================================================

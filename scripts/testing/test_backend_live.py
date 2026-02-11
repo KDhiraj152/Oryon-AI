@@ -186,24 +186,24 @@ class BackendTester:
             {
                 "name": "Scientific Text",
                 "text": "Photosynthesis is the process by which plants convert light energy into chemical energy, storing it in glucose molecules synthesized from carbon dioxide and water.",
-                "grade_level": 5
+                "complexity_level": 5
             },
             {
                 "name": "Math Concept",
                 "text": "The Pythagorean theorem states that in a right-angled triangle, the square of the hypotenuse equals the sum of squares of the other two sides.",
-                "grade_level": 6
+                "complexity_level": 6
             },
             {
                 "name": "Hindi Educational",
                 "text": "भारत का संविधान विश्व का सबसे लंबा लिखित संविधान है जो 26 जनवरी 1950 को लागू हुआ था।",
-                "grade_level": 8
+                "complexity_level": 8
             }
         ]
 
         for test in test_texts:
             result = await self.request("POST", "/api/v2/content/simplify", {
                 "text": test["text"],
-                "grade_level": test["grade_level"],
+                "complexity_level": test["complexity_level"],
                 "subject": "Education"
             })
             result.name = test["name"]
@@ -278,7 +278,7 @@ class BackendTester:
             "translate": True,
             "generate_audio": False,
             "validate_content": True,
-            "grade_level": 6,
+            "complexity_level": 6,
             "target_language": "Hindi",
             "subject": "Biology",
             "quality_mode": "balanced",
@@ -319,7 +319,7 @@ class BackendTester:
         result = await self.request("POST", "/api/v2/batch/process", {
             "items": batch_items,
             "operations": ["simplify"],
-            "grade_level": 5,
+            "complexity_level": 5,
             "subject": "Science",
             "enable_collaboration": False,
             "max_concurrency": 4

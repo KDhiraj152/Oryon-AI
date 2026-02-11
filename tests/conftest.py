@@ -202,7 +202,7 @@ def setup_test_environment():
     if "DATABASE_URL" not in os.environ:
         # Default to PostgreSQL test database
         os.environ["DATABASE_URL"] = (
-            "postgresql://user:password@localhost:5432/test_education_content"
+            "postgresql://user:password@localhost:5432/test_shiksha_setu"
         )
 
     # Disable SQL echo for cleaner test output
@@ -236,7 +236,7 @@ def clean_database():
 
 @pytest.fixture
 def sample_content():
-    """Sample educational content for testing."""
+    """Sample content for testing."""
     return {
         "original_text": "Photosynthesis is the process by which plants make food.",
         "subject": "Science",

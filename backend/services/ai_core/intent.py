@@ -78,7 +78,7 @@ class IntelligentIntentClassifier:
     """
 
     # Intent classification prompt - teaches the LLM to analyze intent
-    INTENT_PROMPT = """You are an intent analyzer for an educational AI assistant called Shiksha Setu.
+    INTENT_PROMPT = """You are an intent analyzer for an AI assistant called Shiksha Setu.
 
 Analyze the user's message and determine their intent. Respond ONLY with a JSON object.
 

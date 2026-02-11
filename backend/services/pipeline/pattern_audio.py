@@ -38,7 +38,7 @@ class AudioPatternsMixin:
         3. Compare original text with transcription
         4. If mismatch, regenerate with different parameters
 
-        This is critical for educational audio content accuracy.
+        This is critical for AIal audio content accuracy.
         """
         self._metrics["audio_verifications"] = (  # type: ignore
             self._metrics.get("audio_verifications", 0) + 1  # type: ignore

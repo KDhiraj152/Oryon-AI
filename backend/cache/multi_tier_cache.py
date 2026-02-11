@@ -1109,6 +1109,27 @@ class L2Cache:
             self._errors += 1
             return 0
 
+    async def close(self):
+        """Gracefully close Redis connections and release pool resources."""
+        if self._async_client is not None:
+            try:
+                await self._async_client.aclose()
+            except Exception:
+                pass
+            self._async_client = None
+        if self._client is not None:
+            try:
+                self._client.close()
+            except Exception:
+                pass
+            self._client = None
+        if self._pool is not None:
+            try:
+                self._pool.disconnect()
+            except Exception:
+                pass
+            self._pool = None
+
     def get_stats(self) -> dict[str, Any]:
         """Get L2 cache statistics."""
         total = self._hits + self._misses
@@ -2198,6 +2219,9 @@ class UnifiedCache:
         # Flush write queue
         await self._write_queue.flush()
         self._write_queue.stop()
+
+        # Close L2 Redis connections
+        await self.l2.close()
 
         # Close L3 connections
         self.l3._close_all_conns()

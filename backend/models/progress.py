@@ -24,10 +24,10 @@ def utcnow():
     return datetime.utcnow()
 
 
-class StudentProgress(Base):
+class UserProgress(Base):
     """Track student progress on content items."""
 
-    __tablename__ = "student_progress"
+    __tablename__ = "user_progress"
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(
@@ -59,7 +59,7 @@ class StudentProgress(Base):
     notes = Column(Text, nullable=True)
 
     def __repr__(self):
-        return f"<StudentProgress(user={self.user_id}, content={self.content_id}, progress={self.progress_percent}%)>"
+        return f"<UserProgress(user={self.user_id}, content={self.content_id}, progress={self.progress_percent}%)>"
 
 
 class QuizScore(Base):
@@ -69,7 +69,7 @@ class QuizScore(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     progress_id = Column(
-        Integer, ForeignKey("student_progress.id", ondelete="CASCADE"), nullable=False
+        Integer, ForeignKey("user_progress.id", ondelete="CASCADE"), nullable=False
     )
     user_id = Column(
         UUID(as_uuid=True),
@@ -106,10 +106,10 @@ class QuizScore(Base):
         )
 
 
-class LearningSession(Base):
+class InteractionSession(Base):
     """Track individual learning sessions."""
 
-    __tablename__ = "learning_sessions"
+    __tablename__ = "interaction_sessions"
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(
@@ -143,23 +143,23 @@ class LearningSession(Base):
 
     def __repr__(self):
         return (
-            f"<LearningSession(user={self.user_id}, duration={self.duration_seconds}s)>"
+            f"<InteractionSession(user={self.user_id}, duration={self.duration_seconds}s)>"
         )
 
 
-class ParentReport(Base):
+class UsageReport(Base):
     """Store generated parent reports."""
 
-    __tablename__ = "parent_reports"
+    __tablename__ = "usage_reports"
 
     id = Column(Integer, primary_key=True, index=True)
-    student_id = Column(
+    user_ref_id = Column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
         index=True,
         nullable=False,
     )
-    parent_id = Column(
+    admin_ref_id = Column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
         index=True,
@@ -183,7 +183,7 @@ class ParentReport(Base):
     report_pdf_path = Column(String(500), nullable=True)
 
     def __repr__(self):
-        return f"<ParentReport(student={self.student_id}, type={self.report_type})>"
+        return f"<UsageReport(student={self.user_ref_id}, type={self.report_type})>"
 
 
 class Achievement(Base):

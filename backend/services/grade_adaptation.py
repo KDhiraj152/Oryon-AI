@@ -2,7 +2,7 @@
 Grade-Level Adaptation Service
 
 Issue: CODE-REVIEW-GPT #13 (HIGH)
-Problem: No grade-level content adaptation
+Problem: No complexity-level content adaptation
 
 Solution: Adaptive complexity, vocabulary filtering, readability analysis
 """
@@ -32,7 +32,7 @@ class ReadabilityLevel(str, Enum):
 
 @dataclass
 class GradeLevelConfig:
-    """Configuration for each grade level."""
+    """Configuration for each complexity level."""
 
     grade_range: tuple[int, int]
     max_sentence_length: int
@@ -45,7 +45,7 @@ class GradeLevelConfig:
 
 
 class GradeLevelAdaptationService:
-    """Service for adapting content to appropriate grade levels."""
+    """Service for adapting content to appropriate complexity levels."""
 
     # Grade level configurations
     GRADE_CONFIGS = {
@@ -106,7 +106,7 @@ class GradeLevelAdaptationService:
         ),
     }
 
-    # Simple vocabulary by grade level (examples)
+    # Simple vocabulary by complexity level (examples)
     VOCABULARY_LISTS = {
         "very_simple": {
             "math": ["add", "take", "count", "more", "less"],
@@ -133,28 +133,28 @@ class GradeLevelAdaptationService:
     def __init__(self, db: Session):
         self.db = db
 
-    def _get_grade_config(self, grade_level: int) -> GradeLevelConfig:
-        """Get configuration for grade level."""
+    def _get_grade_config(self, complexity_level: int) -> GradeLevelConfig:
+        """Get configuration for complexity level."""
         for grade_range, config in self.GRADE_CONFIGS.items():
-            if grade_range[0] <= grade_level <= grade_range[1]:
+            if grade_range[0] <= complexity_level <= grade_range[1]:
                 return config
         # Default to moderate if grade not found
         return self.GRADE_CONFIGS[(6, 8)]
 
-    def analyze_readability(self, text: str, grade_level: int) -> dict[str, Any]:
+    def analyze_readability(self, text: str, complexity_level: int) -> dict[str, Any]:
         """
-        Analyze text readability for grade level.
+        Analyze text readability for complexity level.
 
         Args:
             text: Content text
-            grade_level: Target grade level (1-12)
+            complexity_level: Target complexity level (1-12)
 
         Returns:
             Readability analysis with scores and issues
         """
-        logger.info(f"Analyzing readability for grade {grade_level}")
+        logger.info(f"Analyzing readability for grade {complexity_level}")
 
-        config = self._get_grade_config(grade_level)
+        config = self._get_grade_config(complexity_level)
 
         # Calculate basic metrics
         sentences = self._split_into_sentences(text)
@@ -178,7 +178,7 @@ class GradeLevelAdaptationService:
         )
         flesch_score = max(0, min(100, flesch_score))
 
-        # Flesch-Kincaid Grade Level
+        # Flesch-Kincaid Complexity Level
         fk_grade = 0.39 * avg_sentence_length + 11.8 * avg_syllables_per_word - 15.59
         fk_grade = max(0, fk_grade)
 
@@ -210,11 +210,11 @@ class GradeLevelAdaptationService:
         if fk_grade > config.max_flesch_kincaid_grade:
             issues.append(
                 {
-                    "type": "high_grade_level",
+                    "type": "high_complexity_level",
                     "severity": "medium",
                     "details": f"Flesch-Kincaid grade ({fk_grade:.1f}) exceeds target "
                     f"({config.max_flesch_kincaid_grade})",
-                    "recommendation": "Use simpler language appropriate for grade level",
+                    "recommendation": "Use simpler language appropriate for complexity level",
                 }
             )
 
@@ -244,7 +244,7 @@ class GradeLevelAdaptationService:
             readability_level = ReadabilityLevel.VERY_DIFFICULT
 
         return {
-            "grade_level": grade_level,
+            "complexity_level": complexity_level,
             "metrics": {
                 "total_sentences": total_sentences,
                 "total_words": total_words,
@@ -267,12 +267,12 @@ class GradeLevelAdaptationService:
         self, text: str, current_grade: int, target_grade: int
     ) -> dict[str, Any]:
         """
-        Adapt content from one grade level to another.
+        Adapt content from one complexity level to another.
 
         Args:
             text: Original content
-            current_grade: Current grade level
-            target_grade: Target grade level
+            current_grade: Current complexity level
+            target_grade: Target complexity level
 
         Returns:
             Adaptation recommendations
@@ -351,19 +351,19 @@ class GradeLevelAdaptationService:
         }
 
     def suggest_vocabulary_replacements(
-        self, text: str, grade_level: int
+        self, text: str, complexity_level: int
     ) -> list[dict[str, str]]:
         """
         Suggest simpler vocabulary replacements.
 
         Args:
             text: Content text
-            grade_level: Target grade level
+            complexity_level: Target complexity level
 
         Returns:
             List of word replacement suggestions
         """
-        config = self._get_grade_config(grade_level)
+        config = self._get_grade_config(complexity_level)
         words = text.split()
 
         # Find complex words
@@ -378,7 +378,7 @@ class GradeLevelAdaptationService:
                     {
                         "original": word,
                         "replacement": simpler,
-                        "reason": "Simpler alternative for grade level",
+                        "reason": "Simpler alternative for complexity level",
                     }
                 )
 
@@ -421,7 +421,7 @@ class GradeLevelAdaptationService:
     def _find_complex_words(
         self, words: list[str], config: GradeLevelConfig
     ) -> list[str]:
-        """Find words that are too complex for grade level."""
+        """Find words that are too complex for complexity level."""
         complex_words = []
 
         for word in words:
@@ -517,27 +517,27 @@ class GradeLevelAdaptationService:
         return recommendations
 
     def validate_grade_appropriateness(
-        self, text: str, grade_level: int, subject: str
+        self, text: str, complexity_level: int, subject: str
     ) -> dict[str, Any]:
         """
         Comprehensive validation of grade appropriateness.
 
         Args:
             text: Content text
-            grade_level: Target grade (1-12)
+            complexity_level: Target grade (1-12)
             subject: Subject area
 
         Returns:
             Comprehensive validation results
         """
-        logger.info(f"Validating grade appropriateness: Grade {grade_level}, {subject}")
+        logger.info(f"Validating grade appropriateness: Grade {complexity_level}, {subject}")
 
         # Readability analysis
-        readability = self.analyze_readability(text, grade_level)
+        readability = self.analyze_readability(text, complexity_level)
 
         # Vocabulary check
         vocabulary_replacements = self.suggest_vocabulary_replacements(
-            text, grade_level
+            text, complexity_level
         )
 
         # Calculate appropriateness score
@@ -556,7 +556,7 @@ class GradeLevelAdaptationService:
         appropriateness_score = max(0.0, appropriateness_score)
 
         return {
-            "grade_level": grade_level,
+            "complexity_level": complexity_level,
             "subject": subject,
             "appropriateness_score": round(appropriateness_score, 2),
             "passed": appropriateness_score >= 0.7,
@@ -597,11 +597,11 @@ class GradeLevelAdaptationService:
 
 
 # Pipeline integration
-async def adapt_grade_level(
+async def adapt_complexity_level(
     db: Session, content: ProcessedContent, text: str
 ) -> dict[str, Any]:
     """
-    Apply grade-level adaptation in content pipeline.
+    Apply complexity-level adaptation in content pipeline.
 
     Args:
         db: Database session
@@ -615,7 +615,7 @@ async def adapt_grade_level(
 
     # Validate appropriateness
     validation = service.validate_grade_appropriateness(
-        text=text, grade_level=content.grade_level, subject=content.subject
+        text=text, complexity_level=content.complexity_level, subject=content.subject
     )
 
     return validation

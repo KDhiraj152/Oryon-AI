@@ -1,6 +1,6 @@
 """
 Unit tests for backend services.
-Tests core functionality of translation and curriculum validation services.
+Tests core functionality of translation and content_domain validation services.
 
 Note: Storage and VLLMClient tests removed - these modules have been superseded by:
 - Storage: Direct file handling in API routes
@@ -210,12 +210,12 @@ class TestAsyncBatchProcessor:
         assert proc is not None
 
 
-# Curriculum Validator Tests
-from backend.services.curriculum_validation import CurriculumValidationService
+# Content Validator Tests
+from backend.services.content_validation import ContentValidationService
 
 
 class TestCurriculumValidator:
-    """Tests for CurriculumValidationService."""
+    """Tests for ContentValidationService."""
 
     @pytest.fixture
     def mock_db(self):
@@ -227,8 +227,8 @@ class TestCurriculumValidator:
 
     @pytest.fixture
     def validator(self, mock_db):
-        """Create CurriculumValidationService with mocked db."""
-        return CurriculumValidationService(db=mock_db)
+        """Create ContentValidationService with mocked db."""
+        return ContentValidationService(db=mock_db)
 
     def test_grade_ranges_defined(self, validator):
         """Test validator has core attributes."""
@@ -236,14 +236,14 @@ class TestCurriculumValidator:
         assert validator.validator is not None
 
     def test_subjects_defined(self, validator):
-        """Test NCERTValidator is initialized."""
-        from backend.services.validate.ncert import NCERTValidator
+        """Test ContentValidator is initialized."""
+        from backend.services.validate.content_domain import ContentValidator
 
-        assert isinstance(validator.validator, NCERTValidator)
+        assert isinstance(validator.validator, ContentValidator)
 
     def test_model_initialization(self, mock_db):
         """Test validator can be initialized."""
-        validator = CurriculumValidationService(db=mock_db)
+        validator = ContentValidationService(db=mock_db)
         assert validator.alignment_threshold == 0.70
         assert validator.db is not None
 

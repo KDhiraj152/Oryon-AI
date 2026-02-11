@@ -331,12 +331,12 @@ def delete_document(
 
 
 @celery_app.task(
-    name="rag.curriculum_qa",
+    name="rag.content_domain_qa",
     bind=True,
     soft_time_limit=90,
     time_limit=120,
 )
-def curriculum_qa(
+def content_domain_qa(
     self,
     question: str,
     grade: int,
@@ -344,12 +344,12 @@ def curriculum_qa(
     language: str = "en",
 ) -> dict[str, Any]:
     """
-    Answer curriculum-related questions.
+    Answer content_domain-related questions.
 
-    Specialized RAG for NCERT/educational content.
+    Specialized RAG for content_domain/content.
 
     Args:
-        question: Student question
+        question: User question
         grade: Grade level
         subject: Subject (math, science, etc.)
         language: Response language
@@ -366,7 +366,7 @@ def curriculum_qa(
         asyncio.set_event_loop(loop)
 
         try:
-            # Build curriculum-aware query
+            # Build content_domain-aware query
             enhanced_query = f"Grade {grade} {subject}: {question}"
 
             result = loop.run_until_complete(

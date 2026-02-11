@@ -170,7 +170,7 @@ class SetupManager:
 
         # Create database
         self.run_command(
-            ["createdb", "-h", "localhost", "-U", "postgres", "education_content"],
+            ["createdb", "-h", "localhost", "-U", "postgres", "shiksha_setu"],
             "Create database",
             critical=False,
         )
@@ -242,10 +242,10 @@ except Exception as e:
         env_template = """# ShikshaSetu Environment Configuration
 
 # Database
-DATABASE_URL=postgresql://postgres:CHANGE_ME@localhost:5432/education_content
+DATABASE_URL=postgresql://postgres:CHANGE_ME@localhost:5432/shiksha_setu
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=CHANGE_ME
-POSTGRES_DB=education_content
+POSTGRES_DB=shiksha_setu
 POSTGRES_PORT=5432
 
 # Redis

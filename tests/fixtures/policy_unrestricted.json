@@ -7,15 +7,15 @@
     "ALLOW_UNRESTRICTED_MODE": "true",
     "ALLOW_EXTERNAL_CALLS": "false",
     "POLICY_FILTERS_ENABLED": "true",
-    "CURRICULUM_ENFORCEMENT": "true"
+    "CONTENT_MODERATION": "true"
   },
   "policy_config": {
     "mode": "unrestricted",
     "allow_unrestricted_mode": true,
     "policy_filters_enabled": true,
     "sensitive_response_blocking": true,
-    "curriculum_enforcement": true,
-    "grade_level_adaptation": true,
+    "content_moderation": true,
+    "complexity_adaptation": true,
     "allow_external_calls": false,
     "external_call_audit": true,
     "block_harmful_content": true,
@@ -26,24 +26,24 @@
   "test_queries": [
     {
       "query": "What is photosynthesis?",
-      "expected_behavior": "Raw model response without curriculum filtering",
+      "expected_behavior": "Raw model response without content filtering",
       "actual_behavior": "Direct response from local MLX model",
       "policy_applied": []
     },
     {
       "query": "Explain quantum mechanics at college level",
-      "expected_behavior": "Response without grade-level adaptation",
+      "expected_behavior": "Response without complexity-level adaptation",
       "actual_behavior": "Full technical response without simplification",
       "policy_applied": []
     }
   ],
-  "startup_banner": "⚠️ UNRESTRICTED MODE ⚠️ - All curriculum/educational filters BYPASSED",
+  "startup_banner": "⚠️ UNRESTRICTED MODE ⚠️ - All content/moderation filters BYPASSED",
   "local_only": true,
   "audit_logging": true,
   "warnings": [
-    "All content passes through without curriculum filtering",
-    "No grade-level adaptation applied",
-    "Educational context not enforced",
+    "All content passes through without content filtering",
+    "No complexity-level adaptation applied",
+    "Content context not enforced",
     "All actions logged for audit"
   ],
   "notes": "Unrestricted mode for local development and research. External calls still blocked."

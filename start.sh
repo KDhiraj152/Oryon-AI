@@ -25,8 +25,8 @@
 #   /api/v2/chat/stream     - Streaming chat (SSE)
 #   /api/v2/content/*       - Content processing (OCR, translate, simplify)
 #   /api/v2/auth/*          - Authentication
-#   /api/v2/profile/me      - Student profile (personalization)
-#   /api/v2/review/*        - Teacher review queue
+#   /api/v2/profile/me      - User profile (personalization)
+#   /api/v2/review/*        - Content review queue
 #   /api/v2/hardware/status - Hardware/M4 status
 #   /api/v2/models/status   - AI models status
 #   /api/v2/health          - Health check
@@ -209,7 +209,7 @@ clear
 echo ""
 echo -e "${MAGENTA}   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${CYAN}   ॐ  ${WHITE}${BOLD}SHIKSHA SETU${NC}${CYAN}  ॐ${NC}"
-echo -e "${DIM}   AI-Powered Bilingual Education Platform${NC}"
+echo -e "${DIM}   Local-First Multilingual AI Platform${NC}"
 $QUICK_MODE && echo -e "${YELLOW}   ⚡ QUICK MODE${NC}"
 echo -e "${MAGENTA}   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 

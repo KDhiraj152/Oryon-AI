@@ -184,13 +184,13 @@ class SimplificationError(PipelineError):
         self,
         detail: str,
         original_error: Exception | None = None,
-        grade_level: int | None = None,
+        complexity_level: int | None = None,
     ):
         super().__init__(
             detail=detail,
             stage="simplification",
             original_error=original_error,
-            context={"grade_level": grade_level} if grade_level else {},
+            context={"complexity_level": complexity_level} if complexity_level else {},
         )
 
 

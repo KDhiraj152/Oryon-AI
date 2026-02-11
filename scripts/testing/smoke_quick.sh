@@ -152,7 +152,7 @@ print_test "Guest Chat"
 
 CHAT_RESP=$(curl -s -X POST "$API_URL/api/v2/chat/guest" \
     -H "Content-Type: application/json" \
-    -d '{"message": "What is 2+2?", "language": "en", "grade_level": 5}' \
+    -d '{"message": "What is 2+2?", "language": "en", "complexity_level": 5}' \
     2>/dev/null || echo '{"error":"failed"}')
 
 MSG_ID=$(echo "$CHAT_RESP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('message_id',''))" 2>/dev/null || echo "")

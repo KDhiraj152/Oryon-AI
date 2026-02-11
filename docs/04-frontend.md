@@ -11,7 +11,7 @@
 
 ## Design Philosophy
 
-The frontend is engineered to feel as responsive as a native application while handling the complexity of real-time AI interactions. Students should experience seamless interaction—the underlying system of 6+ AI models should be invisible to them.
+The frontend is engineered to feel as responsive as a native application while handling the complexity of real-time AI interactions. Users should experience seamless interaction—the underlying system of 6+ AI models should be invisible to them.
 
 React 18 with TypeScript provides the foundation: static typing catches errors before production, and React's mature ecosystem enables rapid development without sacrificing quality.
 
@@ -50,7 +50,7 @@ frontend/src/
 │   ├── aiCore.ts           # AI engine endpoints
 │   ├── audio.ts            # Audio endpoints
 │   ├── conversations.ts    # Conversation management
-│   ├── progress.ts         # Student progress
+│   ├── progress.ts         # User progress
 │   ├── qa.ts               # Q&A endpoints
 │   ├── system.ts           # Health & status endpoints
 │   ├── profileReview.ts    # Profile & review endpoints

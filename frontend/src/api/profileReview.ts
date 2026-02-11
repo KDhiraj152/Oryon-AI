@@ -1,16 +1,16 @@
 /**
- * Profile & Review API - Student profiles and teacher review
+ * Profile & Review API - User profiles and content review
  */
 
 import { API_BASE, getAuthHeader, handleResponse } from './client';
-import type { StudentProfile, FlaggedResponse } from './types';
+import type { UserProfile, FlaggedResponse } from './types';
 
 export const profile = {
   /**
    * Get current user's profile
    */
   async getProfile(): Promise<{
-    profile: StudentProfile;
+    profile: UserProfile;
   }> {
     const response = await fetch(`${API_BASE}/profile/me`, {
       headers: { ...getAuthHeader() },
@@ -25,7 +25,7 @@ export const profile = {
     language?: string;
   }): Promise<{
     success: boolean;
-    profile: StudentProfile;
+    profile: UserProfile;
   }> {
     const response = await fetch(`${API_BASE}/profile/me`, {
       method: 'PUT',
@@ -38,7 +38,7 @@ export const profile = {
 
 export const review = {
   /**
-   * Get pending responses for teacher review
+   * Get pending responses for content review
    */
   async getPending(limit = 20, offset = 0): Promise<{
     pending: FlaggedResponse[];

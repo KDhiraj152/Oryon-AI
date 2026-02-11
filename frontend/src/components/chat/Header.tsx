@@ -21,7 +21,7 @@ export default function Header({ onMenuClick, onNewChat, sidebarOpen = false }: 
     switch (policyMode) {
       case 'OPEN':
         return { label: 'Open', color: 'text-emerald-500', bg: 'bg-emerald-500/10' };
-      case 'EDUCATION':
+      case 'MODERATED':
         return { label: 'Education', color: 'text-blue-500', bg: 'bg-blue-500/10' };
       case 'RESEARCH':
         return { label: 'Research', color: 'text-purple-500', bg: 'bg-purple-500/10' };

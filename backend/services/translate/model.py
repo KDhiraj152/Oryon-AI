@@ -15,7 +15,7 @@ Hardware Optimization:
 import logging
 import os
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
     import torch  # For type hints only
@@ -137,9 +137,9 @@ class IndicTrans2:
         elif device is not None:
             self.device = device
 
-        self._model = None
-        self._tokenizer = None
-        self._processor = None  # IndicProcessor for pre/post processing
+        self._model: Any = None
+        self._tokenizer: Any = None
+        self._processor: Any = None  # IndicProcessor for pre/post processing
 
         logger.info(f"IndicTrans2 initialized: {self.model_id} on {self.device}")
 
@@ -280,6 +280,8 @@ class IndicTrans2:
         import torch  # Lazy import
 
         self._load_model()
+        assert self._model is not None
+        assert self._tokenizer is not None
 
         if not text or not text.strip():
             return TranslationResult(
@@ -413,6 +415,8 @@ class IndicTrans2:
         import torch  # Lazy import
 
         self._load_model()
+        assert self._model is not None
+        assert self._tokenizer is not None
 
         if not texts:
             return []

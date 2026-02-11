@@ -105,16 +105,16 @@ def extract_text_task(
 def simplify_text_task(
     self,
     text: str,
-    grade_level: int,
+    complexity_level: int,
     subject: str,
     formula_blocks: list[dict] | None = None,
 ) -> dict[str, Any]:
     """
-    Simplify text for target grade level.
+    Simplify text for target complexity level.
 
     Args:
         text: Input text
-        grade_level: Target grade (5-12)
+        complexity_level: Target grade (5-12)
         subject: Subject area
         formula_blocks: Preserved formulas
 
@@ -146,7 +146,7 @@ def simplify_text_task(
 
         # Simplify
         simplified_result = simplifier.simplify_text(
-            content=text, grade_level=grade_level, subject=subject
+            content=text, complexity_level=complexity_level, subject=subject
         )
         simplified = simplified_result.text
 
@@ -164,7 +164,7 @@ def simplify_text_task(
 
         return {
             "simplified_text": simplified,
-            "grade_level": grade_level,
+            "complexity_level": complexity_level,
             "subject": subject,
             "complexity_score": simplified_result.complexity_score,
         }
@@ -312,7 +312,7 @@ def validate_content_task(
         validation_result = validator.validate_content(
             original_text=original_text,
             translated_text=processed_text,
-            grade_level=5,
+            complexity_level=5,
             subject="General",
             language="English",
         )
@@ -406,7 +406,7 @@ def generate_audio_task(
 def full_pipeline_task(
     self,
     file_path: str,
-    grade_level: int,
+    complexity_level: int,
     subject: str,
     target_languages: list[str],
     output_format: str = "both",
@@ -417,7 +417,7 @@ def full_pipeline_task(
 
     Args:
         file_path: Path to input file
-        grade_level: Target grade level
+        complexity_level: Target complexity level
         subject: Subject area
         target_languages: List of target languages
         output_format: 'text', 'audio', or 'both'
@@ -441,7 +441,7 @@ def full_pipeline_task(
         self.update_progress(task_id, 25, "pipeline", "Simplifying content...")
         simplification_result = simplify_text_task(
             text=original_text,
-            grade_level=grade_level,
+            complexity_level=complexity_level,
             subject=subject,
             formula_blocks=formula_blocks,
         )
@@ -495,10 +495,10 @@ def full_pipeline_task(
                         simplified_text=simplified_text,
                         translated_text=translation_result["translations"][lang],
                         language=lang,
-                        grade_level=grade_level,
+                        complexity_level=complexity_level,
                         subject=subject,
                         audio_file_path=audio_results.get(lang, {}).get("audio_path"),
-                        ncert_alignment_score=validation_result["similarity_score"],
+                        content_quality_score=validation_result["similarity_score"],
                         audio_accuracy_score=audio_results.get(lang, {}).get(
                             "accuracy_score"
                         ),
@@ -549,7 +549,7 @@ def full_pipeline_task(
                     for lang, result in audio_results.items()
                 },
                 "metadata": {
-                    "grade_level": grade_level,
+                    "complexity_level": complexity_level,
                     "subject": subject,
                     "num_pages": extraction_result["num_pages"],
                     "has_formulas": extraction_result["has_formulas"],

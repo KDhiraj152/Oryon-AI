@@ -57,7 +57,7 @@ metadata:
   name: shiksha-config
   namespace: shiksha-setu
 data:
-  POSTGRES_DB: "education_content"
+  POSTGRES_DB: "shiksha_setu"
   POSTGRES_PORT: "5432"
   REDIS_PORT: "6379"
   FASTAPI_PORT: "8000"

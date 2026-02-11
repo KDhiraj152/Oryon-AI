@@ -253,22 +253,22 @@ export const useThemeStore = create<ThemeState>()(
   )
 );
 
-// Student Profile Store - Simplified (no constraints)
-/** Client-side profile. Identical to api/types.ts → StudentProfile. */
-export interface StudentProfile {
+// User Profile Store - Simplified (no constraints)
+/** Client-side profile. Identical to api/types.ts → UserProfile. */
+export interface UserProfile {
   language: string;
 }
 
 interface ProfileState {
-  profile: StudentProfile | null;
+  profile: UserProfile | null;
   isLoading: boolean;
   error: string | null;
   fetchProfile: () => Promise<void>;
-  updateProfile: (updates: Partial<StudentProfile>) => Promise<void>;
+  updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
   clearProfile: () => void;
 }
 
-const defaultProfile: StudentProfile = {
+const defaultProfile: UserProfile = {
   language: 'en',
 };
 

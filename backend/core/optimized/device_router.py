@@ -606,7 +606,9 @@ class DeviceRouter:
                 os.environ["VECLIB_MAXIMUM_THREADS"] = "4"
                 os.environ["NUMEXPR_NUM_THREADS"] = "4"
 
-                # Accelerate framework optimization
+                # Note: accelerate auto-detects MPS via PyTorch;
+                # ACCELERATE_USE_MPS is not an official env var but kept for
+                # backward compatibility with older accelerate versions.
                 os.environ["ACCELERATE_USE_MPS"] = "1"
 
                 try:

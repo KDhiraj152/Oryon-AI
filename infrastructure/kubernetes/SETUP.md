@@ -207,7 +207,7 @@ kubectl run -it --rm debug --image=busybox --restart=Never -- \
 
 # Test database connection
 kubectl run -it --rm debug --image=postgres:15-alpine --restart=Never -n shiksha-setu -- \
-  psql -h postgres -U postgres -d education_content
+  psql -h postgres -U postgres -d shiksha_setu
 ```
 
 ## 🔄 Cleanup

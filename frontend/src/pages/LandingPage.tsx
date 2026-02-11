@@ -270,7 +270,7 @@ export const LandingPage = memo(function LandingPage() {
           <p className={`text-lg sm:text-xl font-medium leading-relaxed mb-10 max-w-xl mx-auto tracking-tight
             ${isDark ? 'text-white/50' : 'text-black/60'}`}>
             Safe AI without restrictions. <br className="hidden sm:block" />
-            Built for education, research, and beyond — in 22 Indian languages.
+            Built for research, creativity, and beyond — in 22 Indian languages.
           </p>
 
           {/* CTA */}

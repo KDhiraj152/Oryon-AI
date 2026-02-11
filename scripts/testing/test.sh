@@ -120,7 +120,7 @@ print_info "Uploading test content..."
 upload_resp=$(curl -s -X POST "$API_BASE/upload" \
     -H "Authorization: Bearer $TOKEN" \
     -F "file=@$TEST_DATA_DIR/test_content.txt" \
-    -F "grade_level=8" \
+    -F "complexity_level=8" \
     -F "subject=Science")
 
 if echo "$upload_resp" | jq -e '.content_id' > /dev/null 2>&1; then
@@ -191,11 +191,11 @@ fi
 # ===================================================================
 print_header "PHASE 6: AI CONTENT VALIDATION"
 
-print_info "Validating educational content..."
+print_info "Validating content..."
 validate_resp=$(curl -s -X POST "$API_BASE/validate" \
     -H "Content-Type: application/json" \
     -H "Authorization: Bearer $TOKEN" \
-    -d "{\"text\":\"$text\",\"grade_level\":8,\"subject\":\"Science\",\"language\":\"English\"}")
+    -d "{\"text\":\"$text\",\"complexity_level\":8,\"subject\":\"Science\",\"language\":\"English\"}")
 
 if echo "$validate_resp" | jq -e '.is_valid' > /dev/null 2>&1; then
     valid=$(echo "$validate_resp" | jq -r '.is_valid')
@@ -298,7 +298,7 @@ echo "$workflow_text" > "$TEST_DATA_DIR/workflow.txt"
 upload=$(curl -s -X POST "$API_BASE/upload" \
     -H "Authorization: Bearer $TOKEN" \
     -F "file=@$TEST_DATA_DIR/workflow.txt" \
-    -F "grade_level=7" \
+    -F "complexity_level=7" \
     -F "subject=Science")
 
 if echo "$upload" | jq -e '.content_id' > /dev/null 2>&1; then

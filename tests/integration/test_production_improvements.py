@@ -51,7 +51,7 @@ async def test_concurrent_pipeline_execution():
     # Verify result structure
     assert result.simplified_text == "simplified text"
     assert result.translated_text == "translated text"
-    assert abs(result.ncert_alignment_score - 0.95) < 0.001
+    assert abs(result.content_quality_score - 0.95) < 0.001
     assert result.audio_file_path == "audio.wav"
 
     # Verify concurrent execution (all stages should have metrics)
@@ -376,12 +376,12 @@ async def test_full_pipeline_with_caching():
         ):
             mock_redis.return_value = None  # Disable cache for test
 
-            # First execution - include grade_level parameter
+            # First execution - include complexity_level parameter
             await orchestrator.process_content(
                 input_data="test content",
                 target_language="Hindi",
                 subject="Science",
-                grade_level=5,  # Required parameter
+                complexity_level=5,  # Required parameter
             )
 
             # Should have executed all stages

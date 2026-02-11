@@ -1,10 +1,10 @@
 """
-Curriculum Validator Integration Service
+Content Validator Integration Service
 
 Issue: CODE-REVIEW-GPT #11 (HIGH)
 Problem: Curriculum validator exists but not integrated into content pipeline
 
-Solution: Integrate NCERT curriculum validation into content processing flow
+Solution: Integrate content domain validation into content processing flow
 """
 
 import logging
@@ -13,8 +13,8 @@ from typing import Any, Dict, List, Tuple
 from sqlalchemy.orm import Session
 
 from ..core.config import get_settings
-from ..models import ContentValidation, NCERTStandard, ProcessedContent
-from .validate.ncert import NCERTValidator
+from ..models import ContentValidation, ContentStandard, ProcessedContent
+from .validate.content_domain import ContentValidator
 
 logger = logging.getLogger(__name__)
 
@@ -24,28 +24,28 @@ def _get_settings():
     return get_settings()
 
 
-class CurriculumValidationService:
-    """Service for validating content against curriculum standards."""
+class ContentValidationService:
+    """Service for validating content against content_domain standards."""
 
     def __init__(self, db: Session):
         self.db = db
-        self.validator = NCERTValidator()
+        self.validator = ContentValidator()
         self.alignment_threshold = 0.70  # 70% minimum alignment required
 
-    async def validate_content_against_curriculum(
+    async def validate_content_against_content_domain(
         self,
         content_id: str,
-        grade_level: int,
+        complexity_level: int,
         subject: str,
         text: str,
         language: str = "en",
     ) -> ContentValidation:
         """
-        Validate content against NCERT curriculum standards.
+        Validate content against content domain standards.
 
         Args:
             content_id: Content ID to validate
-            grade_level: Grade level (1-12)
+            complexity_level: Grade level (1-12)
             subject: Subject area
             text: Content text to validate
             language: Content language
@@ -54,36 +54,36 @@ class CurriculumValidationService:
             ContentValidation object with results
         """
         logger.info(
-            f"Validating content {content_id} against curriculum (Grade {grade_level}, {subject})"
+            f"Validating content {content_id} against content_domain (Grade {complexity_level}, {subject})"
         )
 
-        # Get relevant curriculum standards
+        # Get relevant content_domain standards
         standards = (
-            self.db.query(NCERTStandard)
+            self.db.query(ContentStandard)
             .filter(
-                NCERTStandard.grade_level == grade_level,
-                NCERTStandard.subject == subject,
+                ContentStandard.complexity_level == complexity_level,
+                ContentStandard.subject == subject,
             )
             .all()
         )
 
         if not standards:
             logger.warning(
-                f"No curriculum standards found for Grade {grade_level}, {subject}"
+                f"No content_domain standards found for Grade {complexity_level}, {subject}"
             )
             # Create validation record with warning
             validation = ContentValidation(
                 content_id=content_id,
-                validation_type="ncert",
+                validation_type="content_domain",
                 alignment_score=0.0,
                 passed=False,
                 issues_found={
                     "errors": [
-                        f"No curriculum standards available for Grade {grade_level}, {subject}"
+                        f"No content_domain standards available for Grade {complexity_level}, {subject}"
                     ],
                     "warnings": [],
                     "suggestions": [
-                        "Add curriculum standards for this grade/subject combination"
+                        "Add content_domain standards for this grade/subject combination"
                     ],
                 },
             )
@@ -93,7 +93,7 @@ class CurriculumValidationService:
 
         # Perform validation
         validation_result = await self.validator.validate_content(
-            text=text, grade_level=grade_level, subject=subject, standards=standards
+            text=text, complexity_level=complexity_level, subject=subject, standards=standards
         )
 
         # Analyze results
@@ -113,7 +113,7 @@ class CurriculumValidationService:
         # Create validation record
         validation = ContentValidation(
             content_id=content_id,
-            validation_type="ncert",
+            validation_type="content_domain",
             alignment_score=alignment_score,
             passed=passed,
             issues_found=issues,
@@ -174,24 +174,24 @@ class CurriculumValidationService:
         return validation
 
     async def validate_language_appropriateness(
-        self, content_id: str, text: str, grade_level: int, language: str
+        self, content_id: str, text: str, complexity_level: int, language: str
     ) -> ContentValidation:
         """
-        Validate language complexity for grade level.
+        Validate language complexity for complexity level.
 
         Args:
             content_id: Content ID
             text: Content text
-            grade_level: Target grade level
+            complexity_level: Target complexity level
             language: Content language
 
         Returns:
             ContentValidation object
         """
-        logger.info(f"Validating language appropriateness for Grade {grade_level}")
+        logger.info(f"Validating language appropriateness for Grade {complexity_level}")
 
         result = await self.validator.check_language_complexity(
-            text=text, grade_level=grade_level, language=language
+            text=text, complexity_level=complexity_level, language=language
         )
 
         alignment_score = result.get("appropriateness_score", 0.0)
@@ -223,7 +223,7 @@ class CurriculumValidationService:
         self,
         content_id: str,
         text: str,
-        grade_level: int,
+        complexity_level: int,
         subject: str,
         language: str = "en",
     ) -> dict[str, ContentValidation]:
@@ -239,9 +239,9 @@ class CurriculumValidationService:
 
         # Run all validations in parallel
         try:
-            # NCERT curriculum validation
-            validations["ncert"] = await self.validate_content_against_curriculum(
-                content_id, grade_level, subject, text, language
+            # content domain validation
+            validations["content_domain"] = await self.validate_content_against_content_domain(
+                content_id, complexity_level, subject, text, language
             )
 
             # Factual accuracy validation
@@ -251,7 +251,7 @@ class CurriculumValidationService:
 
             # Language appropriateness validation
             validations["language"] = await self.validate_language_appropriateness(
-                content_id, text, grade_level, language
+                content_id, text, complexity_level, language
             )
 
         except Exception as e:
@@ -325,7 +325,7 @@ class CurriculumValidationService:
             suggestions.extend(issues.get("suggestions", []))
 
             # Add specific suggestions based on validation type
-            if validation.validation_type == "ncert":
+            if validation.validation_type == "content_domain":
                 if issues.get("missing_topics"):
                     suggestions.append(
                         f"Add coverage of: {', '.join(issues['missing_topics'][:3])}"
@@ -335,7 +335,7 @@ class CurriculumValidationService:
                     suggestions.append("Review factual accuracy with subject experts")
             elif validation.validation_type == "language":
                 if validation.alignment_score < 0.6:
-                    suggestions.append("Simplify language for target grade level")
+                    suggestions.append("Simplify language for target complexity level")
 
         return list(set(suggestions))  # Remove duplicates
 
@@ -350,14 +350,14 @@ async def validate_in_pipeline(
     Returns:
         Tuple of (all_passed, validation_summary)
     """
-    service = CurriculumValidationService(db)
+    service = ContentValidationService(db)
 
     try:
         # Run comprehensive validation
         await service.comprehensive_validation(
             content_id=str(content.id),
             text=text,
-            grade_level=content.grade_level,
+            complexity_level=content.complexity_level,
             subject=content.subject,
             language=content.language,
         )
@@ -367,7 +367,7 @@ async def validate_in_pipeline(
 
         # Update content with validation scores
         if summary["overall_passed"]:
-            content.ncert_alignment_score = summary["overall_score"] * 100
+            content.content_quality_score = summary["overall_score"] * 100
 
         db.commit()
 

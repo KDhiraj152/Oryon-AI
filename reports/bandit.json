@@ -1159,7 +1159,7 @@
       "nosec": 0,
       "skipped_tests": 0
     },
-    "backend/services/curriculum_validation.py": {
+    "backend/services/content_validation.py": {
       "CONFIDENCE.HIGH": 0,
       "CONFIDENCE.LOW": 0,
       "CONFIDENCE.MEDIUM": 0,
@@ -1783,7 +1783,7 @@
       "nosec": 0,
       "skipped_tests": 0
     },
-    "backend/services/student_profile.py": {
+    "backend/services/user_profile.py": {
       "CONFIDENCE.HIGH": 0,
       "CONFIDENCE.LOW": 0,
       "CONFIDENCE.MEDIUM": 0,
@@ -1900,7 +1900,7 @@
       "nosec": 0,
       "skipped_tests": 0
     },
-    "backend/services/validate/ncert.py": {
+    "backend/services/validate/content_domain.py": {
       "CONFIDENCE.HIGH": 0,
       "CONFIDENCE.LOW": 0,
       "CONFIDENCE.MEDIUM": 0,
@@ -1913,7 +1913,7 @@
       "nosec": 0,
       "skipped_tests": 0
     },
-    "backend/services/validate/standards.py": {
+    "backend/services/validate/content_standards.py": {
       "CONFIDENCE.HIGH": 0,
       "CONFIDENCE.LOW": 0,
       "CONFIDENCE.MEDIUM": 0,

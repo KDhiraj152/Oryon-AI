@@ -25,17 +25,17 @@ def custom_openapi_schema(app: FastAPI) -> dict[str, Any]:
         return app.openapi_schema
 
     openapi_schema = get_openapi(
-        title="ShikshaSetu AI Education API",
+        title="ShikshaSetu AI Platform API",
         version="2.1.0",
         description="""
 # ShikshaSetu - Multilingual AI Education Platform
 
 ## Overview
 
-ShikshaSetu provides AI-powered educational content processing with:
+ShikshaSetu provides AI-powered content processing with:
 - **Multilingual Support**: Content in 22 Indian languages
 - **Grade-Level Adaptation**: Automatic complexity adjustment for grades 1-12
-- **Curriculum Alignment**: NCERT standard validation
+- **Curriculum Alignment**: content_domain standard validation
 - **Cultural Context**: Region-specific content adaptation
 - **Quality Assurance**: Comprehensive validation pipeline
 
@@ -52,7 +52,7 @@ Get tokens from `/api/auth/login` endpoint.
 ## Rate Limiting
 
 API requests are rate-limited based on user role:
-- **Students**: 60 requests/minute, 600/hour
+- **Users**: 60 requests/minute, 600/hour
 - **Teachers**: 200 requests/minute, 2000/hour
 - **Admins**: 1000 requests/minute, 10000/hour
 
@@ -100,11 +100,11 @@ Content processing flow:
             {"name": "Q&A", "description": "Question-answering and semantic search"},
             {
                 "name": "Progress",
-                "description": "Student progress tracking and analytics",
+                "description": "User progress tracking and analytics",
             },
             {
-                "name": "Teacher Evaluation",
-                "description": "Teacher performance evaluation and metrics",
+                "name": "Content Review",
+                "description": "Reviewer performance evaluation and metrics",
             },
             {
                 "name": "Validation",

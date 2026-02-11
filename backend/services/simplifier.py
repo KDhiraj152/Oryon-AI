@@ -1,14 +1,14 @@
-"""Text Simplifier using Qwen3-8B for grade-level content adaptation.
+"""Text Simplifier using Qwen3-8B for complexity-level content adaptation.
 
 Optimal 2026 Model Stack: Qwen3-8B (MLX 4-bit)
-- Best instruction-following for educational prompts
+- Best instruction-following for AIal prompts
 - 4.6GB with 4-bit MLX quantization
 - Native Apple Silicon acceleration
 
 v1.4.0: M4-optimized semantic accuracy refinement (target 9.0+)
 - 5-Phase hardware optimization (async, cache, GPU, cores, memory)
 - Iterative refinement loop with task-aware evaluation
-- Multi-dimensional scoring (factual accuracy, educational clarity, etc.)
+- Multi-dimensional scoring (factual accuracy, content clarity, etc.)
 - Automatic regeneration when score < 9.0
 - Achieves 80-150 tok/s on Apple M4
 """
@@ -66,7 +66,7 @@ class SimplifiedText:
 
     text: str
     complexity_score: float
-    grade_level: int | None  # Now optional - None for unconstrained
+    complexity_level: int | None  # Now optional - None for unconstrained
     subject: str
     metadata: dict[str, Any]
 
@@ -118,7 +118,7 @@ class VLLMClient(BaseLLMClient):
             "messages": [
                 {
                     "role": "system",
-                    "content": "You are an expert educational content simplifier for Indian students.",
+                    "content": "You are an expert multilingual content simplifier.",
                 },
                 {"role": "user", "content": prompt},
             ],
@@ -288,7 +288,7 @@ class TransformersClient(BaseLLMClient):
         messages = [
             {
                 "role": "system",
-                "content": "You are an expert educational content simplifier for Indian students.",
+                "content": "You are an expert multilingual content simplifier.",
             },
             {"role": "user", "content": prompt},
         ]
@@ -299,7 +299,7 @@ class TransformersClient(BaseLLMClient):
                 messages, tokenize=False, add_generation_prompt=True
             )
         else:
-            formatted_prompt = f"System: You are an expert educational content simplifier.\n\nUser: {prompt}\n\nAssistant:"
+            formatted_prompt = f"System: You are an expert content simplifier.\n\nUser: {prompt}\n\nAssistant:"
 
         # Tokenize with truncation for memory safety
         if self._tokenizer is None or self._model is None:
@@ -417,7 +417,7 @@ class TextSimplifier:
     """
     Text simplification using Qwen3-8B.
 
-    Adapts educational content complexity based on grade level (5-12)
+    Adapts content complexity based on complexity level (5-12)
     using state-of-the-art instruction-following model.
     """
 
@@ -515,16 +515,16 @@ class TextSimplifier:
     async def simplify_text(
         self,
         content: str,
-        grade_level: int | None = None,
+        complexity_level: int | None = None,
         subject: str = "General",
         use_refinement: bool | None = None,
     ) -> SimplifiedText:
         """
-        Simplify text content with optional grade level targeting.
+        Simplify text content with optional complexity level targeting.
 
         Args:
             content: Original text to simplify
-            grade_level: Optional target grade level (5-12), None for unconstrained
+            complexity_level: Optional target complexity level (5-12), None for unconstrained
             subject: Subject area for context
             use_refinement: Override refinement setting (None = use instance default)
 
@@ -535,7 +535,7 @@ class TextSimplifier:
             raise ValueError("Content cannot be empty")
 
         # Use middle school level as default for unconstrained simplification
-        effective_grade = grade_level if grade_level is not None else 8
+        effective_grade = complexity_level if complexity_level is not None else 8
 
         logger.info(f"Simplifying text for grade {effective_grade}, subject {subject}")
 
@@ -560,13 +560,13 @@ class TextSimplifier:
     async def _simplify_single_pass(
         self,
         content: str,
-        grade_level: int,
+        complexity_level: int,
         subject: str,
         original_complexity: float,
         target_range: tuple,
     ) -> SimplifiedText:
         """Single-pass simplification without refinement (original behavior)."""
-        prompt = self._create_qwen_prompt(content, grade_level, subject)
+        prompt = self._create_qwen_prompt(content, complexity_level, subject)
 
         try:
             simplified_content = await self.client.generate(
@@ -577,7 +577,7 @@ class TextSimplifier:
             method = "qwen3-8b"
         except Exception as e:
             logger.warning(f"LLM generation failed: {e}, using rule-based fallback")
-            simplified_content = self._rule_based_simplification(content, grade_level)
+            simplified_content = self._rule_based_simplification(content, complexity_level)
             method = "rule_based"
 
         final_complexity = self.get_complexity_score(simplified_content)
@@ -585,7 +585,7 @@ class TextSimplifier:
         return SimplifiedText(
             text=simplified_content,
             complexity_score=final_complexity,
-            grade_level=grade_level,
+            complexity_level=complexity_level,
             subject=subject,
             metadata={
                 "original_complexity": original_complexity,
@@ -599,7 +599,7 @@ class TextSimplifier:
     async def _simplify_with_refinement(
         self,
         content: str,
-        grade_level: int,
+        complexity_level: int,
         subject: str,
         original_complexity: float,
         target_range: tuple,
@@ -614,7 +614,7 @@ class TextSimplifier:
         4. Repeat until target reached or max iterations hit
         """
         # First, generate initial simplification
-        prompt = self._create_qwen_prompt(content, grade_level, subject)
+        prompt = self._create_qwen_prompt(content, complexity_level, subject)
 
         try:
             initial_output = await self.client.generate(
@@ -625,7 +625,7 @@ class TextSimplifier:
             method = "qwen3-8b"
         except Exception as e:
             logger.warning(f"Initial generation failed: {e}, using rule-based")
-            initial_output = self._rule_based_simplification(content, grade_level)
+            initial_output = self._rule_based_simplification(content, complexity_level)
             method = "rule_based"
 
         # Run refinement pipeline
@@ -637,7 +637,7 @@ class TextSimplifier:
                 original_text=content,
                 initial_output=initial_output,
                 task=RefinementTask.SIMPLIFICATION,
-                grade_level=grade_level,
+                complexity_level=complexity_level,
                 subject=subject,
             )
 
@@ -646,7 +646,7 @@ class TextSimplifier:
             return SimplifiedText(
                 text=result.final_text,
                 complexity_score=final_complexity,
-                grade_level=grade_level,
+                complexity_level=complexity_level,
                 subject=subject,
                 metadata={
                     "original_complexity": original_complexity,
@@ -676,7 +676,7 @@ class TextSimplifier:
             return SimplifiedText(
                 text=initial_output,
                 complexity_score=final_complexity,
-                grade_level=grade_level,
+                complexity_level=complexity_level,
                 subject=subject,
                 metadata={
                     "original_complexity": original_complexity,
@@ -688,26 +688,26 @@ class TextSimplifier:
                 },
             )
 
-    def _create_qwen_prompt(self, content: str, grade_level: int, subject: str) -> str:
+    def _create_qwen_prompt(self, content: str, complexity_level: int, subject: str) -> str:
         """Create optimized prompt for Qwen3-8B."""
 
         # Grade-specific instructions
-        if grade_level in self.ELEMENTARY_GRADES:
-            level_desc = "elementary school students (grades 5-6)"
+        if complexity_level in self.ELEMENTARY_GRADES:
+            level_desc = "elementary school users (grades 5-6)"
             style = """
 - Use very simple sentences (10-15 words max)
 - Replace difficult words with everyday alternatives
 - Add helpful examples from daily life
 - Break complex ideas into small, digestible parts"""
-        elif grade_level in self.MIDDLE_GRADES:
-            level_desc = "middle school students (grades 7-8)"
+        elif complexity_level in self.MIDDLE_GRADES:
+            level_desc = "middle school users (grades 7-8)"
             style = """
 - Use clear, straightforward language
 - Explain technical terms when first used
 - Provide relevant examples
 - Maintain logical flow between ideas"""
         else:
-            level_desc = "high school students (grades 9-12)"
+            level_desc = "high school users (grades 9-12)"
             style = """
 - Maintain academic rigor while ensuring clarity
 - Use appropriate terminology with brief explanations
@@ -720,7 +720,7 @@ class TextSimplifier:
         if preserve_terms:
             terms_note = f"\n\nIMPORTANT: Preserve these key {subject} terms (explain if needed): {', '.join(preserve_terms[:5])}"
 
-        prompt = f"""Simplify the following {subject} educational content for {level_desc}.
+        prompt = f"""Simplify the following {subject} content for {level_desc}.
 
 REQUIREMENTS:
 {style}{terms_note}
@@ -732,11 +732,11 @@ SIMPLIFIED VERSION:"""
 
         return prompt
 
-    def _get_target_complexity_range(self, grade_level: int) -> tuple:
-        """Get target complexity range for grade level."""
-        if grade_level in self.ELEMENTARY_GRADES:
+    def _get_target_complexity_range(self, complexity_level: int) -> tuple:
+        """Get target complexity range for complexity level."""
+        if complexity_level in self.ELEMENTARY_GRADES:
             return self.COMPLEXITY_THRESHOLDS["elementary"]
-        elif grade_level in self.MIDDLE_GRADES:
+        elif complexity_level in self.MIDDLE_GRADES:
             return self.COMPLEXITY_THRESHOLDS["middle"]
         return self.COMPLEXITY_THRESHOLDS["secondary"]
 
@@ -801,7 +801,7 @@ SIMPLIFIED VERSION:"""
 
         return max(count, 1)
 
-    def _rule_based_simplification(self, text: str, grade_level: int) -> str:
+    def _rule_based_simplification(self, text: str, complexity_level: int) -> str:
         """Fallback rule-based simplification."""
         # Simple transformations
         result = text
@@ -831,7 +831,7 @@ SIMPLIFIED VERSION:"""
             )
 
         # For lower grades, break long sentences
-        if grade_level <= 7:
+        if complexity_level <= 7:
             result = self._break_long_sentences(result)
 
         return result
@@ -863,7 +863,7 @@ SIMPLIFIED VERSION:"""
 # Synchronous wrapper for backward compatibility
 def simplify_text_sync(
     content: str,
-    grade_level: int,
+    complexity_level: int,
     subject: str,
     simplifier: TextSimplifier | None = None,
     use_refinement: bool = True,
@@ -874,7 +874,7 @@ def simplify_text_sync(
     if simplifier is None:
         simplifier = TextSimplifier(enable_refinement=use_refinement)
 
-    return asyncio.run(simplifier.simplify_text(content, grade_level, subject))
+    return asyncio.run(simplifier.simplify_text(content, complexity_level, subject))
 
 
 # Export

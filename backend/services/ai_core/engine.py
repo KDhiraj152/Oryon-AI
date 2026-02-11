@@ -10,7 +10,7 @@ Central AI engine that coordinates:
 - Safety checks and validation
 
 NOTE: Safety and filtering behavior is now controlled by the PolicyEngine.
-Set ALLOW_UNRESTRICTED_MODE=true to bypass curriculum/educational filters.
+Set ALLOW_UNRESTRICTED_MODE=true to bypass content/moderation filters.
 See backend/policy/policy_module.py for configuration.
 """
 
@@ -115,7 +115,7 @@ class AIEngine:
 
     Policy Integration:
     - Uses PolicyEngine for content filtering decisions
-    - When ALLOW_UNRESTRICTED_MODE=true, bypasses educational filters
+    - When ALLOW_UNRESTRICTED_MODE=true, bypasses content filters
     - System-level safety can still be enabled independently
     """
 
@@ -259,7 +259,7 @@ class AIEngine:
             except Exception as e:
                 logger.warning(f"ContextAllocator initialization skipped: {e}")
 
-            # NOTE: Personalization removed - no StudentProfile, no grade_level/subject tracking
+            # NOTE: Personalization removed - no UserProfile, no complexity_level/subject tracking
             # This speeds up initialization significantly
 
             self._initialized = True
@@ -283,7 +283,7 @@ class AIEngine:
         """
         policy = self._get_policy_engine()
         if policy and policy.mode == PolicyMode.UNRESTRICTED:
-            # In unrestricted mode, don't block based on educational/curriculum filters
+            # In unrestricted mode, don't block based on educational/content_domain filters
             # But still respect system-level safety if configured
             return bool(policy.config.block_harmful_content)
         return config.block_harmful
@@ -605,7 +605,7 @@ class AIEngine:
             conversation_id: Optional conversation ID for context
             user_id: Optional user ID
             config: Generation configuration
-            context_data: Additional context (e.g., grade level, language)
+            context_data: Additional context (e.g., complexity level, language)
 
         Returns:
             FormattedResponse with content, metadata, and sources
@@ -638,8 +638,8 @@ class AIEngine:
         # Add user message to context
         context.add_message(ContextRole.USER, message)
 
-        # NOTE: Personalization removed - no grade_level, subject, learning_style
-        # All students get the same quality responses
+        # NOTE: Personalization removed - no complexity_level, subject, user_preference
+        # All users get the same quality responses
 
         # Detect intent and route to appropriate handler
         intent = self.formatter.detect_intent(message)
@@ -963,9 +963,9 @@ class AIEngine:
         rag_empty: bool,
         is_unrestricted: bool,
     ) -> tuple[float, int]:
-        """Calculate confidence score and uncertainty count for a response.
+        """Calculate confidence score and ucontent_domainainty count for a response.
 
-        Returns: (confidence, uncertainty_count)
+        Returns: (confidence, ucontent_domainainty_count)
         """
         confidence = 0.7  # Base confidence
 
@@ -975,8 +975,8 @@ class AIEngine:
         elif rag_attempted and rag_empty:
             confidence = 0.6
 
-        # Common uncertainty phrases that reduce confidence
-        uncertainty_phrases = [
+        # Common ucontent_domainainty phrases that reduce confidence
+        ucontent_domainainty_phrases = [
             "i'm not sure",
             "i don't know",
             "i'm not certain",
@@ -990,17 +990,17 @@ class AIEngine:
             "general knowledge",
         ]
         if not is_unrestricted:
-            uncertainty_phrases.extend(
-                ["verify with your teacher", "check your textbook"]
+            ucontent_domainainty_phrases.extend(
+                ["verify with a domain expert", "check your textbook"]
             )
 
         response_lower = response_text.lower()
-        uncertainty_count = sum(
-            1 for phrase in uncertainty_phrases if phrase in response_lower
+        ucontent_domainainty_count = sum(
+            1 for phrase in ucontent_domainainty_phrases if phrase in response_lower
         )
-        if uncertainty_count >= 2:
+        if ucontent_domainainty_count >= 2:
             confidence = min(confidence, 0.5)
-        elif uncertainty_count == 1:
+        elif ucontent_domainainty_count == 1:
             confidence = min(confidence, 0.6)
 
         # Specific factual claims without sources = lower confidence
@@ -1012,7 +1012,7 @@ class AIEngine:
         if not sources and any(ind in response_lower for ind in factual_indicators):
             confidence = min(confidence, 0.55)
 
-        return confidence, uncertainty_count
+        return confidence, ucontent_domainainty_count
 
     def _get_model_routing(self, message: str, task_type, budget: ComputeBudget | None):
         """Route to appropriate model, enforcing budget tier ceiling."""
@@ -1062,7 +1062,7 @@ class AIEngine:
                 "You should:\n"
                 "1. Clearly state that you're providing general knowledge, not verified information\n"
                 "2. Be extra cautious with specific facts, dates, and numbers\n"
-                "3. Recommend the student verify important facts with their textbook or teacher\n"
+                "3. Recommend the student verify important facts with a trusted source\n"
                 "4. Focus on explaining concepts and reasoning rather than specific facts\n"
             )
         return system_prompt
@@ -1088,7 +1088,7 @@ class AIEngine:
         sources: list,
         retrieval_iterations: int,
         context_allocation,
-        uncertainty_count: int,
+        ucontent_domainainty_count: int,
         safety_result,
         spec_decoding_meta: dict | None,
     ) -> dict:
@@ -1105,7 +1105,7 @@ class AIEngine:
             "rag_found_sources": len(sources) > 0,
             "retrieval_iterations": retrieval_iterations,
             "context_allocation": alloc_tokens,
-            "uncertainty_detected": uncertainty_count > 0,
+            "ucontent_domainainty_detected": ucontent_domainainty_count > 0,
             "safety_verified": safety_result is not None,
             "safety_level": safety_level,
             "speculative_decoding": spec_decoding_meta,
@@ -1183,7 +1183,7 @@ class AIEngine:
                 response_text = self._safety_guard.filter_response(response_text)
 
             # Calculate confidence based on multiple factors
-            confidence, uncertainty_count = self._calculate_response_confidence(
+            confidence, ucontent_domainainty_count = self._calculate_response_confidence(
                 response_text, sources, rag_attempted, rag_empty, is_unrestricted
             )
 
@@ -1211,7 +1211,7 @@ class AIEngine:
 
             metadata = self._build_generation_metadata(
                 budget, rag_attempted, sources, retrieval_iterations,
-                context_allocation, uncertainty_count, safety_result,
+                context_allocation, ucontent_domainainty_count, safety_result,
                 spec_decoding_meta,
             )
 
@@ -1414,7 +1414,7 @@ class AIEngine:
         """Build system prompt based on intent and policy mode.
 
         In UNRESTRICTED mode: Acts as a general-purpose AI assistant
-        In RESTRICTED mode: Education-focused with verification requirements
+        In RESTRICTED mode: Moderated with verification requirements
 
         Args:
             intent: Detected user intent
@@ -1440,13 +1440,13 @@ class AIEngine:
                 "GUIDELINES:\n"
                 "- Be helpful, accurate, and thorough in your responses\n"
                 "- Use clear, well-structured explanations\n"
-                "- Admit when you're uncertain about something\n"
+                "- Admit when you're ucontent_domainain about something\n"
                 "- For code, provide complete, working examples\n"
                 "- For math, use LaTeX: inline $x^2$ or block $$\\frac{a}{b}$$\n"
                 "- Use markdown for formatting (headers, lists, code blocks)\n\n"
             )
         else:
-            # Education-focused prompt with verification requirements
+            # Moderated prompt with verification requirements
             base_prompt = (
                 "You are ShikshaSetu, an intelligent AI assistant. "
                 "You MUST provide accurate, factual, and verified information only.\n\n"
@@ -1584,7 +1584,7 @@ class AIEngine:
         if any(pat in message_lower for pat in skip_patterns):
             return False
 
-        # Skip RAG for very short queries (likely not educational)
+        # Skip RAG for very short queries (likely not relevant)
         if len(message) < 15:
             return False
 
@@ -1597,8 +1597,8 @@ class AIEngine:
             "from the",
             "based on the",
             "in my notes",
-            "curriculum",
-            "ncert",
+            "content_domain",
+            "content_domain",
             "textbook",
             "chapter",
             "lesson",
@@ -1615,7 +1615,7 @@ class AIEngine:
         - Longer responses that could contain errors
         - Queries without RAG sources (higher hallucination risk)
         """
-        # Always validate educational content
+        # Always validate content
         educational_keywords = [
             "explain",
             "what is",

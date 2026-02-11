@@ -21,7 +21,7 @@ from .model_collaboration import (
     collaborate_and_simplify,
     collaborate_and_translate,
     ensemble_evaluate,
-    full_educational_pipeline,
+    full_content_pipeline,
     generate_best_output,
     get_model_collaborator,
     process_document,

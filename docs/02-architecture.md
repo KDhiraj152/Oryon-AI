@@ -99,8 +99,8 @@ The following diagram represents the complete data flow—from user interaction 
 │  │  │                        BUSINESS LOGIC SERVICES                                │   │ │
 │  │  │                                                                               │   │ │
 │  │  │  • RAGService            • TranslationService      • EdgeTTSService          │   │ │
-│  │  │  • StudentProfileService • SafetyPipeline          • OCRService              │   │ │
-│  │  │  • CurriculumValidation  • GradeLevelAdaptation    • UnifiedPipelineService  │   │ │
+│  │  │  • UserProfileService • SafetyPipeline          • OCRService              │   │ │
+│  │  │  • ContentValidation  • GradeLevelAdaptation    • UnifiedPipelineService  │   │ │
 │  │  └──────────────────────────────────────────────────────────────────────────────┘   │ │
 │  └─────────────────────────────────────────────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────────────────────────────────────────────┘
@@ -426,7 +426,7 @@ User speaks: "गुरुत्वाकर्षण बल क्या है
 │                     DOCUMENT PROCESSING DATA FLOW                                │
 └──────────────────────────────────────────────────────────────────────────────────┘
 
-User uploads: "NCERT_Physics_Class11_Chapter3.pdf" (2.5MB)
+User uploads: "content_domain_Physics_Class11_Chapter3.pdf" (2.5MB)
 
 ┌─────────────┐     ┌─────────────────┐     ┌─────────────────┐
 │  File       │────▶│  FormData       │────▶│  FastAPI        │

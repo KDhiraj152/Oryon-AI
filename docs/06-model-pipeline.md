@@ -209,7 +209,7 @@ class BGEReranker:
 
 ### Qwen3-8B
 
-Qwen3-8B was selected for its superior quality-per-parameter ratio among 8B-class models, particularly for educational content and multilingual understanding. It replaces both Qwen2.5-3B (simplification) and Gemma-2-2B-IT (validation) with a single unified model.
+Qwen3-8B was selected for its superior quality-per-parameter ratio among 8B-class models, particularly for content and multilingual understanding. It replaces both Qwen2.5-3B (simplification) and Gemma-2-2B-IT (validation) with a single unified model.
 
 **Model Specifications:**
 - Parameters: 3B
@@ -228,7 +228,7 @@ class GenerationConfig:
     repetition_penalty: float = 1.1
     do_sample: bool = True
 
-    # Educational content adjustments
+    # Content adjustments
     presence_penalty: float = 0.1  # Encourage diverse vocabulary
     frequency_penalty: float = 0.1  # Reduce repetition
 ```
@@ -237,12 +237,12 @@ class GenerationConfig:
 
 ```python
 def build_prompt(question: str, context: str, grade: int) -> str:
-    return f"""You are an expert educational tutor helping students in India.
+    return f"""You are an expert educational tutor helping users in India.
 
-Context from relevant educational materials:
+Context from relevant reference materials:
 {context}
 
-Student Grade Level: {grade}
+User Complexity Level: {grade}
 
 Instructions:
 - Explain concepts clearly and accurately

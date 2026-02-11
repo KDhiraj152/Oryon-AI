@@ -107,14 +107,14 @@ export interface ModelsStatus {
 
 // Policy status from backend
 export interface PolicyStatus {
-  mode: 'OPEN' | 'EDUCATION' | 'RESEARCH' | 'RESTRICTED';
+  mode: 'OPEN' | 'MODERATED' | 'RESEARCH' | 'RESTRICTED';
   description: string;
   philosophy: string;
   settings: {
     unrestricted_mode: boolean;
     policy_filters: boolean;
-    curriculum_enforcement: boolean;
-    grade_adaptation: boolean;
+    content_moderation: boolean;
+    complexity_adaptation: boolean;
     harmful_content_blocking: boolean;
     jailbreak_detection: boolean;
     external_calls: boolean;
@@ -138,7 +138,7 @@ export interface PolicyModeInfo {
   settings: {
     unrestricted_mode: boolean;
     policy_filters: boolean;
-    curriculum_enforcement: boolean;
+    content_moderation: boolean;
     harmful_content_blocking: boolean;
     external_calls?: boolean;
     jailbreak_detection?: boolean;
@@ -159,7 +159,7 @@ export interface PolicySwitchResult {
   settings: {
     unrestricted_mode: boolean;
     policy_filters: boolean;
-    curriculum_enforcement: boolean;
+    content_moderation: boolean;
     external_calls: boolean;
     harmful_content_blocking: boolean;
   };
@@ -178,7 +178,7 @@ export interface SystemHealth {
     mode: string;
     unrestricted: boolean;
     filters_enabled: boolean;
-    curriculum_enforcement: boolean;
+    content_moderation: boolean;
     harmful_content_blocking: boolean;
   };
 }
@@ -407,7 +407,7 @@ export const system = {
    * Switch to a different policy mode
    * @param mode - Target mode: OPEN, EDUCATION, RESEARCH, or RESTRICTED
    */
-  async switchPolicyMode(mode: 'OPEN' | 'EDUCATION' | 'RESEARCH' | 'RESTRICTED'): Promise<PolicySwitchResult> {
+  async switchPolicyMode(mode: 'OPEN' | 'MODERATED' | 'RESEARCH' | 'RESTRICTED'): Promise<PolicySwitchResult> {
     const response = await fetch(`${API_BASE}/policy/mode`, {
       method: 'POST',
       headers: {

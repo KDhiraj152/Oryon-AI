@@ -159,7 +159,7 @@ class EarlyStopDetector:
 
     Stop generation when:
     - 3 consecutive sentences end in a period
-    - Model outputs grade-level compliance tag
+    - Model outputs complexity-level compliance tag
     - Translation repeats language tag
     """
 
@@ -250,7 +250,7 @@ class SentencePipeline:
         self,
         text: str,
         stages: list[PipelineStage],
-        grade_level: int = 8,
+        complexity_level: int = 8,
         target_language: str | None = None,
         **kwargs,
     ) -> DocumentResult:
@@ -260,7 +260,7 @@ class SentencePipeline:
         Args:
             text: Input text (or OCR result)
             stages: Pipeline stages to run
-            grade_level: Target grade level for simplification
+            complexity_level: Target complexity level for simplification
             target_language: Target language for translation
 
         Returns:
@@ -286,7 +286,7 @@ class SentencePipeline:
                     processed, meta = await self._process_sentence(
                         current_text,
                         stage,
-                        grade_level=grade_level,
+                        complexity_level=complexity_level,
                         target_language=target_language,
                     )
                     current_text = processed
@@ -309,7 +309,7 @@ class SentencePipeline:
         validation_score = 1.0
         if PipelineStage.VALIDATE in stages:
             full_text = self.splitter.join([r.processed for r in results])
-            validation_score = await self._validate_document(full_text, grade_level)
+            validation_score = await self._validate_document(full_text, complexity_level)
 
         return DocumentResult(
             sentences=results,
@@ -317,7 +317,7 @@ class SentencePipeline:
             metadata={
                 "sentence_count": len(sentences),
                 "stages": [s.value for s in stages],
-                "grade_level": grade_level,
+                "complexity_level": complexity_level,
                 "target_language": target_language,
             },
         )
@@ -357,7 +357,7 @@ class SentencePipeline:
         """Process a single sentence through a stage."""
 
         if stage == PipelineStage.SIMPLIFY:
-            return await self._simplify_sentence(text, kwargs.get("grade_level", 8))
+            return await self._simplify_sentence(text, kwargs.get("complexity_level", 8))
 
         elif stage == PipelineStage.TRANSLATE:
             return await self._translate_sentence(
@@ -370,7 +370,7 @@ class SentencePipeline:
         else:
             return text, {}
 
-    async def _simplify_sentence(self, text: str, grade_level: int) -> tuple[str, dict]:
+    async def _simplify_sentence(self, text: str, complexity_level: int) -> tuple[str, dict]:
         """Simplify a single sentence."""
         from ..services.simplify import TextSimplifier
 
@@ -378,7 +378,7 @@ class SentencePipeline:
 
         # Use reduced context per Principle K
         result = await simplifier.simplify_text(
-            content=text, grade_level=grade_level, subject="General"
+            content=text, complexity_level=complexity_level, subject="General"
         )
 
         return result.text, {
@@ -397,9 +397,9 @@ class SentencePipeline:
 
         return result.translated_text, {"confidence": result.confidence}
 
-    async def _validate_document(self, text: str, grade_level: int) -> float:
+    async def _validate_document(self, text: str, complexity_level: int) -> float:
         """
-        Validate entire document for grade-level compliance.
+        Validate entire document for complexity-level compliance.
 
         Uses multiple heuristics for comprehensive validation:
         1. Average word length (vocabulary complexity)
@@ -518,23 +518,23 @@ class SentencePipeline:
             1 for w in words if w.lower().strip(".,!?;:") in common_words
         ) / len(words)
 
-        # Define ideal metrics by grade level
-        if grade_level <= 4:
+        # Define ideal metrics by complexity level
+        if complexity_level <= 4:
             ideal_word_len = 4.0
             ideal_sentence_len = 8.0
             ideal_syllables = 1.3
             ideal_common = 0.5
-        elif grade_level <= 6:
+        elif complexity_level <= 6:
             ideal_word_len = 4.5
             ideal_sentence_len = 12.0
             ideal_syllables = 1.5
             ideal_common = 0.45
-        elif grade_level <= 8:
+        elif complexity_level <= 8:
             ideal_word_len = 5.0
             ideal_sentence_len = 16.0
             ideal_syllables = 1.7
             ideal_common = 0.4
-        elif grade_level <= 10:
+        elif complexity_level <= 10:
             ideal_word_len = 5.5
             ideal_sentence_len = 20.0
             ideal_syllables = 1.9
@@ -568,7 +568,7 @@ async def process_content(
     simplify: bool = True,
     translate: bool = False,
     target_language: str = "Hindi",
-    grade_level: int = 8,
+    complexity_level: int = 8,
     validate: bool = True,
 ) -> DocumentResult:
     """
@@ -579,7 +579,7 @@ async def process_content(
         simplify: Whether to simplify
         translate: Whether to translate
         target_language: Target language for translation
-        grade_level: Target grade level
+        complexity_level: Target complexity level
         validate: Whether to validate at end
 
     Returns:
@@ -596,7 +596,7 @@ async def process_content(
 
     pipeline = SentencePipeline()
     return await pipeline.process_document(
-        text, stages, grade_level=grade_level, target_language=target_language
+        text, stages, complexity_level=complexity_level, target_language=target_language
     )
 
 

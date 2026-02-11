@@ -1,5 +1,5 @@
 /**
- * Content API - Upload, simplify, translate, and manage educational content
+ * Content API - Upload, simplify, translate, and manage content
  */
 
 import { API_BASE, getAuthHeader, handleResponse } from './client';

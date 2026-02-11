@@ -77,7 +77,7 @@ class EnsemblePatternsMixin:
         models_used: list[str] = []
         scores: dict[str, float] = {}
 
-        grade_level = context.get("grade_level", 8)
+        complexity_level = context.get("complexity_level", 8)
         subject = context.get("subject", "General")
         processed_text = context.get("processed_text", input_text)
 
@@ -88,12 +88,12 @@ class EnsemblePatternsMixin:
             llm = self._get_llm()  # type: ignore
             if not llm:
                 return None
-            prompt = f"""Rate the following educational content on a scale of 0-10.
+            prompt = f"""Rate the following content on a scale of 0-10.
 
 Original:
 {input_text}
 
-Processed (for Grade {grade_level} {subject}):
+Processed (for Grade {complexity_level} {subject}):
 {processed_text}
 
 Consider: accuracy, clarity, age-appropriateness, completeness.
@@ -124,7 +124,7 @@ Respond with just the score (0-10):"""
                 return None
             result = await validator.evaluate(
                 original_text=input_text, processed_text=processed_text,
-                grade_level=grade_level, subject=subject,
+                complexity_level=complexity_level, subject=subject,
             )
             return float(result.overall_score / 10.0)
 

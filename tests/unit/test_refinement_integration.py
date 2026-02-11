@@ -52,7 +52,7 @@ class TestSimplifierRefinementIntegration:
             score=8.5,
             dimension_scores={
                 "FACTUAL_ACCURACY": 8.8,
-                "EDUCATIONAL_CLARITY": 8.3,
+                "CONTENT_CLARITY": 8.3,
                 "SEMANTIC_PRESERVATION": 8.5,
                 "LANGUAGE_APPROPRIATENESS": 8.4,
             },

@@ -179,7 +179,7 @@ async def run_api_benchmarks():
             client,
             "POST",
             "/api/v2/ai/safety/check",
-            data={"text": "This is a safe educational message about science."},
+            data={"text": "This is a safe message about science."},
             iterations=100,
             warmup=10,
         )

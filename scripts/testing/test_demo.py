@@ -62,7 +62,7 @@ with get_db_session() as db:
         id=content_id,
         original_text=test_text,
         language="en",
-        grade_level=8,
+        complexity_level=8,
         subject="Science",
         metadata={
             'test_document': True,

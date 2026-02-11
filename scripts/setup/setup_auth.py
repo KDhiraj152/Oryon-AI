@@ -136,9 +136,9 @@ def main():
             "role": "user",
         },
         {
-            "email": "teacher@shiksha.com",
-            "password": "Teacher@123456",
-            "full_name": "Test Teacher",
+            "email": "reviewer@shiksha.com",
+            "password": "Reviewer@123456",
+            "full_name": "Test Reviewer",
             "role": "teacher",
         },
         {

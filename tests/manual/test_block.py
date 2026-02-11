@@ -22,7 +22,7 @@ async def test_components():
         redis_client = redis.from_url("redis://localhost:6379", decode_responses=True)
         await redis_client.ping()
         logger.info("✓ Redis connection OK")
-        await redis_client.close()
+        await redis_client.aclose()
     except Exception as e:
         logger.error(f"✗ Redis failed: {e}")
 

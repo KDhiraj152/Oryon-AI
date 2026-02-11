@@ -11,7 +11,7 @@
 
 ## About the Author
 
-I am K Dhiraj, the architect and primary developer of Shiksha Setu. This project represents my vision for democratizing quality education across India through AI technology. Every architectural decision, model selection, and optimization reflects lessons learned from building production AI systems at scale.
+I am K Dhiraj, the architect and primary developer of Shiksha Setu. This project represents my vision for making AI accessible to multilingual users through AI technology. Every architectural decision, model selection, and optimization reflects lessons learned from building production AI systems at scale.
 
 **Contact:**
 - **Email:** k.dhiraj.srihari@gmail.com
@@ -40,7 +40,7 @@ I am K Dhiraj, the architect and primary developer of Shiksha Setu. This project
 
 **2025 Optimal Model Stack Selection**
 
-Selected and integrated the optimal combination of AI models for the Indian education context:
+Selected and integrated the optimal combination of AI models for the multilingual AI context:
 
 | Component | Model | Rationale |
 |-----------|-------|-----------|
@@ -323,7 +323,7 @@ async def ask_question(
     qa_service: QAService = Depends(get_qa_service),
 ) -> QAResponse:
     """
-    Ask a question to the AI tutor.
+    Ask a question to the AI assistant.
 
     - **question**: The question to ask
     - **context_id**: Optional conversation context
@@ -386,7 +386,7 @@ async def ask_question(
 
 Selected Qwen3-8B as a unified LLM to replace both Qwen2.5-3B-Instruct and Gemma-2-2B-IT:
 - Superior multilingual performance, especially for transliterated text
-- Better instruction following in educational contexts
+- Better instruction following in content contexts
 - More efficient INT4 quantization with minimal quality loss
 - Longer context window (32K vs 8K)
 

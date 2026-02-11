@@ -156,7 +156,7 @@ function DeleteConfirmModal({ isOpen, onClose, onConfirm, conversationCount, isD
 }
 
 // Policy Mode Types
-type PolicyMode = 'OPEN' | 'EDUCATION' | 'RESEARCH' | 'RESTRICTED';
+type PolicyMode = 'OPEN' | 'MODERATED' | 'RESEARCH' | 'RESTRICTED';
 
 const POLICY_MODES: {
   value: PolicyMode;
@@ -173,9 +173,9 @@ const POLICY_MODES: {
     color: 'emerald'
   },
   {
-    value: 'EDUCATION',
+    value: 'MODERATED',
     label: 'Education',
-    desc: 'NCERT curriculum aligned',
+    desc: 'content domain aligned',
     icon: BookOpen,
     color: 'blue'
   },
@@ -631,7 +631,7 @@ export default function Settings() {
 
         <footer className={`text-center py-8 ${isDark ? 'text-white/20' : 'text-gray-400'}`}>
           <p className="text-xs">Shiksha Setu v1.0.0</p>
-          <p className="text-xs mt-1">Made with ❤️ for Indian Education</p>
+          <p className="text-xs mt-1">Made with ❤️ for AI</p>
         </footer>
       </main>
 

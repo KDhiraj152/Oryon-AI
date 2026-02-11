@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-NCERT Textbook Pre-indexing Script
+Document Pre-indexing Script
 
-Batch processes NCERT textbooks to:
+Batch processes documents to:
 1. Extract text from PDFs
 2. Generate embeddings
 3. Store in pgvector database
 4. Create searchable index
 
 Usage:
-    python scripts/ncert_indexer.py --curriculum data/curriculum/ --batch-size 100
+    python scripts/content_domain_indexer.py --content_domain data/content_domain/ --batch-size 100
 """
 import argparse
 import json
@@ -31,11 +31,11 @@ import PyPDF2
 logger = get_logger(__name__)
 
 
-class NCERTIndexer:
-    """Index NCERT textbooks for RAG system."""
+class DocumentIndexer:
+    """Index documents for RAG system."""
     
-    def __init__(self, curriculum_dir: Path, batch_size: int = 100):
-        self.curriculum_dir = curriculum_dir
+    def __init__(self, content_domain_dir: Path, batch_size: int = 100):
+        self.content_domain_dir = content_domain_dir
         self.batch_size = batch_size
         self.rag_service = RAGService()
         self.stats = {
@@ -45,45 +45,45 @@ class NCERTIndexer:
             "failed_books": 0
         }
     
-    def index_curriculum(self):
-        """Index all NCERT textbooks in curriculum directory."""
-        logger.info(f"Starting NCERT indexing from: {self.curriculum_dir}")
+    def index_content_domain(self):
+        """Index all documents in content directory."""
+        logger.info(f"Starting document indexing from: {self.content_domain_dir}")
         
-        # Find all curriculum JSON files
-        json_files = list(self.curriculum_dir.glob("*.json"))
+        # Find all content JSON files
+        json_files = list(self.content_domain_dir.glob("*.json"))
         
         if not json_files:
-            logger.warning("No curriculum JSON files found")
+            logger.warning("No content JSON files found")
             return
         
         for json_file in json_files:
             try:
-                self._index_curriculum_file(json_file)
+                self._index_content_domain_file(json_file)
             except Exception as e:
                 logger.error(f"Failed to index {json_file}: {e}")
                 self.stats["failed_books"] += 1
         
         # Print summary
         logger.info("=" * 60)
-        logger.info("NCERT Indexing Complete")
+        logger.info("content_domain Indexing Complete")
         logger.info(f"Total books processed: {self.stats['total_books']}")
         logger.info(f"Total pages indexed: {self.stats['total_pages']}")
         logger.info(f"Total embeddings created: {self.stats['total_embeddings']}")
         logger.info(f"Failed books: {self.stats['failed_books']}")
         logger.info("=" * 60)
     
-    def _index_curriculum_file(self, json_file: Path):
-        """Index a single curriculum JSON file."""
+    def _index_content_domain_file(self, json_file: Path):
+        """Index a single content JSON file."""
         logger.info(f"Processing: {json_file.name}")
         
-        # Load curriculum metadata
+        # Load content metadata
         with open(json_file, 'r', encoding='utf-8') as f:
-            curriculum = json.load(f)
+            content_domain = json.load(f)
         
         # Extract metadata
-        grade = curriculum.get("grade", "unknown")
-        subject = curriculum.get("subject", "unknown")
-        books = curriculum.get("books", [])
+        grade = content_domain.get("grade", "unknown")
+        subject = content_domain.get("subject", "unknown")
+        books = content_domain.get("books", [])
         
         for book in books:
             self._index_book(book, grade, subject)
@@ -185,12 +185,12 @@ class NCERTIndexer:
 
 def main():
     """Main entry point."""
-    parser = argparse.ArgumentParser(description="Index NCERT textbooks for RAG")
+    parser = argparse.ArgumentParser(description="Index documents for RAG")
     parser.add_argument(
-        "--curriculum",
+        "--content_domain",
         type=str,
-        default="data/curriculum",
-        help="Path to curriculum directory"
+        default="data/content_domain",
+        help="Path to content directory"
     )
     parser.add_argument(
         "--batch-size",
@@ -201,13 +201,13 @@ def main():
     
     args = parser.parse_args()
     
-    curriculum_dir = Path(args.curriculum)
-    if not curriculum_dir.exists():
-        logger.error(f"Curriculum directory not found: {curriculum_dir}")
+    content_domain_dir = Path(args.content_domain)
+    if not content_domain_dir.exists():
+        logger.error(f"Curriculum directory not found: {content_domain_dir}")
         sys.exit(1)
     
-    indexer = NCERTIndexer(curriculum_dir, args.batch_size)
-    indexer.index_curriculum()
+    indexer = DocumentIndexer(content_domain_dir, args.batch_size)
+    indexer.index_content_domain()
 
 
 if __name__ == "__main__":

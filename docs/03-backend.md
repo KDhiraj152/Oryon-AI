@@ -92,27 +92,27 @@ backend/
 │   ├── evaluation/          # Semantic accuracy evaluation & refinement
 │   ├── translate/           # Translation (IndicTrans2 engine & service)
 │   ├── tts/                 # Text-to-Speech (Edge TTS, MMS-TTS)
-│   ├── validate/            # Curriculum validation (NCERT, CBSE standards)
+│   ├── validate/            # Curriculum validation (content_domain, domain standards)
 │   ├── rag.py               # RAG Q&A with BGE-M3 embeddings
 │   ├── ocr.py               # Document OCR (GOT-OCR2)
 │   ├── simplifier.py        # Content simplification
 │   ├── safety_pipeline.py   # 3-pass safety verification
 │   ├── cultural_context.py  # Indian cultural context adaptation
-│   ├── curriculum_validation.py  # Curriculum alignment checks
-│   ├── grade_adaptation.py  # Grade-level content adaptation
+│   ├── content_validation.py  # Curriculum alignment checks
+│   ├── complexity_adaptation.py  # Grade-level content adaptation
 │   ├── speech_generator.py  # Speech generation
 │   ├── speech_processor.py  # Speech processing
-│   ├── student_profile.py   # Student personalization
-│   ├── review_queue.py      # Teacher review workflow
+│   ├── user_profile.py   # User personalization
+│   ├── review_queue.py      # Content review workflow
 │   └── error_tracking.py    # Sentry integration
 │
 ├── models/                  # SQLAlchemy ORM definitions
 │   ├── auth.py              # User, APIKey, Token models
 │   ├── chat.py              # Conversation, Message models
 │   ├── content.py           # ProcessedContent, Translation, Audio
-│   ├── progress.py          # StudentProgress, Quiz, Achievement
+│   ├── progress.py          # UserProgress, Quiz, Achievement
 │   ├── rag.py               # DocumentChunk, Embedding, ChatHistory
-│   └── student.py           # StudentProfile, LearningStyle
+│   └── student.py           # UserProfile, UserPreference
 │
 ├── schemas/                 # Pydantic request/response models
 │   ├── auth.py              # Auth DTOs (UserCreate, Token, etc.)
@@ -223,7 +223,7 @@ class Settings:
     """Application settings with optimal 2025 model stack."""
 
     # Application
-    APP_NAME: str = "ShikshaSetu AI Education API"
+    APP_NAME: str = "ShikshaSetu AI Platform API"
     APP_VERSION: str = "4.0.0"
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "production")
 

@@ -36,9 +36,9 @@ from .model_clients_async import (
 )
 
 
-# Lazy import to avoid circular dependency with curriculum_validation
+# Lazy import to avoid circular dependency with content_validation
 def _get_validate_in_pipeline():
-    from ..curriculum_validation import validate_in_pipeline
+    from ..content_validation import validate_in_pipeline
 
     return validate_in_pipeline
 
@@ -87,10 +87,10 @@ class ProcessedContentResult:
     simplified_text: str
     translated_text: str
     language: str
-    grade_level: int
+    complexity_level: int
     subject: str
     audio_file_path: str | None = None
-    ncert_alignment_score: float = 0.0
+    content_quality_score: float = 0.0
     audio_accuracy_score: float | None = None
     validation_status: str = "pending"
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
@@ -232,7 +232,7 @@ class ConcurrentPipelineOrchestrator:
         self,
         input_data: str | bytes,
         target_language: str,
-        grade_level: int,
+        complexity_level: int,
         subject: str,
         output_format: str = "both",
         user_id: str | None = None,
@@ -246,7 +246,7 @@ class ConcurrentPipelineOrchestrator:
         Args:
             input_data: Raw text or document content
             target_language: Target Indian language
-            grade_level: Grade level (5-12)
+            complexity_level: Grade level (5-12)
             subject: Subject area
             output_format: Output format ('text', 'audio', 'both')
             user_id: Optional user ID for tracking
@@ -259,7 +259,7 @@ class ConcurrentPipelineOrchestrator:
         """
         # Validate inputs
         self._validate_parameters(
-            input_data, target_language, grade_level, subject, output_format
+            input_data, target_language, complexity_level, subject, output_format
         )
 
         # Reset metrics for this run
@@ -270,7 +270,7 @@ class ConcurrentPipelineOrchestrator:
             input_data = input_data.decode("utf-8", errors="replace")
 
         original_text = input_data
-        cache_key = self._compute_cache_key(original_text, target_language, grade_level)
+        cache_key = self._compute_cache_key(original_text, target_language, complexity_level)
 
         # Check cache first (async - offloaded to executor to avoid blocking event loop)
         cached_result = await self._check_cache_async(cache_key)
@@ -280,7 +280,7 @@ class ConcurrentPipelineOrchestrator:
             return cached_result
 
         logger.info(
-            f"Pipeline start: lang={target_language}, grade={grade_level}, "
+            f"Pipeline start: lang={target_language}, grade={complexity_level}, "
             f"subject={subject}, format={output_format}"
         )
 
@@ -293,7 +293,7 @@ class ConcurrentPipelineOrchestrator:
                         PipelineStage.SIMPLIFICATION,
                         self._simplify_text,
                         original_text,
-                        grade_level,
+                        complexity_level,
                         subject,
                     )
                 )
@@ -324,7 +324,7 @@ class ConcurrentPipelineOrchestrator:
                         self._validate_content,
                         original_text,
                         simplified_text,
-                        grade_level,
+                        complexity_level,
                         subject,
                     )
                 )
@@ -339,7 +339,7 @@ class ConcurrentPipelineOrchestrator:
                     )
 
                 # Validation can complete independently
-                ncert_score, validation_metrics = await validation_task
+                content_quality_score, validation_metrics = await validation_task
                 self.metrics.append(validation_metrics)
 
                 # Speech generation (if requested)
@@ -383,15 +383,15 @@ class ConcurrentPipelineOrchestrator:
                     simplified_text=simplified_text,
                     translated_text=translated_text,
                     language=target_language,
-                    grade_level=grade_level,
+                    complexity_level=complexity_level,
                     subject=subject,
                     audio_file_path=audio_file_path,
-                    ncert_alignment_score=ncert_score,
+                    content_quality_score=content_quality_score,
                     audio_accuracy_score=audio_accuracy_score,
                     user_id=user_id,
                 )
 
-                # Run comprehensive curriculum validation using async session
+                # Run comprehensive content_domain validation using async session
                 async with get_async_db_session() as db:
                     db_result = await db.execute(
                         select(ProcessedContent).where(
@@ -418,10 +418,10 @@ class ConcurrentPipelineOrchestrator:
                     simplified_text=simplified_text,
                     translated_text=translated_text,
                     language=target_language,
-                    grade_level=grade_level,
+                    complexity_level=complexity_level,
                     subject=subject,
                     audio_file_path=audio_file_path,
-                    ncert_alignment_score=ncert_score,
+                    content_quality_score=content_quality_score,
                     audio_accuracy_score=audio_accuracy_score,
                     validation_status="passed" if validation_passed else "warning",
                     metadata=validation_summary,
@@ -519,10 +519,10 @@ class ConcurrentPipelineOrchestrator:
 
                 raise
 
-    async def _simplify_text(self, text: str, grade_level: int, subject: str) -> str:
-        """Simplify text for target grade level."""
+    async def _simplify_text(self, text: str, complexity_level: int, subject: str) -> str:
+        """Simplify text for target complexity level."""
         return await self.qwen_client.process(
-            text=text, grade_level=grade_level, subject=subject
+            text=text, complexity_level=complexity_level, subject=subject
         )
 
     async def _translate_text(self, text: str, target_language: str) -> str:
@@ -532,11 +532,11 @@ class ConcurrentPipelineOrchestrator:
         )
 
     async def _validate_content(
-        self, original_text: str, simplified_text: str, grade_level: int, subject: str
+        self, original_text: str, simplified_text: str, complexity_level: int, subject: str
     ) -> float:
-        """Validate content for curriculum alignment."""
+        """Validate content for content alignment."""
         result = await self.bert_client.process(
-            text=simplified_text, grade_level=grade_level, subject=subject
+            text=simplified_text, complexity_level=complexity_level, subject=subject
         )
         return float(result) if not isinstance(result, float) else result  # type: ignore[arg-type]
 
@@ -564,10 +564,10 @@ class ConcurrentPipelineOrchestrator:
         simplified_text: str,
         translated_text: str,
         language: str,
-        grade_level: int,
+        complexity_level: int,
         subject: str,
         audio_file_path: str | None,
-        ncert_alignment_score: float,
+        content_quality_score: float,
         audio_accuracy_score: float | None,
         user_id: str | None = None,
     ) -> str:
@@ -578,10 +578,10 @@ class ConcurrentPipelineOrchestrator:
                 simplified_text=simplified_text,
                 translated_text=translated_text,
                 language=language,
-                grade_level=grade_level,
+                complexity_level=complexity_level,
                 subject=subject,
                 audio_file_path=audio_file_path,
-                ncert_alignment_score=ncert_alignment_score,
+                content_quality_score=content_quality_score,
                 audio_accuracy_score=audio_accuracy_score,
                 user_id=user_id,
             )
@@ -593,11 +593,11 @@ class ConcurrentPipelineOrchestrator:
 
             return str(content_id)
 
-    def _compute_cache_key(self, text: str, language: str, grade_level: int) -> str:
+    def _compute_cache_key(self, text: str, language: str, complexity_level: int) -> str:
         """Compute cache key for processed content."""
         import hashlib
 
-        key_str = f"{text}|{language}|{grade_level}"
+        key_str = f"{text}|{language}|{complexity_level}"
         return f"pipeline:{hashlib.md5(key_str.encode(), usedforsecurity=False).hexdigest()}"
 
     async def _check_cache_async(self, cache_key: str) -> ProcessedContentResult | None:
@@ -652,7 +652,7 @@ class ConcurrentPipelineOrchestrator:
         self,
         input_data: str | bytes,
         target_language: str,
-        grade_level: int,
+        complexity_level: int,
         subject: str,  # Reserved for future subject-specific validation
         output_format: str,
     ) -> None:
@@ -661,7 +661,7 @@ class ConcurrentPipelineOrchestrator:
         Args:
             input_data: Raw text or document content
             target_language: Target Indian language
-            grade_level: Grade level for content adaptation
+            complexity_level: Grade level for content adaptation
             subject: Subject area (reserved for future validation)
             output_format: Output format ('text', 'audio', 'both')
         """
@@ -676,7 +676,7 @@ class ConcurrentPipelineOrchestrator:
                 f"Unsupported language: {target_language}", status_code=400
             )
 
-        if not (self.MIN_GRADE <= grade_level <= self.MAX_GRADE):
+        if not (self.MIN_GRADE <= complexity_level <= self.MAX_GRADE):
             raise ShikshaSetuException(
                 f"Grade level must be between {self.MIN_GRADE} and {self.MAX_GRADE}",
                 status_code=400,

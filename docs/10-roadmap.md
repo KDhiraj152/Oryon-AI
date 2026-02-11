@@ -13,9 +13,9 @@
 
 The development roadmap focuses on three core objectives:
 
-1. **Scale** – Serve 10 million concurrent students
-2. **Personalize** – Adaptive learning at individual student level
-3. **Localize** – Deep integration with Indian educational ecosystem
+1. **Scale** – Serve 10 million concurrent users
+2. **Personalize** – Adaptive learning at individual user level
+3. **Localize** – Deep integration with multilingual AIal ecosystem
 
 ---
 
@@ -23,7 +23,7 @@ The development roadmap focuses on three core objectives:
 
 ### Kubernetes Auto-scaling
 
-**Objective:** Handle variable load from school hours to exam periods.
+**Objective:** Handle variable load from low-traffic to peak periods.
 
 ```yaml
 # kubernetes/hpa.yaml
@@ -153,7 +153,7 @@ class MultimodalService:
         image: bytes,
         question: str,
     ) -> DiagramAnalysis:
-        """Analyze educational diagrams with question context."""
+        """Analyze diagrams with question context."""
         inputs = self.processor(
             text=f"<grounding> {question}",
             images=Image.open(io.BytesIO(image)),
@@ -166,7 +166,7 @@ class MultimodalService:
         return DiagramAnalysis(
             description=text,
             detected_elements=self._extract_entities(text),
-            educational_context=await self._map_to_curriculum(text),
+            content_context=await self._map_to_content_domain(text),
         )
 ```
 
@@ -177,7 +177,7 @@ class MultimodalService:
 
 ### Adaptive Learning Engine
 
-**Objective:** Personalize content difficulty based on student performance.
+**Objective:** Personalize content difficulty based on user performance.
 
 ```python
 # backend/services/adaptive.py
@@ -188,13 +188,13 @@ class AdaptiveLearningEngine:
 
     async def recommend_next(
         self,
-        student_id: str,
+        user_ref_id: str,
         subject: str,
     ) -> LearningRecommendation:
         """Generate personalized learning path."""
         # Get student mastery levels
         mastery = await self.assessment_service.get_mastery_levels(
-            student_id, subject
+            user_ref_id, subject
         )
 
         # Find prerequisite gaps
@@ -204,13 +204,13 @@ class AdaptiveLearningEngine:
         next_concept = await self._select_next_concept(
             mastery=mastery,
             gaps=gaps,
-            learning_style=await self._detect_style(student_id),
+            user_preference=await self._detect_style(user_ref_id),
         )
 
         return LearningRecommendation(
             concept=next_concept,
             difficulty=self._calculate_difficulty(mastery, next_concept),
-            content_type=self._select_content_type(student_id),
+            content_type=self._select_content_type(user_ref_id),
             estimated_time=next_concept.average_time,
         )
 
@@ -230,7 +230,7 @@ class AdaptiveLearningEngine:
 
 ### Knowledge Graph
 
-**Objective:** Map curriculum concepts with prerequisite relationships.
+**Objective:** Map content_domain concepts with prerequisite relationships.
 
 ```python
 # backend/services/knowledge_graph.py
@@ -277,55 +277,52 @@ class KnowledgeGraphService:
 
 ## Q3 2026: Ecosystem Integration
 
-### State Board Curriculum Mapping
+### Multi-Provider Content Integration
 
-**Objective:** Align content with state-specific curricula across India.
+**Objective:** Support content from multiple domain-specific providers and knowledge bases.
 
-**Target Boards:**
-1. CBSE (Central Board of Secondary Education)
-2. ICSE (Indian Certificate of Secondary Education)
-3. Maharashtra State Board
-4. Tamil Nadu State Board
-5. Karnataka State Board
-6. Andhra Pradesh State Board
-7. Kerala State Board
-8. West Bengal State Board
+**Target Providers:**
+1. Custom Knowledge Base (primary)
+2. Public API Integrations
+3. Regional Content Providers
+4. Enterprise Content Sources
+5. Community-Contributed Domains
 
 ```python
-# backend/services/curriculum.py
-class CurriculumMappingService:
-    BOARD_CONFIGS = {
-        "cbse": {
-            "syllabus_url": "https://cbse.gov.in/curriculum",
-            "assessment_pattern": "modular",
-            "grading_system": "9-point",
+# backend/services/content_domain.py
+class ContentMappingService:
+    PROVIDER_CONFIGS = {
+        "primary": {
+            "content_url": "https://api.example.com/content",
+            "content_pattern": "modular",
+            "scoring_system": "weighted",
         },
-        "mh_board": {
-            "syllabus_url": "https://mahahsscboard.in/syllabus",
-            "assessment_pattern": "semester",
-            "grading_system": "percentage",
+        "enterprise": {
+            "content_url": "https://enterprise.example.com/api",
+            "content_pattern": "hierarchical",
+            "scoring_system": "percentage",
         },
-        # Additional boards...
+        # Additional providers...
     }
 
     async def map_content(
         self,
         content_id: str,
-        target_boards: list[str],
-    ) -> dict[str, CurriculumMapping]:
-        """Map content to multiple board curricula."""
+        target_providers: list[str],
+    ) -> dict[str, ContentMapping]:
+        """Map content across multiple providers."""
         mappings = {}
 
-        for board in target_boards:
-            config = self.BOARD_CONFIGS[board]
-            syllabus = await self._load_syllabus(board)
+        for provider in target_providers:
+            config = self.PROVIDER_CONFIGS[provider]
+            catalog = await self._load_catalog(provider)
 
             mapping = await self._find_mapping(
                 content_id=content_id,
-                syllabus=syllabus,
-                assessment_pattern=config["assessment_pattern"],
+                catalog=catalog,
+                content_pattern=config["content_pattern"],
             )
-            mappings[board] = mapping
+            mappings[provider] = mapping
 
         return mappings
 ```
@@ -401,21 +398,21 @@ class OfflineSyncManager {
 }
 ```
 
-### Teacher Dashboard
+### Admin Dashboard
 
 **Objective:** Provide educators with actionable insights.
 
 ```typescript
-// frontend/src/components/TeacherDashboard.tsx
+// frontend/src/components/AdminDashboard.tsx
 interface ClassAnalytics {
   class_id: string;
-  students: StudentProgress[];
+  users: UserProgress[];
   topic_mastery: TopicMastery[];
   attention_alerts: AttentionAlert[];
   recommended_interventions: Intervention[];
 }
 
-const TeacherDashboard: React.FC = () => {
+const AdminDashboard: React.FC = () => {
   const [analytics, setAnalytics] = useState<ClassAnalytics | null>(null);
 
   return (
@@ -433,11 +430,11 @@ const TeacherDashboard: React.FC = () => {
       {/* Attention Alerts */}
       <Card className="col-span-4">
         <CardHeader>
-          <CardTitle>Students Needing Support</CardTitle>
+          <CardTitle>Users Needing Support</CardTitle>
         </CardHeader>
         <CardContent>
           {analytics?.attention_alerts.map(alert => (
-            <AttentionAlertCard key={alert.student_id} alert={alert} />
+            <AttentionAlertCard key={alert.user_ref_id} alert={alert} />
           ))}
         </CardContent>
       </Card>
@@ -548,11 +545,11 @@ class GamificationService:
 
     async def check_achievements(
         self,
-        student_id: str,
+        user_ref_id: str,
         event: LearningEvent,
     ) -> list[Achievement]:
         """Check and award achievements based on learning events."""
-        profile = await self.get_profile(student_id)
+        profile = await self.get_profile(user_ref_id)
         newly_earned = []
 
         for achievement_id, definition in self.ACHIEVEMENT_DEFINITIONS.items():
@@ -560,14 +557,14 @@ class GamificationService:
                 continue
 
             if await self._check_criteria(profile, event, achievement_id):
-                await self._award_achievement(student_id, definition)
+                await self._award_achievement(user_ref_id, definition)
                 newly_earned.append(definition)
 
         return newly_earned
 
     async def get_leaderboard(
         self,
-        scope: str,  # "class", "school", "district", "state"
+        scope: str,  # "team", "org", "region", "state"
         time_period: str,  # "daily", "weekly", "monthly", "all_time"
     ) -> list[LeaderboardEntry]:
         """Get leaderboard for specified scope and time period."""
@@ -580,13 +577,13 @@ class GamificationService:
         )
 ```
 
-### AI Tutor Personality
+### AI Assistant Personality
 
 **Objective:** Create engaging, personality-driven tutoring experience.
 
 ```python
 # backend/services/tutor_personality.py
-class TutorPersonalityService:
+class AssistantPersonalityService:
     PERSONALITIES = {
         "encouraging": {
             "system_prompt": """You are a warm, encouraging tutor who celebrates
@@ -597,13 +594,13 @@ class TutorPersonalityService:
         "socratic": {
             "system_prompt": """You are a Socratic tutor who guides through
             questions rather than direct answers. Ask 'What do you think?' and
-            'Can you explain why?' Help students discover answers themselves.""",
+            'Can you explain why?' Help users discover answers themselves.""",
             "response_style": "questioning",
         },
         "practical": {
             "system_prompt": """You are a practical tutor who connects concepts
             to real-world applications. Use examples from daily life, sports,
-            and technology that students can relate to.""",
+            and technology that users can relate to.""",
             "response_style": "applied",
         },
     }
@@ -611,12 +608,12 @@ class TutorPersonalityService:
     async def adapt_response(
         self,
         response: str,
-        student_id: str,
+        user_ref_id: str,
         personality: str = None,
     ) -> str:
         """Adapt response based on student's preferred personality."""
         if not personality:
-            personality = await self._detect_preference(student_id)
+            personality = await self._detect_preference(user_ref_id)
 
         config = self.PERSONALITIES[personality]
 
@@ -702,7 +699,7 @@ class QuestionAnswerUseCase:
 | Metric | Current | Target |
 |--------|---------|--------|
 | Learning outcome improvement | Baseline | +15% |
-| Student engagement (DAU/MAU) | TBD | 60% |
+| User engagement (DAU/MAU) | TBD | 60% |
 | Content personalization accuracy | N/A | 85% |
 
 ### Q3-Q4 2026 Targets
@@ -711,7 +708,7 @@ class QuestionAnswerUseCase:
 |--------|--------|
 | State boards integrated | 8 |
 | Offline-capable content | 10,000 lessons |
-| Teacher adoption | 50,000 educators |
+| Reviewer adoption | 50,000 educators |
 | Voice query success rate | 95% |
 
 ---

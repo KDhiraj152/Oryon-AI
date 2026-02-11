@@ -2,7 +2,7 @@
 Semantic Accuracy Evaluator
 ============================
 
-Evaluates the semantic accuracy of AI-generated educational content.
+Evaluates the semantic accuracy of AI-generated content.
 Target: 8.2+ on a 10-point scale.
 
 Evaluation Criteria:
@@ -32,7 +32,7 @@ class EvaluationDimension(str, Enum):
 
     FACTUAL_ACCURACY = "factual_accuracy"
     SEMANTIC_PRESERVATION = "semantic_preservation"
-    EDUCATIONAL_CLARITY = "educational_clarity"
+    CONTENT_CLARITY = "content_clarity"
     CULTURAL_APPROPRIATENESS = "cultural_appropriateness"
     COMPLETENESS = "completeness"
 
@@ -52,7 +52,7 @@ class EvaluationConfig:
         default_factory=lambda: {
             EvaluationDimension.FACTUAL_ACCURACY: 0.30,
             EvaluationDimension.SEMANTIC_PRESERVATION: 0.25,
-            EvaluationDimension.EDUCATIONAL_CLARITY: 0.20,
+            EvaluationDimension.CONTENT_CLARITY: 0.20,
             EvaluationDimension.CULTURAL_APPROPRIATENESS: 0.10,
             EvaluationDimension.COMPLETENESS: 0.15,
         }
@@ -129,16 +129,16 @@ class SemanticAccuracyEvaluator:
 
     Uses a combination of:
     1. Embedding similarity for semantic preservation
-    2. LLM-based evaluation for educational quality
+    2. LLM-based evaluation for AIal quality
     3. Rule-based checks for cultural sensitivity
 
     Target: 8.2+ overall score
     """
 
     # LLM evaluation prompt
-    EVALUATION_PROMPT = """You are an expert educational content evaluator for Indian students.
+    EVALUATION_PROMPT = """You are an expert content evaluator for users.
 
-Evaluate this AI-generated content for a Grade {grade_level} {subject} student.
+Evaluate this AI-generated content for a Grade {complexity_level} {subject} student.
 
 ORIGINAL TEXT:
 {original_text}
@@ -154,10 +154,10 @@ Rate each dimension from 0-10:
 2. SEMANTIC_PRESERVATION (Does it preserve the original meaning?):
    Score: [0-10]
 
-3. EDUCATIONAL_CLARITY (Is it clear and easy to understand?):
+3. CONTENT_CLARITY (Is it clear and easy to understand?):
    Score: [0-10]
 
-4. CULTURAL_APPROPRIATENESS (Is it suitable for Indian students?):
+4. CULTURAL_APPROPRIATENESS (Is it suitable for users?):
    Score: [0-10]
 
 5. COMPLETENESS (Are all key concepts covered?):
@@ -166,7 +166,7 @@ Rate each dimension from 0-10:
 Provide your response in this EXACT format:
 FACTUAL_ACCURACY: [score]
 SEMANTIC_PRESERVATION: [score]
-EDUCATIONAL_CLARITY: [score]
+CONTENT_CLARITY: [score]
 CULTURAL_APPROPRIATENESS: [score]
 COMPLETENESS: [score]
 FEEDBACK: [one sentence overall feedback]
@@ -191,7 +191,7 @@ SUGGESTIONS: [comma-separated improvement suggestions if score < 8]"""
         self,
         original_text: str,
         processed_text: str,
-        grade_level: int = 8,
+        complexity_level: int = 8,
         subject: str = "General",
     ) -> EvaluationResult:
         """
@@ -200,7 +200,7 @@ SUGGESTIONS: [comma-separated improvement suggestions if score < 8]"""
         Args:
             original_text: Original input text
             processed_text: AI-processed output
-            grade_level: Target grade level (1-12)
+            complexity_level: Target complexity level (1-12)
             subject: Subject area
 
         Returns:
@@ -219,13 +219,13 @@ SUGGESTIONS: [comma-separated improvement suggestions if score < 8]"""
         # 2. LLM-based evaluation for other dimensions
         if self.config.use_llm_evaluation:
             llm_scores = await self._evaluate_with_llm(
-                original_text, processed_text, grade_level, subject
+                original_text, processed_text, complexity_level, subject
             )
             dimension_scores.update(llm_scores)
         else:
             # Fallback to heuristic evaluation
             heuristic_scores = self._evaluate_heuristic(
-                original_text, processed_text, grade_level
+                original_text, processed_text, complexity_level
             )
             dimension_scores.update(heuristic_scores)
 
@@ -309,7 +309,7 @@ SUGGESTIONS: [comma-separated improvement suggestions if score < 8]"""
         self,
         original: str,
         processed: str,
-        grade_level: int,
+        complexity_level: int,
         subject: str,
     ) -> dict[str, DimensionScore]:
         """Use LLM for detailed evaluation."""
@@ -317,7 +317,7 @@ SUGGESTIONS: [comma-separated improvement suggestions if score < 8]"""
             engine = self._get_inference_engine()
 
             prompt = self.EVALUATION_PROMPT.format(
-                grade_level=grade_level,
+                complexity_level=complexity_level,
                 subject=subject,
                 original_text=original[:3000],  # Increased context window
                 processed_text=processed[:3000],
@@ -347,7 +347,7 @@ SUGGESTIONS: [comma-separated improvement suggestions if score < 8]"""
         # Extract scores using regex
         patterns = {
             EvaluationDimension.FACTUAL_ACCURACY: r"FACTUAL_ACCURACY:\s*(\d+(?:\.\d+)?)",
-            EvaluationDimension.EDUCATIONAL_CLARITY: r"EDUCATIONAL_CLARITY:\s*(\d+(?:\.\d+)?)",
+            EvaluationDimension.CONTENT_CLARITY: r"CONTENT_CLARITY:\s*(\d+(?:\.\d+)?)",
             EvaluationDimension.CULTURAL_APPROPRIATENESS: r"CULTURAL_APPROPRIATENESS:\s*(\d+(?:\.\d+)?)",
             EvaluationDimension.COMPLETENESS: r"COMPLETENESS:\s*(\d+(?:\.\d+)?)",
         }
@@ -380,7 +380,7 @@ SUGGESTIONS: [comma-separated improvement suggestions if score < 8]"""
         self,
         original: str,
         processed: str,
-        grade_level: int,
+        complexity_level: int,
     ) -> dict[str, DimensionScore]:
         """Heuristic evaluation (fallback when LLM unavailable)."""
         scores = {}
@@ -398,7 +398,7 @@ SUGGESTIONS: [comma-separated improvement suggestions if score < 8]"""
 
         # Educational clarity: Based on sentence length
         avg_sentence_len = len(processed.split()) / max(1, processed.count(".") + 1)
-        target_len = 8 + grade_level  # Longer sentences for higher grades
+        target_len = 8 + complexity_level  # Longer sentences for higher grades
 
         if abs(avg_sentence_len - target_len) <= 5:
             clarity_score = 8.5
@@ -407,8 +407,8 @@ SUGGESTIONS: [comma-separated improvement suggestions if score < 8]"""
         else:
             clarity_score = 6.0
 
-        scores[EvaluationDimension.EDUCATIONAL_CLARITY] = DimensionScore(
-            dimension=EvaluationDimension.EDUCATIONAL_CLARITY,
+        scores[EvaluationDimension.CONTENT_CLARITY] = DimensionScore(
+            dimension=EvaluationDimension.CONTENT_CLARITY,
             score=clarity_score,
             confidence=0.4,
             feedback=f"Average sentence length: {avg_sentence_len:.1f} words",
@@ -485,7 +485,7 @@ SUGGESTIONS: [comma-separated improvement suggestions if score < 8]"""
                     suggestions.append("Review factual content for accuracy")
                 elif dimension == EvaluationDimension.SEMANTIC_PRESERVATION:
                     suggestions.append("Check if key meaning is preserved")
-                elif dimension == EvaluationDimension.EDUCATIONAL_CLARITY:
+                elif dimension == EvaluationDimension.CONTENT_CLARITY:
                     suggestions.append("Simplify complex sentences")
                 elif dimension == EvaluationDimension.CULTURAL_APPROPRIATENESS:
                     suggestions.append("Add culturally relevant examples")

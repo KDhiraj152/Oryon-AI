@@ -166,8 +166,8 @@ if $SHOW_STATUS && ! $QUIET; then
         echo -e "  ${CYAN}Active Endpoints:${NC}"
         echo -e "     /api/v2/chat/*       Chat & streaming"
         echo -e "     /api/v2/content/*    OCR, translate, TTS, simplify"
-        echo -e "     /api/v2/profile/me   Student personalization"
-        echo -e "     /api/v2/review/*     Teacher review queue"
+        echo -e "     /api/v2/profile/me   User personalization"
+        echo -e "     /api/v2/review/*     Content review queue"
     fi
 fi
 

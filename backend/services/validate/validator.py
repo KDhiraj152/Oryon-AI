@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Tuple
 
 import numpy as np
 
-from .standards import NCERTStandardData, NCERTStandardsLoader
+from .content_standards import ContentStandardData, ContentStandardsLoader
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ class ValidationResult:
 
     content_id: str
     semantic_accuracy: float
-    ncert_alignment_score: float
+    content_quality_score: float
     script_accuracy: bool
     age_appropriate: bool
     overall_status: str  # 'passed', 'failed', 'needs_review'
@@ -44,7 +44,7 @@ class QualityReport:
     """Detailed quality report for validated content."""
 
     validation_result: ValidationResult
-    matched_standards: list[tuple[NCERTStandardData, float]]
+    matched_standards: list[tuple[ContentStandardData, float]]
     keyword_overlap_scores: list[float]
     learning_objective_matches: list[float]
     technical_terms_preserved: bool
@@ -52,7 +52,7 @@ class QualityReport:
 
 
 class ValidationModule:
-    """Qwen3-8B validation module for educational content quality assurance.
+    """Qwen3-8B validation module for content quality assurance.
 
     Uses:
     - BGEM3Embedder for semantic similarity (cosine similarity between embeddings)
@@ -62,8 +62,8 @@ class ValidationModule:
     def __init__(self):
         self._embedder = None
         self._llm_engine = None
-        self._ncert_loader = None
-        self.quality_threshold = 0.80  # 80% NCERT accuracy threshold (minimum required)
+        self._content_domain_loader = None
+        self.quality_threshold = 0.80  # 80% content_domain accuracy threshold (minimum required)
 
     def _get_embedder(self):
         """Lazy-load BGE-M3 embedder for semantic similarity using shared singleton."""
@@ -121,52 +121,52 @@ class ValidationModule:
             self._llm_engine = None
             logger.info("ValidationModule: LLM unloaded")
 
-    def _get_ncert_loader(self):
-        """Lazy-load NCERT standards loader."""
-        if self._ncert_loader is None:
-            self._ncert_loader = NCERTStandardsLoader(embedder=self._get_embedder())
+    def _get_content_domain_loader(self):
+        """Lazy-load content standards loader."""
+        if self._content_domain_loader is None:
+            self._content_domain_loader = ContentStandardsLoader(embedder=self._get_embedder())
             try:
-                self._ncert_loader.load_from_database()
-                if not self._ncert_loader.standards:
-                    from .standards import initialize_ncert_standards
+                self._content_domain_loader.load_from_database()
+                if not self._content_domain_loader.standards:
+                    from .content_standards import initialize_content_standards
 
-                    self._ncert_loader = initialize_ncert_standards()
+                    self._content_domain_loader = initialize_content_standards()
             except Exception as e:
-                logger.warning(f"Could not load NCERT standards: {e}")
-        return self._ncert_loader
+                logger.warning(f"Could not load content standards: {e}")
+        return self._content_domain_loader
 
-    def _check_ncert_alignment(
+    def _check_content_quality(
         self,
         translated_text: str,
-        grade_level: int,
+        complexity_level: int,
         subject: str,
         universal_mode: bool,
         issues: list,
         recommendations: list,
         quality_metrics: dict,
     ) -> float:
-        """Check NCERT alignment, skipping in universal mode."""
+        """Check content_domain alignment, skipping in universal mode."""
         if universal_mode:
-            quality_metrics["ncert_alignment"] = 1.0
+            quality_metrics["content_quality"] = 1.0
             quality_metrics["universal_mode"] = True
-            logger.debug("UNIVERSAL_MODE: Skipping NCERT alignment validation")
+            logger.debug("UNIVERSAL_MODE: Skipping content_domain alignment validation")
             return 1.0
-        ncert_loader = self._get_ncert_loader()
-        ncert_score = self._validate_ncert_alignment(
-            translated_text, grade_level, subject, ncert_loader
+        content_domain_loader = self._get_content_domain_loader()
+        content_quality_score = self._validate_content_quality(
+            translated_text, complexity_level, subject, content_domain_loader
         )
-        quality_metrics["ncert_alignment"] = ncert_score
-        if ncert_score < self.quality_threshold:
+        quality_metrics["content_quality"] = content_quality_score
+        if content_quality_score < self.quality_threshold:
             issues.append(
-                f"NCERT alignment below threshold: {ncert_score:.2f} < {self.quality_threshold}"
+                f"content_domain alignment below threshold: {content_quality_score:.2f} < {self.quality_threshold}"
             )
-            recommendations.append("Align content with NCERT curriculum standards")
-        return ncert_score
+            recommendations.append("Align content with content domain standards")
+        return content_quality_score
 
     def _check_age_appropriateness(
         self,
         translated_text: str,
-        grade_level: int,
+        complexity_level: int,
         universal_mode: bool,
         issues: list,
         recommendations: list,
@@ -177,13 +177,13 @@ class ValidationModule:
             logger.debug("UNIVERSAL_MODE: Skipping age-appropriate language check")
             return True
         age_appropriate = self._check_age_appropriate_language(
-            translated_text, grade_level
+            translated_text, complexity_level
         )
         quality_metrics["age_appropriate"] = 1.0 if age_appropriate else 0.0
         if not age_appropriate:
-            issues.append("Language complexity not appropriate for grade level")
+            issues.append("Language complexity not appropriate for complexity level")
             recommendations.append(
-                f"Simplify language for grade {grade_level} students"
+                f"Simplify language to complexity level {complexity_level} users"
             )
         return age_appropriate
 
@@ -191,7 +191,7 @@ class ValidationModule:
         self,
         original_text: str,
         translated_text: str,
-        grade_level: int,
+        complexity_level: int,
         subject: str,
         language: str,
         content_id: str | None = None,
@@ -199,7 +199,7 @@ class ValidationModule:
         """Main validation method that performs all quality checks.
 
         In UNIVERSAL_MODE: Only performs semantic accuracy and script validation.
-        NCERT alignment and age-appropriate checks are skipped.
+        content_domain alignment and age-appropriate checks are skipped.
         """
         content_id = content_id or f"content_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
@@ -216,9 +216,9 @@ class ValidationModule:
             issues.append(f"Low semantic accuracy: {semantic_score:.2f} (minimum 0.80 required)")
             recommendations.append("Review translation for meaning preservation - must achieve ≥80% accuracy")
 
-        # 2. NCERT alignment checking
-        ncert_score = self._check_ncert_alignment(
-            translated_text, grade_level, subject, universal_mode, issues, recommendations, quality_metrics
+        # 2. content_domain alignment checking
+        content_quality_score = self._check_content_quality(
+            translated_text, complexity_level, subject, universal_mode, issues, recommendations, quality_metrics
         )
 
         # 3. Script accuracy validation
@@ -230,7 +230,7 @@ class ValidationModule:
 
         # 4. Age-appropriate language check
         age_appropriate = self._check_age_appropriateness(
-            translated_text, grade_level, universal_mode, issues, recommendations, quality_metrics
+            translated_text, complexity_level, universal_mode, issues, recommendations, quality_metrics
         )
         quality_metrics["age_appropriate"] = 1.0 if age_appropriate else 0.0
 
@@ -242,13 +242,13 @@ class ValidationModule:
             recommendations.append("Review subject-specific term translations")
 
         overall_status = self._determine_overall_status(
-            semantic_score, ncert_score, script_accuracy, age_appropriate
+            semantic_score, content_quality_score, script_accuracy, age_appropriate
         )
 
         return ValidationResult(
             content_id=content_id,
             semantic_accuracy=semantic_score,
-            ncert_alignment_score=ncert_score,
+            content_quality_score=content_quality_score,
             script_accuracy=script_accuracy,
             age_appropriate=age_appropriate,
             overall_status=overall_status,
@@ -290,15 +290,15 @@ class ValidationModule:
             logger.error(f"Error in semantic validation: {e}")
             return 0.5  # Default moderate score on error
 
-    def _validate_ncert_alignment(
-        self, content: str, grade_level: int, subject: str, ncert_loader=None
+    def _validate_content_quality(
+        self, content: str, complexity_level: int, subject: str, content_domain_loader=None
     ) -> float:
-        """Validate alignment with NCERT curriculum standards."""
+        """Validate alignment with content domain standards."""
         try:
-            loader = ncert_loader or self._get_ncert_loader()
-            # Find matching NCERT standards
+            loader = content_domain_loader or self._get_content_domain_loader()
+            # Find matching content standards
             matching_standards = loader.find_matching_standards(
-                content, grade_level, subject, top_k=3
+                content, complexity_level, subject, top_k=3
             )
 
             if not matching_standards:
@@ -327,7 +327,7 @@ class ValidationModule:
             return total_score / total_weight if total_weight > 0 else 0.0
 
         except Exception as e:
-            logger.error(f"Error in NCERT alignment validation: {e}")
+            logger.error(f"Error in content_domain alignment validation: {e}")
             return 0.0
 
     def _validate_script_accuracy(self, text: str, language: str) -> bool:
@@ -364,8 +364,8 @@ class ValidationModule:
             logger.error(f"Error in script accuracy validation: {e}")
             return True  # Default to true on error
 
-    def _check_age_appropriate_language(self, text: str, grade_level: int) -> bool:
-        """Check if language complexity is appropriate for the grade level."""
+    def _check_age_appropriate_language(self, text: str, complexity_level: int) -> bool:
+        """Check if language complexity is appropriate for the complexity level."""
         try:
             # Calculate basic readability metrics
             sentences = re.split(r"[.!?]+", text)
@@ -394,7 +394,7 @@ class ValidationModule:
                 12: {"max_sentence_length": 28, "max_complex_ratio": 0.35},
             }
 
-            threshold = grade_thresholds.get(grade_level, grade_thresholds[8])
+            threshold = grade_thresholds.get(complexity_level, grade_thresholds[8])
 
             return (
                 avg_sentence_length <= threshold["max_sentence_length"]
@@ -519,7 +519,7 @@ class ValidationModule:
     def _determine_overall_status(
         self,
         semantic_score: float,
-        ncert_score: float,
+        content_quality_score: float,
         script_accuracy: bool,
         age_appropriate: bool,
     ) -> str:
@@ -533,8 +533,8 @@ class ValidationModule:
         if not script_accuracy:
             return "failed"
 
-        # NCERT check only matters in non-universal mode
-        if not universal_mode and ncert_score < self.quality_threshold:
+        # content_domain check only matters in non-universal mode
+        if not universal_mode and content_quality_score < self.quality_threshold:
             return "failed"
 
         # Quality thresholds (0.8 minimum for semantic accuracy)
@@ -553,30 +553,30 @@ class ValidationModule:
         self,
         original_text: str,
         translated_text: str,
-        grade_level: int,
+        complexity_level: int,
         subject: str,
         language: str,
         content_id: str | None = None,
     ) -> QualityReport:
         """Generate comprehensive quality report with detailed metrics."""
         validation_result = self.validate_content(
-            original_text, translated_text, grade_level, subject, language, content_id
+            original_text, translated_text, complexity_level, subject, language, content_id
         )
 
-        # Get detailed NCERT matching information
-        ncert_loader = self._get_ncert_loader()
-        matched_standards = ncert_loader.find_matching_standards(
-            translated_text, grade_level, subject, top_k=5
+        # Get detailed content_domain matching information
+        content_domain_loader = self._get_content_domain_loader()
+        matched_standards = content_domain_loader.find_matching_standards(
+            translated_text, complexity_level, subject, top_k=5
         )
 
         # Calculate detailed metrics
         keyword_overlap_scores = [
-            ncert_loader.check_keyword_overlap(translated_text, standard)
+            content_domain_loader.check_keyword_overlap(translated_text, standard)
             for standard, _ in matched_standards
         ]
 
         learning_objective_matches = [
-            ncert_loader.get_learning_objectives_match(translated_text, standard)
+            content_domain_loader.get_learning_objectives_match(translated_text, standard)
             for standard, _ in matched_standards
         ]
 
@@ -601,7 +601,7 @@ class ValidationModule:
         )
 
     def set_quality_threshold(self, threshold: float) -> None:
-        """Set the NCERT alignment quality threshold."""
+        """Set the content_domain alignment quality threshold."""
         if 0.0 <= threshold <= 1.0:
             self.quality_threshold = threshold
         else:
@@ -616,7 +616,7 @@ class ValidationModule:
             "overall_status": validation_result.overall_status,
             "scores": {
                 "semantic_accuracy": validation_result.semantic_accuracy,
-                "ncert_alignment": validation_result.ncert_alignment_score,
+                "content_quality": validation_result.content_quality_score,
                 "script_accuracy": validation_result.script_accuracy,
                 "age_appropriate": validation_result.age_appropriate,
             },

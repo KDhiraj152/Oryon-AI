@@ -252,7 +252,7 @@ class OrchestratorAgent(BaseAgent):
 
         # Step 1: Simplify via LLM
         simplify_prompt = (
-            f"Simplify the following educational content for a student:\n\n{text}\n\n"
+            f"Simplify the following content for a student:\n\n{text}\n\n"
             f"Simplified version:"
         )
         simplified = await self._send_to_model_execution("generate", {

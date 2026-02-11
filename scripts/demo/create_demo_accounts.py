@@ -26,10 +26,10 @@ def create_demo_accounts():
             "role": "user",
         },
         {
-            "email": "teacher@shiksha.com",
+            "email": "reviewer@shiksha.com",
             "password": "teacher123",
-            "full_name": "Teacher Demo",
-            "organization": "Demo School",
+            "full_name": "Reviewer Demo",
+            "organization": "Demo Org",
             "role": "user",
         },
         {
@@ -91,7 +91,7 @@ def create_demo_accounts():
     print("   Password: demo123\n")
 
     print("2. Teacher Account:")
-    print("   Email: teacher@shiksha.com")
+    print("   Email: reviewer@shiksha.com")
     print("   Password: teacher123\n")
 
     print("3. Admin Account:")

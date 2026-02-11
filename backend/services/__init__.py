@@ -17,8 +17,8 @@ Active Services:
 - validate/: Curriculum validation
 - simplifier.py: Content simplification
 - ai_core/: AI service core
-- review_queue.py: Teacher review queue
-- student_profile.py: Student personalization
+- review_queue.py: Content review queue
+- user_profile.py: User personalization
 
 Usage:
     from backend.services import get_inference_engine

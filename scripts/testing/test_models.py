@@ -181,7 +181,7 @@ def test_validation_model():
 
         # Test validation prompt
         prompt = (
-            "Is this text appropriate for grade 5? 'Plants make food using sunlight.'"
+            "Is this text appropriate for complexity level 5? 'Plants make food using sunlight.'"
         )
         inputs = tokenizer(prompt, return_tensors="pt").to(device)
 
@@ -217,7 +217,7 @@ def test_database():
         load_dotenv()
         db_url = os.getenv(
             "DATABASE_URL",
-            "postgresql://postgres:password@localhost:5432/education_content",
+            "postgresql://postgres:password@localhost:5432/shiksha_setu",
         )
 
         engine = create_engine(db_url)

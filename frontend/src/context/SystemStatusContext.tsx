@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, useMemo, ReactNode } from 'react';
 import { system, HardwareStatus, ModelsStatus, SystemHealth, PolicyStatus, PolicySwitchResult } from '../api/system';
 
-type PolicyMode = 'OPEN' | 'EDUCATION' | 'RESEARCH' | 'RESTRICTED';
+type PolicyMode = 'OPEN' | 'MODERATED' | 'RESEARCH' | 'RESTRICTED';
 
 interface SystemStatusContextType {
   hardware: HardwareStatus | null;

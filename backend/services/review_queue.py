@@ -2,13 +2,13 @@
 Response Review Queue
 =====================
 
-Flags low-confidence AI responses for teacher review.
+Flags low-confidence AI responses for content review.
 Provides quality control without blocking the user experience.
 
 Features:
 - Confidence threshold-based flagging
 - Redis-backed review queue
-- Teacher review workflow support
+- Content review workflow support
 - Analytics on flagged responses
 """
 
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 class ReviewStatus(str, Enum):
     """Status of a flagged response."""
 
-    PENDING = "pending"  # Awaiting teacher review
+    PENDING = "pending"  # Awaiting content review
     APPROVED = "approved"  # Teacher approved
     REJECTED = "rejected"  # Teacher marked as incorrect
     IMPROVED = "improved"  # Teacher provided correction
@@ -39,7 +39,7 @@ class FlagReason(str, Enum):
     NO_SOURCES = "no_sources"
     SAFETY_CONCERN = "safety_concern"
     USER_REPORTED = "user_reported"
-    CURRICULUM_MISMATCH = "curriculum_mismatch"
+    CURRICULUM_MISMATCH = "content_domain_mismatch"
 
 
 @dataclass
@@ -60,7 +60,7 @@ class FlaggedResponse:
     sources_count: int
 
     # Metadata
-    grade_level: int
+    complexity_level: int
     subject: str | None
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
@@ -81,7 +81,7 @@ class FlaggedResponse:
             "reason": self.reason.value,
             "confidence": self.confidence,
             "sources_count": self.sources_count,
-            "grade_level": self.grade_level,
+            "complexity_level": self.complexity_level,
             "subject": self.subject,
             "created_at": self.created_at.isoformat(),
             "status": self.status.value,
@@ -102,7 +102,7 @@ class FlaggedResponse:
             reason=FlagReason(data["reason"]),
             confidence=data["confidence"],
             sources_count=data.get("sources_count", 0),
-            grade_level=data.get("grade_level", 8),
+            complexity_level=data.get("complexity_level", 8),
             subject=data.get("subject"),
             created_at=datetime.fromisoformat(data["created_at"])
             if data.get("created_at")
@@ -178,11 +178,11 @@ class ResponseReviewQueue:
         reason: FlagReason,
         user_id: str | None = None,
         sources_count: int = 0,
-        grade_level: int = 8,
+        complexity_level: int = 8,
         subject: str | None = None,
     ) -> FlaggedResponse:
         """
-        Flag a response for teacher review.
+        Flag a response for content review.
 
         Returns the created FlaggedResponse.
         """
@@ -195,7 +195,7 @@ class ResponseReviewQueue:
             reason=reason,
             confidence=confidence,
             sources_count=sources_count,
-            grade_level=grade_level,
+            complexity_level=complexity_level,
             subject=subject,
         )
 
@@ -288,7 +288,7 @@ class ResponseReviewQueue:
         Args:
             response_id: ID of the flagged response
             status: New status (approved, rejected, improved)
-            reviewer_id: ID of the reviewing teacher
+            reviewer_id: ID of the reviewing admin
             notes: Optional review notes
             corrected_response: Corrected response if status is IMPROVED
 

@@ -30,8 +30,8 @@ Content-Type: application/json
 **Request:**
 ```json
 {
-  "name": "Student Name",
-  "email": "student@example.com",
+  "name": "User Name",
+  "email": "user@example.com",
   "password": "securepassword123",
   "grade": 10,
   "preferred_language": "Hindi"
@@ -42,8 +42,8 @@ Content-Type: application/json
 ```json
 {
   "id": "usr_abc123",
-  "name": "Student Name",
-  "email": "student@example.com",
+  "name": "User Name",
+  "email": "user@example.com",
   "grade": 10,
   "preferred_language": "Hindi",
   "created_at": "2025-12-05T10:30:00Z"
@@ -60,7 +60,7 @@ Content-Type: application/json
 **Request:**
 ```json
 {
-  "email": "student@example.com",
+  "email": "user@example.com",
   "password": "securepassword123"
 }
 ```
@@ -74,8 +74,8 @@ Content-Type: application/json
   "expires_in": 3600,
   "user": {
     "id": "usr_abc123",
-    "name": "Student Name",
-    "email": "student@example.com"
+    "name": "User Name",
+    "email": "user@example.com"
   }
 }
 ```
@@ -141,7 +141,7 @@ data: {"type": "token", "content": " पहला"}
 
 event: message
 data: {"type": "citations", "sources": [
-  {"id": "doc_123", "title": "NCERT Physics Ch3", "score": 0.92},
+  {"id": "doc_123", "title": "content_domain Physics Ch3", "score": 0.92},
   {"id": "doc_456", "title": "Motion Laws", "score": 0.87}
 ]}
 
@@ -175,7 +175,7 @@ Content-Type: application/json
   "citations": [
     {
       "id": "doc_789",
-      "title": "NCERT Biology Chapter 1",
+      "title": "content_domain Biology Chapter 1",
       "excerpt": "Plants use chlorophyll to capture sunlight...",
       "score": 0.94
     }
@@ -277,7 +277,7 @@ Content-Type: multipart/form-data
 **Request:**
 ```
 file: (binary file - PDF, DOCX, TXT, images)
-title: "NCERT Physics Class 11 Chapter 3"  (optional)
+title: "content_domain Physics Class 11 Chapter 3"  (optional)
 subject: "Physics"  (optional)
 grade: 11  (optional)
 ```
@@ -286,8 +286,8 @@ grade: 11  (optional)
 ```json
 {
   "id": "doc_abc123",
-  "filename": "NCERT_Physics_Ch3.pdf",
-  "title": "NCERT Physics Class 11 Chapter 3",
+  "filename": "content_domain_Physics_Ch3.pdf",
+  "title": "content_domain Physics Class 11 Chapter 3",
   "size_bytes": 2560000,
   "pages": 45,
   "chunks_created": 245,
@@ -315,7 +315,7 @@ Authorization: Bearer {token}
   "documents": [
     {
       "id": "doc_abc123",
-      "title": "NCERT Physics Class 11 Chapter 3",
+      "title": "content_domain Physics Class 11 Chapter 3",
       "subject": "Physics",
       "grade": 11,
       "chunks": 245,
@@ -363,7 +363,7 @@ Content-Type: application/json
 {
   "original": "The mitochondria are membrane-bound organelles...",
   "simplified": "Mitochondria are tiny parts inside cells that make energy...",
-  "grade_level": 6,
+  "complexity_level": 6,
   "readability_score": 72.5
 }
 ```

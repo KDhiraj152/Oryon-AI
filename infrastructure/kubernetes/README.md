@@ -211,7 +211,7 @@ kubectl exec -it deployment/fastapi -n shiksha-setu -- /bin/bash
 kubectl exec -it deployment/celery-worker -n shiksha-setu -- /bin/bash
 
 # Check database connection
-kubectl exec -it deployment/postgres -n shiksha-setu -- psql -U postgres -d education_content
+kubectl exec -it deployment/postgres -n shiksha-setu -- psql -U postgres -d shiksha_setu
 ```
 
 ## Scaling
@@ -252,7 +252,7 @@ kubectl describe pvc data-pvc -n shiksha-setu
 ```bash
 # Backup PostgreSQL
 kubectl exec deployment/postgres -n shiksha-setu -- \
-  pg_dump -U postgres education_content > backup.sql
+  pg_dump -U postgres shiksha_setu > backup.sql
 
 # Backup data volume
 kubectl cp shiksha-setu/fastapi-<pod-id>:/app/data ./data-backup
@@ -355,7 +355,7 @@ kubectl logs <pod-name> -n shiksha-setu --previous
 ```bash
 # Test PostgreSQL connection
 kubectl run -it --rm debug --image=postgres:15-alpine --restart=Never -n shiksha-setu -- \
-  psql -h postgres -U postgres -d education_content
+  psql -h postgres -U postgres -d shiksha_setu
 
 # Check service endpoints
 kubectl get endpoints -n shiksha-setu

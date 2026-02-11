@@ -130,7 +130,7 @@ export interface ExportOptions {
   include_citations?: boolean;
 }
 
-export interface StudentProfile {
+export interface UserProfile {
   language: string;
 }
 

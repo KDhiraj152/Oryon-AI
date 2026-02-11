@@ -28,7 +28,7 @@ def utcnow():
 
 
 class ProcessedContent(Base):
-    """Stores processed educational content with translations and audio."""
+    """Stores processed content with translations and audio."""
 
     __tablename__ = "processed_content"
 
@@ -37,10 +37,10 @@ class ProcessedContent(Base):
     simplified_text = Column(Text)
     translated_text = Column(Text)
     language = Column(String(50), nullable=False, index=True)
-    grade_level = Column(Integer, nullable=False, index=True)
+    complexity_level = Column(Integer, nullable=False, index=True)
     subject = Column(String(100), nullable=False, index=True)
     audio_file_path = Column(Text)
-    ncert_alignment_score = Column(Float)
+    content_quality_score = Column(Float)
     audio_accuracy_score = Column(Float)
     created_at = Column(TIMESTAMP, default=utcnow, index=True)
     content_metadata = Column("metadata", JSONB)
@@ -49,19 +49,19 @@ class ProcessedContent(Base):
     # Composite indexes for common query patterns
     __table_args__ = (
         Index("idx_user_content", "user_id", "created_at"),
-        Index("idx_grade_subject", "grade_level", "subject"),
-        Index("idx_language_grade", "language", "grade_level"),
+        Index("idx_grade_subject", "complexity_level", "subject"),
+        Index("idx_language_grade", "language", "complexity_level"),
         Index("idx_subject_created", "subject", "created_at"),
     )
 
 
-class NCERTStandard(Base):
-    """Reference database for NCERT curriculum standards."""
+class ContentStandard(Base):
+    """Reference database for content domain standards."""
 
-    __tablename__ = "ncert_standards"
+    __tablename__ = "content_standards"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    grade_level = Column(Integer, nullable=False, index=True)
+    complexity_level = Column(Integer, nullable=False, index=True)
     subject = Column(String(100), nullable=False, index=True)
     topic = Column(String(200), nullable=False)
     description = Column(Text)  # Added for test compatibility
@@ -110,7 +110,7 @@ class ContentAudio(Base):
 
 
 class ContentValidation(Base):
-    """Normalized table for validation results (NCERT, script, factual)."""
+    """Normalized table for validation results (content_domain, script, factual)."""
 
     __tablename__ = "content_validation"
 
@@ -123,7 +123,7 @@ class ContentValidation(Base):
     )
     validation_type = Column(
         String(50), nullable=False, index=True
-    )  # 'ncert', 'script', 'factual'
+    )  # 'content_domain', 'script', 'factual'
     alignment_score = Column(Float, nullable=False)
     passed = Column(Boolean, nullable=False)
     issues_found = Column(JSONB)  # Structured validation issues

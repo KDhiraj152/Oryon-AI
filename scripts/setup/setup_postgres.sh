@@ -207,8 +207,8 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_processed_content_user_created
     WHERE user_id IS NOT NULL;
 
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_processed_content_grade_subject_lang
-    ON processed_content(grade_level, subject, language)
-    WHERE grade_level IS NOT NULL;
+    ON processed_content(complexity_level, subject, language)
+    WHERE complexity_level IS NOT NULL;
 
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_document_chunks_content_idx
     ON document_chunks(content_id, chunk_index);

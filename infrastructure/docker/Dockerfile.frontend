@@ -34,7 +34,7 @@ FROM node:20-alpine AS builder
 
 LABEL maintainer="Shiksha Setu Team <team@shikshasetu.in>"
 LABEL org.opencontainers.image.title="Shiksha Setu Frontend"
-LABEL org.opencontainers.image.description="AI-Powered Bilingual Education Platform - React/Vite Frontend"
+LABEL org.opencontainers.image.description="Local-First Multilingual AI Platform - React/Vite Frontend"
 LABEL org.opencontainers.image.version="4.0.0"
 
 WORKDIR /app

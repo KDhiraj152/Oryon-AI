@@ -41,7 +41,7 @@ async def demo_single_pass():
 
     start = time.perf_counter()
     result = await simplifier.simplify_text(
-        content=SAMPLE_CONTENT, grade_level=7, subject="Science"
+        content=SAMPLE_CONTENT, complexity_level=7, subject="Science"
     )
     elapsed = (time.perf_counter() - start) * 1000
 
@@ -72,7 +72,7 @@ async def demo_with_refinement():
 
     start = time.perf_counter()
     result = await simplifier.simplify_text(
-        content=SAMPLE_CONTENT, grade_level=7, subject="Science"
+        content=SAMPLE_CONTENT, complexity_level=7, subject="Science"
     )
     elapsed = (time.perf_counter() - start) * 1000
 

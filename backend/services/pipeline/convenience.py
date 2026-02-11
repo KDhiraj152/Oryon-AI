@@ -24,7 +24,7 @@ def get_model_collaborator() -> ModelCollaborator:
 
 async def collaborate_and_simplify(
     text: str,
-    grade_level: int = 8,
+    complexity_level: int = 8,
     subject: str = "General",
     verify: bool = True,
 ) -> tuple[str, float]:
@@ -43,7 +43,7 @@ async def collaborate_and_simplify(
         input_text=text,
         pattern=pattern,
         context={
-            "grade_level": grade_level,
+            "complexity_level": complexity_level,
             "subject": subject,
         },
     )
@@ -86,7 +86,7 @@ async def collaborate_and_translate(
 async def ensemble_evaluate(
     original_text: str,
     processed_text: str,
-    grade_level: int = 8,
+    complexity_level: int = 8,
     subject: str = "General",
 ) -> tuple[float, dict[str, float]]:
     """
@@ -103,7 +103,7 @@ async def ensemble_evaluate(
         pattern=CollaborationPattern.ENSEMBLE,
         context={
             "processed_text": processed_text,
-            "grade_level": grade_level,
+            "complexity_level": complexity_level,
             "subject": subject,
         },
     )
@@ -153,7 +153,7 @@ async def verify_audio_output(
 async def process_document(
     image_path: str,
     target_language: str | None = None,
-    grade_level: int = 8,
+    complexity_level: int = 8,
     generate_audio: bool = False,
 ) -> tuple[str, float, dict[str, Any]]:
     """
@@ -164,7 +164,7 @@ async def process_document(
     Args:
         image_path: Path to document/image
         target_language: Optional target language for translation
-        grade_level: Target grade level for simplification
+        complexity_level: Target complexity level for simplification
         generate_audio: Whether to generate audio output
 
     Returns:
@@ -179,7 +179,7 @@ async def process_document(
         context={
             "image_path": image_path,
             "target_language": target_language,
-            "grade_level": grade_level,
+            "complexity_level": complexity_level,
             "generate_audio": generate_audio,
         },
     )
@@ -191,7 +191,7 @@ async def generate_best_output(
     text: str,
     task: str = "simplify",
     num_candidates: int = 3,
-    grade_level: int = 8,
+    complexity_level: int = 8,
     subject: str = "General",
 ) -> tuple[str, float, dict[str, float]]:
     """
@@ -203,7 +203,7 @@ async def generate_best_output(
         text: Input text
         task: Task type (simplify, translate, etc.)
         num_candidates: Number of candidates to generate
-        grade_level: Target grade level
+        complexity_level: Target complexity level
         subject: Subject area
 
     Returns:
@@ -217,7 +217,7 @@ async def generate_best_output(
         pattern=CollaborationPattern.RERANK,
         context={
             "num_candidates": num_candidates,
-            "grade_level": grade_level,
+            "complexity_level": complexity_level,
             "subject": subject,
         },
     )
@@ -225,20 +225,20 @@ async def generate_best_output(
     return result.final_output, result.confidence, result.scores
 
 
-async def full_educational_pipeline(
+async def full_content_pipeline(
     content: str,
     source_language: str = "en",
     target_language: str = "hi",
-    grade_level: int = 8,
+    complexity_level: int = 8,
     subject: str = "General",
     generate_audio: bool = True,
     verify_all_steps: bool = True,
 ) -> dict[str, Any]:
     """
-    Complete educational content processing with all 7 models.
+    Complete content processing with all 7 models.
 
     Full Pipeline:
-    1. Qwen3-8B: Simplify content for grade level
+    1. Qwen3-8B: Simplify content for complexity level
     2. BGE-Reranker: Select best simplification
     3. IndicTrans2: Translate to target language
     4. Back-translate verification
@@ -248,10 +248,10 @@ async def full_educational_pipeline(
     8. Whisper: Verify audio accuracy
 
     Args:
-        content: Original educational content
+        content: Original content
         source_language: Source language code
         target_language: Target language code
-        grade_level: Target grade level
+        complexity_level: Target complexity level
         subject: Subject area
         generate_audio: Generate audio output
         verify_all_steps: Run verification at each step
@@ -266,7 +266,7 @@ async def full_educational_pipeline(
         "original": content,
         "source_language": source_language,
         "target_language": target_language,
-        "grade_level": grade_level,
+        "complexity_level": complexity_level,
         "subject": subject,
         "steps": {},
         "overall_confidence": 0.0,
@@ -284,7 +284,7 @@ async def full_educational_pipeline(
             text=current_text,
             task="simplify",
             num_candidates=3,
-            grade_level=grade_level,
+            complexity_level=complexity_level,
             subject=subject,
         )
         current_text = simplified
@@ -324,7 +324,7 @@ async def full_educational_pipeline(
         eval_conf, eval_scores = await ensemble_evaluate(
             original_text=content,
             processed_text=current_text,
-            grade_level=grade_level,
+            complexity_level=complexity_level,
             subject=subject,
         )
         results["steps"]["validation"] = {

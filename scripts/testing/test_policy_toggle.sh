@@ -205,9 +205,9 @@ from backend.policy.policy_module import PolicyEngine, PolicyConfig, reset_polic
 reset_policy_engine()
 config = PolicyConfig.from_env_and_file()
 engine = PolicyEngine(config)
-result = engine.check_curriculum_alignment(\"quantum mechanics\", grade_level=3)
-assert result.allowed == True, f\"Expected curriculum check bypassed in UNRESTRICTED mode\"
-assert \"curriculum_check_bypassed\" in result.policy_applied
+result = engine.check_content_domain_alignment(\"quantum mechanics\", complexity_level=3)
+assert result.allowed == True, f\"Expected content check bypassed in UNRESTRICTED mode\"
+assert \"content_domain_check_bypassed\" in result.policy_applied
 '" \
     0
 

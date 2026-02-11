@@ -4,6 +4,115 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [5.1.0] - 2026-02-11
+
+### Major Dependency Upgrades — Actually Installed
+
+Upgraded all packages to latest compatible versions and made necessary code changes.
+Follows up on 5.0.0 which only raised floor versions; this release actually installs the upgrades.
+
+#### Breaking Upgrades (with code changes)
+- **transformers**: 4.57.5 → **5.1.0** (was pinned <5.0.0, now <6.0.0)
+  - All Auto classes, `pipeline()`, `BitsAndBytesConfig`, `VitsModel`, `WhisperForConditionalGeneration` verified stable
+  - No deprecated APIs were used in codebase — clean upgrade
+- **sentence-transformers**: 3.4.1 → **5.2.2** (was pinned <4.0.0, now <6.0.0)
+  - `SentenceTransformer`, `CrossEncoder`, `.encode()`, `.predict()` all stable
+  - No training/fine-tuning code, no `InputExample`, no `losses.*` usage — clean upgrade
+- **redis-py**: 5.3.1 → **7.1.1** (floor raised to >=7.0.0)
+  - Fixed: `await redis.close()` → `await redis.aclose()` in `redis_cache.py`, `test_block.py`
+  - `ConnectionPool`, `from_url()`, `pipeline()`, `config_set()` all verified working
+- **accelerate**: 0.34.2 → **1.12.0** (floor raised to >=1.0.0)
+  - No direct imports in codebase — transitive dep for `device_map="auto"`
+  - Added comment: `ACCELERATE_USE_MPS` env var is not an official accelerate var
+- **huggingface-hub**: 0.36.0 → **1.4.1** (floor raised to >=1.0.0)
+  - Only API used (`scan_cache_dir()`) is stable — clean upgrade
+
+#### Safe Upgrades (no code changes needed)
+- **numpy**: 1.26.4 → **2.3.5** (capped <2.4 for numba 0.63 compat)
+  - 25 files audited — zero deprecated API usage
+- **pandas**: 2.3.3 → **3.0.0**
+- **scikit-learn**: 1.5.2 → **1.8.0**
+- **coremltools**: 8.3.0 → **9.0** (warns about sklearn 1.8 and torch 2.9 — cosmetic only)
+- **fastapi**: 0.128.0 → **0.128.7**
+- **starlette**: 0.50.0 → **0.52.1**
+- **sqlalchemy**: 2.0.45 → **2.0.46**
+- **alembic**: 1.18.1 → **1.18.4**
+- **datasets**: 3.6.0 → **4.5.0**
+- **mlx**: 0.30.3 → **0.30.6**
+- **mlx-lm**: 0.29.1 → **0.30.6**
+- **Pillow**: 12.1.0 → **12.1.1**
+- **sentry-sdk**: 2.49.0 → **2.52.0**
+
+#### Code Changes
+- `backend/cache/redis_cache.py`: `await self._redis.close()` → `await self._redis.aclose()` (redis 7.x deprecation)
+- `tests/manual/test_block.py`: `await redis_client.close()` → `await redis_client.aclose()`
+- `backend/core/optimized/device_router.py`: Added comment documenting that `ACCELERATE_USE_MPS` is not an official accelerate env var
+
+#### Frontend
+- Ran `npm install` — resolved all new version ranges from 5.0.0 (0 vulnerabilities)
+- TypeScript ES2022 target fixed 4 pre-existing `replaceAll` errors
+
+---
+
+## [5.0.0] - 2026-02-11
+
+### Dependency & Tooling Modernization
+
+Major dependency refresh across backend and frontend. Version bumped from 4.1.0 to 5.0.0.
+
+#### Python
+- Expanded Python support: `>=3.11` → `>=3.11,<3.14` (added 3.12 & 3.13 classifiers)
+- Ruff, MyPy, Pyright now target Python 3.12
+- Consolidated `pytest.ini` into `pyproject.toml` `[tool.pytest.ini_options]`
+- Deleted orphaned root `package-lock.json`
+- Regenerated `requirements.lock.txt` from actual installed environment (218 packages)
+
+#### Backend Dependencies (requirements.txt)
+- fastapi: `>=0.115.0` → `>=0.128.0` (installed: 0.128.0)
+- uvicorn: `>=0.32.0` → `>=0.34.0` (installed: 0.40.0)
+- pydantic: `>=2.9.0` → `>=2.10.0` (installed: 2.12.5)
+- pydantic-settings: `>=2.6.0` → `>=2.8.0` (installed: 2.12.0)
+- starlette: `>=0.40.0` → `>=0.45.0` (installed: 0.50.0)
+- sqlalchemy: `>=2.0.0` → `>=2.0.36` (installed: 2.0.45)
+- alembic: `>=1.13.0` → `>=1.14.0` (installed: 1.18.1)
+- asyncpg: `>=0.29.0` → `>=0.30.0` (installed: 0.31.0)
+- pgvector: `>=0.3.0` → `>=0.4.0` (installed: 0.4.2)
+- torch: `>=2.2.0` → `>=2.5.0` (installed: 2.9.1)
+- transformers: `>=4.45.0` → `>=4.50.0` (installed: 4.57.5, ceiling kept at <5.0.0)
+- safetensors: `>=0.4.0` → `>=0.5.0` (installed: 0.7.0)
+- huggingface-hub: `>=0.20.0` → `>=0.30.0` (ceiling expanded to <2.0.0)
+- tiktoken: `>=0.6.0` → `>=0.8.0` (installed: 0.12.0)
+- pymupdf: `>=1.24.0` → `>=1.25.0` (installed: 1.26.7)
+- Pillow: `>=10.0.0` → `>=11.0.0` (installed: 12.1.0)
+- edge-tts: `>=6.1.0` → `>=7.0.0` (installed: 7.2.7)
+- mlx: `>=0.28.0` → `>=0.29.0` (installed: 0.30.3)
+- mlx-lm: `>=0.20.0` → `>=0.28.0` (installed: 0.29.1)
+- sentry-sdk: `>=2.20.0` → `>=2.30.0` (installed: 2.49.0)
+- numpy: removed `<2.0.0` ceiling (torch 2.5+ is compatible with numpy 2.x)
+- scikit-learn: removed `<1.6.0` ceiling (coremltools 9.x supports 1.5+)
+- coremltools: `<9.0` → `<10.0` (9.0 available)
+- redis: `<6.0.0` → `<8.0.0` (redis-py 7.x available)
+- datasets: `<4.0.0` → `<5.0.0` (datasets 4.x available)
+
+#### Frontend Dependencies (package.json)
+- react: `^18.2.0` → `^18.3.0`
+- react-dom: `^18.2.0` → `^18.3.0`
+- react-router-dom: `^6.20.0` → `^6.28.0`
+- lucide-react: `^0.292.0` → `^0.475.0`
+- zustand: `^4.4.7` → `^4.5.0`
+- typescript: `^5.2.2` → `^5.7.0`
+- @typescript-eslint/*: `^6.13.0` → `^8.0.0`
+- eslint-plugin-react-hooks: `^4.6.0` → `^5.0.0`
+- @types/react: `^18.2.37` → `^18.3.0`
+- @types/react-dom: `^18.2.15` → `^18.3.0`
+- tsconfig target: ES2020 → ES2022
+
+#### Scripts Reorganized
+- Moved `scripts/generate_download_script.py` → `scripts/setup/`
+- Moved `scripts/verify_all_models.py` → `scripts/validation/`
+
+---
+
 ## [4.1.0] - 2026-02-11
 
 ### Documentation Restructuring
@@ -122,7 +231,7 @@ Comprehensive automated codebase transformation with static analysis, architectu
 - **version_middleware.py**: Created new API versioning module
 - **orchestrator.py**: Added `ModelCollaborator.get_metrics()` with all required fields
 - **test_refinement_integration.py**: Fixed patching to use `_get_refinement_pipeline`
-- **test_services.py**: Updated `CurriculumValidationService` tests
+- **test_services.py**: Updated `ContentValidationService` tests
 - **test_all_features.py**: Fixed syntax errors (extra parentheses)
 
 #### Frontend Fixes
@@ -224,7 +333,7 @@ All endpoints consolidated under `/api/v2/*`:
 | `/api/v2/content/translate` | POST | Translation |
 | `/api/v2/content/tts` | POST | Text-to-speech |
 | `/api/v2/content/ocr` | POST | OCR extraction |
-| `/api/v2/profile/me` | GET/PUT | Student profile |
+| `/api/v2/profile/me` | GET/PUT | User profile |
 
 #### TypeScript Improvements
 
@@ -391,7 +500,7 @@ class ChatMessage(BaseModel):
     message: str
     language: str = "en"
     subject: str = "General"
-    grade_level: int = 8
+    complexity_level: int = 8
     conversation_id: Optional[str] = None
     history: Optional[List[HistoryMessage]] = None  # NEW
     stream: bool = False
@@ -556,7 +665,7 @@ Complete integration of all AI models into the UnifiedPipelineService and migrat
 |--------|-------|---------|
 | `_simplify()` | Qwen3-8B (MLX) | Text simplification |
 | `_translate()` | IndicTrans2-1B | Translation (10 Indian languages) |
-| `_validate()` | ValidationModule + BERT | NCERT curriculum validation |
+| `_validate()` | ValidationModule + BERT | content domain validation |
 | `_generate_audio()` | MMS-TTS / Edge TTS | Text-to-speech |
 | `embed()` | BGE-M3 | Semantic embeddings for RAG |
 | `rerank()` | BGE-Reranker-v2-M3 | Document reranking |
@@ -679,7 +788,7 @@ curl -X POST http://localhost:8000/api/v1/chat/guest \
 **After (v2):**
 ```bash
 curl -X POST http://localhost:8000/api/v2/chat/guest \
-  -d '{"message": "Hello", "language": "en", "grade_level": 5}'
+  -d '{"message": "Hello", "language": "en", "complexity_level": 5}'
 ```
 
 #### Testing
@@ -701,12 +810,12 @@ Added `SemanticRefinementPipeline` (`backend/services/evaluation/refinement_pipe
 **Key Features**:
 - **Iterative Refinement Loop**: Up to 3 iterations with feedback-driven improvement
 - **Task-Aware Evaluation Weights**: Different weight distributions for simplification, translation, and summarization
-- **Multi-Dimensional Scoring**: Factual accuracy, educational clarity, semantic preservation, language appropriateness
+- **Multi-Dimensional Scoring**: Factual accuracy, content clarity, semantic preservation, language appropriateness
 - **Automatic Regeneration**: Re-generates content with specific feedback when score < 8.2
 
 **Evaluation Dimensions by Task**:
 
-| Task | FACTUAL_ACCURACY | EDUCATIONAL_CLARITY | SEMANTIC_PRESERVATION | LANGUAGE_APPROPRIATENESS |
+| Task | FACTUAL_ACCURACY | CONTENT_CLARITY | SEMANTIC_PRESERVATION | LANGUAGE_APPROPRIATENESS |
 |------|-----------------|--------------------|-----------------------|-------------------------|
 | Simplification | 0.35 | 0.35 | 0.15 | 0.15 |
 | Translation | 0.40 | 0.10 | 0.40 | 0.10 |
@@ -714,7 +823,7 @@ Added `SemanticRefinementPipeline` (`backend/services/evaluation/refinement_pipe
 
 **Refinement Prompts** (per dimension):
 - `low_FACTUAL_ACCURACY`: Preserve all key facts without introducing errors
-- `low_EDUCATIONAL_CLARITY`: Make explanations clearer for target grade level
+- `low_CONTENT_CLARITY`: Make explanations clearer for target complexity level
 - `low_SEMANTIC_PRESERVATION`: Keep more of the original meaning
 - `low_LANGUAGE_APPROPRIATENESS`: Adjust vocabulary for target audience
 
@@ -729,7 +838,7 @@ simplifier = TextSimplifier(
 )
 
 # Results include refinement metrics
-result = await simplifier.simplify_text(content, grade_level, subject)
+result = await simplifier.simplify_text(content, complexity_level, subject)
 print(result.semantic_score)        # 8.5
 print(result.refinement_iterations) # 1
 print(result.dimension_scores)      # {'FACTUAL_ACCURACY': 8.8, ...}
@@ -798,7 +907,7 @@ result = engine.translate(text, target_language, subject)
 Automatically applies v2-level optimizations to ALL API routes:
 
 **Caching Layer**:
-- GET request caching (9 patterns): library, content, curriculum, audio, prompts, health, conversations
+- GET request caching (9 patterns): library, content, content_domain, audio, prompts, health, conversations
 - POST request caching (6 patterns): simplify, translate, TTS, validate, safety, export
 - Cache TTLs: 10s (health) to 2h (TTS/audio)
 
@@ -871,7 +980,7 @@ Moved unused files to `_archive/` folders:
 - `ab_testing.py` — Feature not active
 - `prometheus_metrics.py` — Using prometheus-client directly
 - `recommender.py` — Not integrated
-- `teacher_evaluation.py` — Not integrated
+- `content_review.py` — Not integrated
 - `token_service.py` — Not integrated
 - `device.py` — Replaced by device_manager.py
 
@@ -1012,7 +1121,7 @@ Moved unused files to `_archive/` folders:
 
 #### Semantic Evaluation Service (`backend/services/evaluation/`)
 - **SemanticAccuracyEvaluator** — Multi-dimensional content quality evaluation
-- Dimensions: Factual accuracy, semantic preservation, educational clarity, cultural appropriateness, completeness
+- Dimensions: Factual accuracy, semantic preservation, content clarity, cultural appropriateness, completeness
 - Target score: 8.2+ on 10-point scale
 - Embedding similarity + LLM-based evaluation
 
@@ -1093,7 +1202,7 @@ Moved unused files to `_archive/` folders:
 - **Model:** `ai4bharat/indictrans2-en-indic-1B` — 10 Indian languages
 
 #### Validation
-- **Model:** Qwen3-8B (shared with LLM) — NCERT curriculum alignment
+- **Model:** Qwen3-8B (shared with LLM) — content domain alignment
 
 ### Removed
 - Deleted 21+ GB of unused model cache (nllb, mbart, speecht5, flan-t5, opus-mt, cmu-arctic)
@@ -1123,7 +1232,7 @@ Moved unused files to `_archive/` folders:
 - **Multi-Tenancy Support** — Organization-level isolation with `organizations` table
 - **Learning Recommendations** — Personalized content suggestions based on user progress
 - **Question Generation** — Auto-generate quizzes from processed content
-- **Translation Review Workflow** — Teacher evaluation and approval system
+- **Translation Review Workflow** — Content review and approval system
 - **A/B Testing Framework** — Experiments for content optimization
 - **HNSW Indexes** — High-performance vector similarity search
 - **Token Rotation** — Enhanced security with refresh token rotation
@@ -1158,7 +1267,7 @@ Moved unused files to `_archive/` folders:
 | `backend/database_v2.py` | Duplicate of `database.py` |
 | `backend/cache.py` | Replaced by `backend/cache/` package |
 | `backend/monitoring.py` | Replaced by `backend/monitoring/` package |
-| `backend/core/curriculum_validator.py` | Duplicate of `services/curriculum_validator.py` |
+| `backend/core/content_validator.py` | Duplicate of `services/content_validator.py` |
 | `backend/services/pipeline/orchestrator.py` | Replaced by `orchestrator_v2.py` |
 | `logs/*.log` | Generated files shouldn't be in repo |
 
@@ -1199,7 +1308,7 @@ Moved unused files to `_archive/` folders:
 | HIGH-002 | Database Files Redundancy | ✅ Removed database_v2.py |
 | HIGH-003 | Cache Module Duplication | ✅ Created cache/__init__.py |
 | HIGH-004 | Missing .env Validation | ✅ Added get_settings() |
-| HIGH-005 | Inconsistent Curriculum Validator | ✅ Removed core version |
+| HIGH-005 | Inconsistent Content Validator | ✅ Removed core version |
 | HIGH-007 | Missing Error Boundaries | ✅ Created +error.svelte |
 | HIGH-008 | Celery Tasks Not Discovering | ✅ Added all modules |
 | MED-002 | Inconsistent Route Prefix | ✅ Standardized to /api/v1/ |
@@ -1264,4 +1373,4 @@ alembic/          # Database migrations (17 versions)
 - [x] Vector search with HNSW indexes
 - [x] A/B testing framework
 - [x] Learning recommendations
-- [x] Teacher evaluation workflows
+- [x] Content review workflows

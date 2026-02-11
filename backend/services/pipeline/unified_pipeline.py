@@ -119,7 +119,7 @@ class ProcessingRequest:
     simplify: bool = True
     translate: bool = False
     generate_audio: bool = False
-    validate: bool = False  # Validation disabled by default - no curriculum constraints
+    validate: bool = False  # Validation disabled by default - no content_domain constraints
 
     # Model collaboration options
     enable_collaboration: bool = True  # Enable multi-model collaboration
@@ -215,7 +215,7 @@ class UnifiedPipelineService:
     - Translation: IndicTrans2-1B (10 Indian languages)
     - Embeddings: BGE-M3 (1024D multilingual)
     - Reranker: BGE-Reranker-v2-M3 (retrieval)
-    - Validation: Qwen3-8B (curriculum alignment)
+    - Validation: Qwen3-8B (content alignment)
     - TTS: MMS-TTS (Facebook's multilingual)
     - STT: Whisper V3 Turbo
     - OCR: GOT-OCR2
@@ -232,8 +232,8 @@ class UnifiedPipelineService:
     }
 
     # System prompts for LLM tasks
-    SIMPLIFY_PROMPT = """You are an expert educational content simplifier for students.
-Simplify the following text for students studying {subject}.
+    SIMPLIFY_PROMPT = """You are an expert multilingual content simplifier.
+Simplify the following text for users studying {subject}.
 
 Rules:
 1. Use clear and accessible vocabulary
@@ -247,7 +247,7 @@ Text to simplify:
 
 Simplified version:"""
 
-    VALIDATE_PROMPT = """Evaluate this educational content for {subject} students.
+    VALIDATE_PROMPT = """Evaluate this content for {subject} users.
 
 Content:
 {text}
@@ -924,7 +924,7 @@ Format: SCORE: X/10 | FEEDBACK: [your feedback]"""
         config = GenerationConfig(
             max_tokens=len(text) + 200,
             temperature=0.3,  # Lower temperature for consistency (better caching)
-            system_prompt="You are an expert educational content simplifier.",
+            system_prompt="You are an expert content simplifier.",
         )
 
         response = await self.inference_engine.generate(prompt, config)
@@ -1095,8 +1095,8 @@ Text:
             )
 
             semantic = result.quality_metrics.get("semantic_accuracy", 0.8)
-            ncert = result.quality_metrics.get("ncert_alignment", 0.8)
-            overall = (semantic * 0.5 + ncert * 0.5) * 10
+            content_domain = result.quality_metrics.get("content_quality", 0.8)
+            overall = (semantic * 0.5 + content_domain * 0.5) * 10
 
             feedback = (
                 "; ".join(result.recommendations[:2])
@@ -1121,7 +1121,7 @@ Text:
         config = GenerationConfig(
             max_tokens=1024,
             temperature=0.1,
-            system_prompt="You are an educational content evaluator.",
+            system_prompt="You are an content evaluator.",
         )
 
         response = await self.inference_engine.generate(prompt, config)

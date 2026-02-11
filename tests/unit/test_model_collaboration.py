@@ -345,15 +345,15 @@ class TestSevenModelCollaboration:
         assert "subject" in params
 
     @pytest.mark.asyncio
-    async def test_full_educational_pipeline_signature(self):
-        """Test full_educational_pipeline function signature."""
+    async def test_full_content_pipeline_signature(self):
+        """Test full_content_pipeline function signature."""
         import inspect
 
         from backend.services.pipeline.model_collaboration import (
-            full_educational_pipeline,
+            full_content_pipeline,
         )
 
-        sig = inspect.signature(full_educational_pipeline)
+        sig = inspect.signature(full_content_pipeline)
         params = list(sig.parameters.keys())
 
         assert "content" in params
@@ -384,7 +384,7 @@ class TestSevenModelCollaboration:
     def test_new_functions_exported_from_pipeline(self):
         """Test new functions are exported from pipeline module."""
         from backend.services.pipeline import (
-            full_educational_pipeline,
+            full_content_pipeline,
             generate_best_output,
             process_document,
             verify_audio_output,
@@ -393,4 +393,4 @@ class TestSevenModelCollaboration:
         assert callable(verify_audio_output)
         assert callable(process_document)
         assert callable(generate_best_output)
-        assert callable(full_educational_pipeline)
+        assert callable(full_content_pipeline)

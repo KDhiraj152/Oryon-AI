@@ -97,12 +97,12 @@ class DocumentPatternsMixin:
 
         # Step 2: Simplify with LLM
         llm = self._get_llm()  # type: ignore
-        grade_level = context.get("grade_level", 8)
+        complexity_level = context.get("complexity_level", 8)
 
         if llm:
             try:
                 simplified = await self._simplify_text(
-                    current_text, grade_level, context
+                    current_text, complexity_level, context
                 )  # type: ignore
                 if simplified:
                     current_text = simplified
@@ -113,7 +113,7 @@ class DocumentPatternsMixin:
                         MODEL_QWEN25,
                         "indicTrans2",
                         f"Simplified: {current_text[:100]}...",
-                        {"grade_level": grade_level},
+                        {"complexity_level": complexity_level},
                     )
             except Exception as e:
                 logger.warning(f"[DocumentChain] Simplification failed: {e}")

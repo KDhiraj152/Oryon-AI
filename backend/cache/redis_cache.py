@@ -24,6 +24,7 @@ import pickle
 import zlib
 from dataclasses import dataclass, field
 from enum import Enum
+from collections.abc import Callable
 from typing import Any, Dict, List, Optional
 
 from backend.utils.hashing import fast_hash
@@ -249,7 +250,7 @@ class RedisCache:
     async def disconnect(self):
         """Close Redis connection."""
         if self._redis:
-            await self._redis.close()
+            await self._redis.aclose()
             self._redis = None
             logger.info("Redis disconnected")
 
@@ -357,7 +358,7 @@ class RedisCache:
     async def get_or_compute(
         self,
         key: str,
-        compute_fn: callable,
+        compute_fn: Callable[..., Any],
         cache_type: CacheType = CacheType.MODEL_OUTPUT,
         ttl: int | None = None,
     ) -> Any:
@@ -409,7 +410,7 @@ class RedisCache:
 
         try:
             values = await self._redis.mget(*full_keys)
-            results = []
+            results: list[Any | None] = []
 
             for v in values:
                 if v is None:

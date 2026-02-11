@@ -36,16 +36,16 @@ def get_simplifier():
 def simplify_text(
     self,
     text: str,
-    grade_level: int = 5,
+    complexity_level: int = 5,
     language: str = "en",
     options: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
-    Simplify text for a given grade level.
+    Simplify text for a given complexity level.
 
     Args:
         text: Input text to simplify
-        grade_level: Target grade level (1-12)
+        complexity_level: Target complexity level (1-12)
         language: Language code
         options: Additional options
 
@@ -64,7 +64,7 @@ def simplify_text(
 
         try:
             result = loop.run_until_complete(
-                simplifier.simplify(text, grade_level, language)
+                simplifier.simplify(text, complexity_level, language)
             )
         finally:
             loop.close()
@@ -72,7 +72,7 @@ def simplify_text(
         return {
             "success": True,
             "simplified_text": result.get("simplified_text", ""),
-            "grade_level": grade_level,
+            "complexity_level": complexity_level,
             "original_length": len(text),
             "simplified_length": len(result.get("simplified_text", "")),
             "metadata": result.get("metadata", {}),
@@ -102,7 +102,7 @@ def simplify_text(
 def simplify_batch(
     self,
     texts: list,
-    grade_level: int = 5,
+    complexity_level: int = 5,
     language: str = "en",
 ) -> dict[str, Any]:
     """
@@ -110,7 +110,7 @@ def simplify_batch(
 
     Args:
         texts: List of texts to simplify
-        grade_level: Target grade level
+        complexity_level: Target complexity level
         language: Language code
 
     Returns:
@@ -126,7 +126,7 @@ def simplify_batch(
 
         try:
             result = loop.run_until_complete(
-                simplifier.simplify_batch(texts, grade_level, language)
+                simplifier.simplify_batch(texts, complexity_level, language)
             )
         finally:
             loop.close()
@@ -155,7 +155,7 @@ def simplify_batch(
 def simplify_document(
     self,
     document_id: str,
-    grade_level: int = 5,
+    complexity_level: int = 5,
     language: str = "en",
 ) -> dict[str, Any]:
     """
@@ -165,7 +165,7 @@ def simplify_document(
 
     Args:
         document_id: Document ID in storage
-        grade_level: Target grade level
+        complexity_level: Target complexity level
         language: Language code
 
     Returns:
@@ -188,7 +188,7 @@ def simplify_document(
 
         try:
             # result = loop.run_until_complete(
-            #     processor.process_document(document, "simplify", grade_level=grade_level)
+            #     processor.process_document(document, "simplify", complexity_level=complexity_level)
             # )
             pass
         finally:
