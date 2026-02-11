@@ -345,5 +345,5 @@ Detailed documentation in [`docs/`](docs/):
 ---
 
 <p align="center">
-  <sub>Created by <strong>K Dhiraj</strong> · <a href="mailto:k.dhiraj.srihari@gmail.com">k.dhiraj.srihari@gmail.com</a> · <a href="https://github.com/KDhiraj152">GitHub</a> · <a href="https://linkedin.com/in/kdhiraj">LinkedIn</a></sub>
+  <sub>Created by <strong>K Dhiraj</strong> · <a href="mailto:k.dhiraj.srihari@gmail.com">k.dhiraj.srihari@gmail.com</a> · <a href="https://github.com/KDhiraj152">GitHub</a> · <a href="https://www.linkedin.com/in/k-dhiraj">LinkedIn</a></sub>
 </p>

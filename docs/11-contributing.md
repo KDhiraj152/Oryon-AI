@@ -16,7 +16,7 @@ I am K Dhiraj, the architect and primary developer of Shiksha Setu. This project
 **Contact:**
 - **Email:** k.dhiraj.srihari@gmail.com
 - **GitHub:** github.com/kdhiraj152
-- **LinkedIn:** linkedin.com/in/kdhiraj
+- **LinkedIn:** www.linkedin.com/in/k-dhiraj
 
 ---
 
