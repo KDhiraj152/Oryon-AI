@@ -105,7 +105,7 @@ For code: Use proper code blocks with language tags"""
 
     def __init__(
         self,
-        llm_model: str = "qwen2.5-3b",
+        llm_model: str = "qwen3-8b",
         embedding_model: str = "all-MiniLM-L6-v2",
         auto_load: bool = False,
     ):
@@ -173,7 +173,7 @@ For code: Use proper code blocks with language tags"""
         """Ensure LLM backend is loaded for the given model.
 
         Args:
-            model_id: Short model name (e.g. 'qwen2.5-3b'). Uses default if None.
+            model_id: Short model name (e.g. 'qwen3-8b'). Uses default if None.
         """
         model_key = model_id or self.llm_model
 
@@ -318,7 +318,7 @@ For code: Use proper code blocks with language tags"""
         Args:
             prompt: User prompt
             config: Generation configuration
-            model_id: Short model name to use (e.g. 'qwen2.5-3b'). Uses default if None.
+            model_id: Short model name to use (e.g. 'qwen3-8b'). Uses default if None.
 
         Returns:
             Generated text
@@ -406,7 +406,7 @@ For code: Use proper code blocks with language tags"""
             temperature: Sampling temperature
             top_p: Top-p sampling
             system_prompt: Optional system prompt
-            model_id: Short model name (e.g. 'qwen2.5-3b')
+            model_id: Short model name (e.g. 'qwen3-8b')
             **kwargs: Additional arguments (ignored for compatibility)
 
         Returns:
@@ -430,7 +430,7 @@ For code: Use proper code blocks with language tags"""
         Stream generated text.
 
         Args:
-            model_id: Short model name (e.g. 'qwen2.5-3b')
+            model_id: Short model name (e.g. 'qwen3-8b')
 
         Yields:
             Text chunks as they are generated
@@ -682,7 +682,7 @@ _engine_lock = threading.Lock()
 
 
 def get_inference_engine(
-    llm_model: str = "qwen2.5-3b",
+    llm_model: str = "qwen3-8b",
     embedding_model: str = "all-MiniLM-L6-v2",
     auto_load: bool = False,
 ) -> UnifiedInferenceEngine:

@@ -301,9 +301,8 @@ class WriteBehindQueue:
         self._queue: list[tuple[str, Any]] = []  # (key, value)
         self._key_index: dict[str, int] = {}  # key -> index in queue for O(1) coalescing
         self._lock = threading.Lock()
-        self._executor = ThreadPoolExecutor(
-            max_workers=2, thread_name_prefix="cache_wb"
-        )
+        from backend.core.optimized.thread_pool_manager import get_io_executor
+        self._executor = get_io_executor()  # Shared I/O pool
         self._running = True
         self._flush_task: Any = None
         self._timer: threading.Timer | None = None
@@ -409,7 +408,7 @@ class WriteBehindQueue:
         self._running = False
         if self._timer:
             self._timer.cancel()
-        self._executor.shutdown(wait=False)
+        # Don't shutdown executor — it's shared via ThreadPoolManager
         # Close dedicated loop
         with self._flush_loop_lock:
             if self._flush_loop and not self._flush_loop.is_closed():
@@ -420,7 +419,7 @@ class WriteBehindQueue:
         self._running = False
         if self._timer:
             self._timer.cancel()
-        self._executor.shutdown(wait=True)
+        # Don't shutdown executor — it's shared via ThreadPoolManager
         # Close dedicated loop
         with self._flush_loop_lock:
             if self._flush_loop and not self._flush_loop.is_closed():
@@ -1156,10 +1155,9 @@ class L3Cache:
 
         self._fast_serializer = FastSerializer(track_stats=True)
 
-        # Thread pool for async ops
-        self._executor = ThreadPoolExecutor(
-            max_workers=4, thread_name_prefix="cache_l3"
-        )
+        # Thread pool for async ops — shared I/O pool
+        from backend.core.optimized.thread_pool_manager import get_io_executor
+        self._executor = get_io_executor()
 
         # Stats
         self._hits = 0
@@ -1521,7 +1519,7 @@ class L3Cache:
                 with contextlib.suppress(Exception):
                     self._conn.close()
                 self._conn = None
-        self._executor.shutdown(wait=False)
+        # Don't shutdown executor — it's shared via ThreadPoolManager
 
 
 # ============================================================================

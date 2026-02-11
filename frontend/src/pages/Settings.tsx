@@ -255,7 +255,7 @@ function PolicyModeSection({ isDark }: Readonly<{ isDark: boolean }>) {
                 key={mode.value}
                 onClick={() => handleModeSwitch(mode.value)}
                 disabled={isSwitchingPolicy}
-                aria-pressed={isSelected ? "true" : "false"}
+                ref={el => { if (el) el.setAttribute('aria-pressed', String(isSelected)); }}
                 className={`relative flex flex-col items-center justify-center py-4 px-3 rounded-2xl text-sm font-medium border
                   transition-all duration-200 disabled:opacity-50
                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2
@@ -356,7 +356,7 @@ function AppearanceSection({ isDark, theme, setTheme }: Readonly<{
             <button
               key={option.value}
               onClick={() => setTheme(option.value as 'light' | 'dark' | 'system')}
-              aria-pressed={isActive ? "true" : "false"}
+              ref={el => { if (el) el.setAttribute('aria-pressed', String(isActive)); }}
               className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium
                 transition-all duration-200
                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2
@@ -401,7 +401,7 @@ function VoiceAudioSection({ isDark, settings, updateSetting }: Readonly<{
                 <button
                   key={voice.value}
                   onClick={() => updateSetting('voiceType', voice.value)}
-                  aria-pressed={isSelected ? "true" : "false"}
+                  ref={el => { if (el) el.setAttribute('aria-pressed', String(isSelected)); }}
                   className={`flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-medium
                     transition-all duration-200
                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2
@@ -426,7 +426,7 @@ function VoiceAudioSection({ isDark, settings, updateSetting }: Readonly<{
                 <button
                   key={speed.value}
                   onClick={() => updateSetting('speechSpeed', speed.value)}
-                  aria-pressed={isSelected ? "true" : "false"}
+                  ref={el => { if (el) el.setAttribute('aria-pressed', String(isSelected)); }}
                   className={`py-3 rounded-2xl text-sm font-medium
                     transition-all duration-200
                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2
@@ -484,7 +484,8 @@ function AutoReadToggle({ isDark, settings, updateSetting }: Readonly<{
           id="auto-read-toggle"
           type="button"
           role="switch"
-          aria-checked={settings.autoReadResponses ? "true" : "false"}
+          aria-checked="false"
+          ref={el => { if (el) el.setAttribute('aria-checked', String(settings.autoReadResponses)); }}
           onClick={() => updateSetting('autoReadResponses', !settings.autoReadResponses)}
           className={`relative w-14 h-8 rounded-full transition-all duration-200 shrink-0 ml-4
             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2

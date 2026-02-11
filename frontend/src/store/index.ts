@@ -13,6 +13,7 @@ import {
 export { shallow } from 'zustand/shallow';
 
 // Auth Store
+/** Client-side user. Server contract: api/types.ts → User (superset). */
 export interface User {
   id: string;
   name: string;
@@ -101,6 +102,7 @@ export interface Citation {
 }
 
 // Chat Store
+/** Client-side message (camelCase). Server contract: api/types.ts → Message (snake_case). */
 export interface Message {
   id: string;
   conversationId: string;
@@ -116,6 +118,7 @@ export interface Message {
   tokenCount?: number;
 }
 
+/** Client-side conversation. Server contract: api/types.ts → Conversation (has message_count, last_message_preview). */
 export interface Conversation {
   id: string;
   title: string;
@@ -251,6 +254,7 @@ export const useThemeStore = create<ThemeState>()(
 );
 
 // Student Profile Store - Simplified (no constraints)
+/** Client-side profile. Identical to api/types.ts → StudentProfile. */
 export interface StudentProfile {
   language: string;
 }

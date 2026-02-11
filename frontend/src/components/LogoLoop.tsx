@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-export type LogoItem =
-  | {
+export type LogoNodeItem = {
       node: React.ReactNode;
       href?: string;
       title?: string;
       ariaLabel?: string;
-    }
-  | {
+    };
+
+export type LogoImageItem = {
       src: string;
       alt?: string;
       href?: string;
@@ -17,6 +17,8 @@ export type LogoItem =
       width?: number;
       height?: number;
     };
+
+export type LogoItem = LogoNodeItem | LogoImageItem;
 
 export interface LogoLoopProps {
   logos: LogoItem[];
@@ -72,6 +74,7 @@ const useResizeObserver = (
     return () => {
       observers.forEach(observer => observer?.disconnect());
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, dependencies);
 };
 
@@ -111,6 +114,7 @@ const useImageLoader = (
         img.removeEventListener('error', handleImageLoad);
       });
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, dependencies);
 };
 
@@ -187,7 +191,7 @@ const useAnimationLoop = (
       }
       lastTimestampRef.current = null;
     };
-  }, [targetVelocity, seqWidth, seqHeight, isHovered, hoverSpeed, isVertical]);
+  }, [targetVelocity, seqWidth, seqHeight, isHovered, hoverSpeed, isVertical, trackRef]);
 };
 
 export const LogoLoop = React.memo<LogoLoopProps>(
@@ -319,6 +323,8 @@ export const LogoLoop = React.memo<LogoLoopProps>(
         }
 
         const isNodeItem = 'node' in item;
+        const nodeItem = isNodeItem ? item as LogoNodeItem : null;
+        const imgItem = isNodeItem ? null : item as LogoImageItem;
 
         const content = isNodeItem ? (
           <span
@@ -328,9 +334,9 @@ export const LogoLoop = React.memo<LogoLoopProps>(
               scaleOnHover &&
                 'transition-transform duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] group-hover/item:scale-120'
             )}
-            aria-hidden={(!!(item as any).href && !(item as any).ariaLabel) ? "true" : undefined}
+            ref={el => { if (el && nodeItem?.href && !nodeItem?.ariaLabel) el.setAttribute('aria-hidden', 'true'); }}
           >
-            {(item as any).node}
+            {nodeItem?.node}
           </span>
         ) : (
           <img
@@ -342,13 +348,13 @@ export const LogoLoop = React.memo<LogoLoopProps>(
               scaleOnHover &&
                 'transition-transform duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] group-hover/item:scale-120'
             )}
-            src={(item as any).src}
-            srcSet={(item as any).srcSet}
-            sizes={(item as any).sizes}
-            width={(item as any).width}
-            height={(item as any).height}
-            alt={(item as any).alt ?? ''}
-            title={(item as any).title}
+            src={imgItem?.src}
+            srcSet={imgItem?.srcSet}
+            sizes={imgItem?.sizes}
+            width={imgItem?.width}
+            height={imgItem?.height}
+            alt={imgItem?.alt ?? ''}
+            title={imgItem?.title}
             loading="lazy"
             decoding="async"
             draggable={false}
@@ -356,10 +362,12 @@ export const LogoLoop = React.memo<LogoLoopProps>(
         );
 
         const itemAriaLabel = isNodeItem
-          ? ((item as any).ariaLabel ?? (item as any).title)
-          : ((item as any).alt ?? (item as any).title);
+          ? (nodeItem?.ariaLabel ?? nodeItem?.title)
+          : (imgItem?.alt ?? imgItem?.title);
 
-        const inner = (item as any).href ? (
+        const itemHref = 'href' in item ? item.href : undefined;
+
+        const inner = itemHref ? (
           <a
             className={cx(
               'inline-flex items-center no-underline rounded',
@@ -367,7 +375,7 @@ export const LogoLoop = React.memo<LogoLoopProps>(
               'hover:opacity-80',
               'focus-visible:outline focus-visible:outline-current focus-visible:outline-offset-2'
             )}
-            href={(item as any).href}
+            href={itemHref}
             aria-label={itemAriaLabel || 'logo link'}
             target="_blank"
             rel="noreferrer noopener"
@@ -400,8 +408,11 @@ export const LogoLoop = React.memo<LogoLoopProps>(
           <ul
             className={cx('flex items-center', isVertical && 'flex-col')}
             key={`copy-${copyIndex}`}
-            aria-hidden={copyIndex > 0 ? "true" : undefined}
-            ref={copyIndex === 0 ? seqRef : undefined}
+            ref={el => {
+              if (copyIndex === 0 && typeof seqRef === 'function') seqRef(el);
+              else if (copyIndex === 0 && seqRef) (seqRef as React.MutableRefObject<HTMLUListElement | null>).current = el;
+              if (el && copyIndex > 0) el.setAttribute('aria-hidden', 'true');
+            }}
           >
             {logos.map((item, itemIndex) => renderLogoItem(item, `${copyIndex}-${itemIndex}`))}
           </ul>
@@ -427,7 +438,7 @@ export const LogoLoop = React.memo<LogoLoopProps>(
     );
 
     return (
-      <section ref={containerRef} className={rootClasses} style={containerStyle} aria-label={ariaLabel}>
+      <section ref={el => { (containerRef as React.MutableRefObject<HTMLDivElement | null>).current = el; if (el) Object.entries(containerStyle).forEach(([k, v]) => el.style.setProperty(k, String(v))); }} className={rootClasses} aria-label={ariaLabel}>
         {fadeOut && (
           <>
             {isVertical ? (

@@ -5,7 +5,7 @@ All endpoints organized by domain:
 - chat.py: Chat and conversation endpoints
 - content.py: Content processing, TTS, OCR, embeddings
 - batch.py: Hardware-optimized batch processing
-- health_routes.py: Health, monitoring, admin, profile
+- health.py: Health, monitoring, admin, profile
 
 Optimized for:
 - Native Apple Silicon (M4) with MPS/ANE acceleration
@@ -19,7 +19,8 @@ from .auth import router as auth_router
 from .batch import router as batch_router
 from .chat import router as chat_router
 from .content import router as content_router
-from .health_routes import router as health_router
+from .health import router as health_router
+from .agents import router as agents_router
 
 # Consolidated router - replaces v2_router
 router = APIRouter()
@@ -28,6 +29,7 @@ router.include_router(chat_router, prefix="/chat")
 router.include_router(content_router, prefix="/content")
 router.include_router(batch_router, prefix="/batch")
 router.include_router(health_router, prefix="/health")
+router.include_router(agents_router, prefix="/agents")
 
 # Backwards compatibility alias
 v2_router = router

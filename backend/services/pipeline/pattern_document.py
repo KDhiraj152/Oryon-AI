@@ -35,7 +35,7 @@ class DocumentPatternsMixin:
 
         Full pipeline for document processing:
         1. GOT-OCR2 extracts text from image/document
-        2. Qwen2.5-3B simplifies the content
+        2. Qwen3-8B simplifies the content
         3. IndicTrans2 translates to target language
         4. Optional: MMS-TTS generates audio
         5. BGE-M3 verifies semantic preservation at each step

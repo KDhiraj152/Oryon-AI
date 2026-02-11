@@ -1,11 +1,11 @@
-# Section 10: Future Improvements
+# Roadmap
 
 ---
 
 **Author:** K Dhiraj
 **Email:** k.dhiraj.srihari@gmail.com
-**Version:** 4.0.0 (Universal Mode)
-**Last Updated:** December 5, 2025
+**Version:** 4.1.0
+**Last Updated:** February 11, 2026
 
 ---
 

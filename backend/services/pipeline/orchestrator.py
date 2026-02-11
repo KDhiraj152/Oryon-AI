@@ -91,10 +91,10 @@ class ModelCollaborator:
             elif task == "translate":
                 result = await self._translate_with_verify(input_text, context, pattern)
             elif task == "evaluate":
-                result = await self._ensemble_evaluate(input_text, context)
+                result = self._ensemble_evaluate(input_text, context)
             else:
                 # Generic processing
-                result = await self._generic_process(task, input_text, context)
+                result = self._generic_process(task, input_text, context)
 
             elapsed_ms = (time.perf_counter() - start) * 1000
 
@@ -104,7 +104,7 @@ class ModelCollaborator:
                 confidence=result.get("confidence", 0.8),
                 consensus=result.get("consensus", True),
                 iterations=result.get("iterations", 1),
-                participating_models=result.get("models", ["Qwen2.5-3B"]),
+                participating_models=result.get("models", ["Qwen3-8B"]),
                 messages=[],
                 scores=result.get("scores", {}),
                 processing_time_ms=elapsed_ms,
@@ -128,21 +128,22 @@ class ModelCollaborator:
             )
 
     async def _simplify_with_verify(
-        self, text: str, context: dict, pattern: CollaborationPattern
+        self, text: str, context: dict, _pattern: CollaborationPattern
     ) -> dict[str, Any]:
         """Simplify text, optionally with verification."""
         # Use the AIEngine for actual simplification
         try:
-            from ..ai_core.engine import get_ai_engine
+            from ..ai_core.engine import GenerationConfig, get_ai_engine
 
             engine = get_ai_engine()
 
             grade = context.get("grade_level", 8)
             subject = context.get("subject", "General")
 
-            simplified = await engine.generate_async(
-                prompt=f"Simplify this text for grade {grade} students studying {subject}:\n\n{text}",
-                max_tokens=1024,
+            config = GenerationConfig(max_tokens=1024)
+            simplified = await engine.chat(
+                message=f"Simplify this text for grade {grade} students studying {subject}:\n\n{text}",
+                config=config,
             )
 
             return {
@@ -152,7 +153,7 @@ class ModelCollaborator:
                 "confidence": 0.85,
                 "consensus": True,
                 "iterations": 1,
-                "models": ["Qwen2.5-3B"],
+                "models": ["Qwen3-8B"],
             }
         except Exception as e:
             logger.warning(f"Simplification failed, returning original: {e}")
@@ -163,12 +164,12 @@ class ModelCollaborator:
     ) -> dict[str, Any]:
         """Translate text, optionally with back-translation verification."""
         try:
-            from ..translate.service import get_translation_service
+            from ..translate.service import TranslationService
 
-            service = get_translation_service()
+            service = TranslationService()
 
             target = context.get("target_language", "Hindi")
-            translated = await service.translate_async(text, target)
+            translated = await service.translate_async(text, "English", target)
 
             return {
                 "output": translated,
@@ -183,19 +184,19 @@ class ModelCollaborator:
             logger.warning(f"Translation failed: {e}")
             return {"output": text, "confidence": 0.0, "consensus": False}
 
-    async def _ensemble_evaluate(self, text: str, context: dict) -> dict[str, Any]:
+    def _ensemble_evaluate(self, text: str, context: dict) -> dict[str, Any]:
         """Evaluate content using ensemble of models."""
         return {
             "output": text,
             "confidence": 0.8,
             "consensus": True,
             "iterations": 1,
-            "models": ["BGE-M3", "Gemma-2-2B"],
+            "models": ["BGE-M3", "Qwen3-8B"],
             "scores": {"semantic": 0.85, "quality": 0.80},
         }
 
-    async def _generic_process(
-        self, task: str, text: str, context: dict
+    def _generic_process(
+        self, _task: str, text: str, context: dict
     ) -> dict[str, Any]:
         """Generic processing for unknown tasks."""
         return {
@@ -203,7 +204,7 @@ class ModelCollaborator:
             "confidence": 0.7,
             "consensus": True,
             "iterations": 1,
-            "models": ["Qwen2.5-3B"],
+            "models": ["Qwen3-8B"],
         }
 
     def _fallback_result(

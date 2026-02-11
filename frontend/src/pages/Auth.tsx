@@ -68,22 +68,20 @@ function PasswordField({ isDark, password, setPassword, showPassword, setShowPas
   passwordStrength: { score: number };
   passwordValid: boolean;
 }>) {
-  let autoCompleteValue: string;
-  if (showPassword) autoCompleteValue = 'off';
-  else if (isLogin) autoCompleteValue = 'current-password';
-  else autoCompleteValue = 'new-password';
+  const autoCompleteValue = isLogin ? 'current-password' : 'new-password';
 
   return (
     <div className="space-y-1.5">
       <div className="relative group">
         <input
           id="password"
+          name="password"
           type={showPassword ? 'text' : 'password'}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           onBlur={onBlur}
           placeholder="Password"
-          autoComplete={autoCompleteValue}
+          ref={el => { if (el) el.setAttribute('autocomplete', autoCompleteValue); }}
           className={`pr-12 ${getInputClasses(touched && !passwordValid)}`}
         />
         <label htmlFor="password" className={getLabelClasses(touched && !passwordValid)}>

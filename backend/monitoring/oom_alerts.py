@@ -274,6 +274,7 @@ class OOMAlertManager:
 
         self._running = True
         self._task = asyncio.create_task(self._monitor_loop())
+        await asyncio.sleep(0)  # yield to event loop
         logger.info("OOM alert manager started")
 
     async def stop(self):

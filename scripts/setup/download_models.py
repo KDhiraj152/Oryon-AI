@@ -2,9 +2,8 @@
 """Download and cache required ML models for the ShikshaSetu platform.
 
 2025 Optimal Model Stack:
-- Simplification: Qwen2.5-3B-Instruct
+- Simplification + Validation: Qwen3-8B (MLX 4-bit)
 - Translation: IndicTrans2 1B
-- Validation: Gemma-2-2B-IT
 - TTS: MMS-TTS (facebook/mms-tts-*)
 - STT: Whisper Large V3 Turbo
 - OCR: GOT-OCR2.0
@@ -41,10 +40,10 @@ def download_models():
     # Model configurations - 2025 Optimal Stack
     models = [
         {
-            "name": "Qwen2.5-3B-Instruct",
-            "id": "Qwen/Qwen2.5-3B-Instruct",
-            "description": "Text simplification and grade-level adaptation",
-            "size": "~6GB (FP16), ~2GB (INT4)",
+            "name": "Qwen3-8B (MLX 4-bit)",
+            "id": "mlx-community/Qwen3-8B-4bit",
+            "description": "Text simplification, validation & grade-level adaptation",
+            "size": "~4.6GB (MLX 4-bit)",
             "type": "causal_lm",
         },
         {
@@ -54,13 +53,7 @@ def download_models():
             "size": "~2GB",
             "type": "translation",
         },
-        {
-            "name": "Gemma-2-2B-IT",
-            "id": "google/gemma-2-2b-it",
-            "description": "NCERT alignment & quality checking",
-            "size": "~4GB (FP16)",
-            "type": "causal_lm",
-        },
+
         {
             "name": "BGE-M3",
             "id": "BAAI/bge-m3",

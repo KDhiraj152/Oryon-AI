@@ -127,17 +127,17 @@ def test_translation():
         return False
 
 # ============================================================================
-# TEST 4: Content Generation (Qwen2.5-3B-Instruct)
+# TEST 4: Content Generation (Qwen3-8B)
 # ============================================================================
 def test_content_generation():
     """Test content generation."""
-    print_section("TEST 4: Content Generation (Qwen2.5-3B-Instruct)")
+    print_section("TEST 4: Content Generation (Qwen3-8B)")
 
     try:
         from backend.pipeline.model_clients import QwenSimplificationClient
         from backend.core.config import settings
 
-        print("⏳ Testing Qwen2.5-3B-Instruct content generation...")
+        print("⏳ Testing Qwen3-8B content generation...")
         try:
             client = QwenSimplificationClient()
             test_prompt = "Explain photosynthesis in simple terms for grade 5 students."
@@ -259,7 +259,7 @@ def test_embeddings():
 # ============================================================================
 def test_curriculum_validator():
     """Test curriculum validator."""
-    print_section("TEST 7: Curriculum Validator (Gemma-2-2B-IT)")
+    print_section("TEST 7: Curriculum Validator (Qwen3-8B)")
 
     try:
         from backend.services.curriculum_validator import get_curriculum_validator
@@ -282,7 +282,7 @@ def test_curriculum_validator():
 
         # Try grade validation (may fail if model not downloaded)
         try:
-            print("\n⏳ Testing grade-level validation (requires Gemma-2-2B-IT model)...")
+            print("\n⏳ Testing grade-level validation (requires Qwen3-8B model)...")
             result = validator.validate_grade_level(
                 text=test_text,
                 target_grade=9,

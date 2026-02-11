@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { audio as audioApi } from '../api';
-import type { ToastType } from '../components/chat/Toast';
+import type { ToastType } from '../components/ui/Toast';
 
 /**
  * Language detection based on Unicode script ranges

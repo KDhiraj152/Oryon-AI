@@ -18,6 +18,7 @@ from ...cache import get_unified_cache
 from ...core.optimized import get_device_router
 from ...database import get_async_db_session
 from ...utils.auth import TokenData, get_current_user
+from ..deps import get_ai_engine as _get_ai_engine
 
 logger = logging.getLogger(__name__)
 
@@ -28,19 +29,6 @@ _startup_time = time.time()
 
 # Cached device info (computed once, never changes)
 _cached_device_info = None
-
-# OPTIMIZATION: Lazy-loaded AI engine singleton
-_ai_engine = None
-
-
-def _get_ai_engine():
-    """Get AI engine singleton (lazy-loaded)."""
-    global _ai_engine
-    if _ai_engine is None:
-        from ...services.ai_core.engine import get_ai_engine
-
-        _ai_engine = get_ai_engine()
-    return _ai_engine
 
 
 # OPTIMIZATION: Pre-computed static responses
@@ -110,8 +98,7 @@ def _get_policy_modes_response():
 
 
 # Model name constants to avoid duplication
-MODEL_QWEN = "qwen2.5-3b"
-MODEL_GEMMA = "gemma-2-2b"
+MODEL_QWEN = "qwen3-8b"
 MODEL_INDICTRANS = "indictrans2-1b"
 MODEL_BGE_M3 = "bge-m3"
 MODEL_BGE_RERANKER = "bge-reranker-v2-m3"
@@ -128,6 +115,7 @@ class ProgressStats(BaseModel):
 
     total_sessions: int
     total_messages: int
+    subjects_studied: list[str] = []
     languages_used: list[str]
     avg_session_duration_mins: float
     streak_days: int
@@ -137,6 +125,7 @@ class QuizGenerateRequest(BaseModel):
     """Quiz generation request."""
 
     topic: str = Field(..., min_length=3)
+    subject: str = Field(default="General")
     num_questions: int = Field(default=5, ge=1, le=20)
     difficulty: str = Field(default="medium")
 
@@ -532,7 +521,7 @@ async def submit_review(
         reviewed = queue.review(
             response_id=response_id,
             status=ReviewStatus(status),
-            reviewer_id=current_user.user_id,
+            reviewer_id=current_user.user_id or "",
             notes=notes,
             corrected_response=corrected_response,
         )
@@ -578,7 +567,7 @@ async def get_my_profile(current_user: TokenData = Depends(get_current_user)):
 
         service = get_profile_service()
 
-        profile = service.get_profile(current_user.user_id)
+        profile = service.get_profile(current_user.user_id or "")
 
         return {
             "profile": profile,
@@ -602,7 +591,7 @@ async def update_my_profile(
         service = get_profile_service()
 
         updated = service.update_profile(
-            user_id=current_user.user_id,
+            user_id=current_user.user_id or "",
             language=language,
             subjects=subjects,
         )
@@ -669,22 +658,16 @@ async def get_hardware_status():
 
 @router.get("/models/status", tags=["system"])
 async def get_models_status():
-    """Get status of all 8 specialized models."""
+    """Get status of all 7 specialized models."""
     try:
         # Return static model configuration without initializing pipeline
         # This avoids blocking on model loading
         models = {
             MODEL_QWEN: {
-                "role": "Simplification & Chat",
+                "role": "Simplification, Chat & Validation",
                 "backend": "mlx",
                 "status": "available",
-                "memory_gb": 4.5,
-            },
-            MODEL_GEMMA: {
-                "role": "Validation & Curriculum Check",
-                "backend": "mlx",
-                "status": "available",
-                "memory_gb": 2.0,
+                "memory_gb": 4.6,
             },
             MODEL_INDICTRANS: {
                 "role": "Translation (10 Indian languages)",
@@ -760,9 +743,9 @@ async def warmup_models(models: list[str] | None = None):
 
         # Warm up inference engine
         if pipeline.inference_engine is not None and (
-            models is None or "qwen2.5-3b" in models
+            models is None or "qwen3-8b" in models
         ):
-            warmed.append("qwen2.5-3b")
+            warmed.append("qwen3-8b")
 
         return {
             "success": True,

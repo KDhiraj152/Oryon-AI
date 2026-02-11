@@ -237,14 +237,8 @@ class BGEM3Embedder:
 
         # Fallback auto-detect device
         if device is None and not hasattr(self, "device"):
-            import torch
-
-            if torch.cuda.is_available():
-                self.device = "cuda"
-            elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-                self.device = "mps"
-            else:
-                self.device = "cpu"
+            from backend.core.hal import get_device
+            self.device = get_device()
         elif device is not None:
             self.device = device
 
@@ -380,14 +374,9 @@ class BGEM3Embedder:
 
         self._memory_registered = False
 
-        # Clear MPS cache if applicable
-        try:
-            import torch
-
-            if torch.backends.mps.is_available():
-                torch.mps.empty_cache()
-        except Exception:
-            pass
+        # Clear GPU cache if applicable
+        from backend.core.hal import empty_gpu_cache
+        empty_gpu_cache()
 
         gc.collect()
         logger.info("BGE-M3 embedder unloaded")
@@ -458,11 +447,11 @@ class BGEM3Embedder:
             def _protected_encode():
                 return run_on_gpu_sync(_do_encode)
 
-            return ml_breaker.call_sync(_protected_encode)
+            return np.asarray(ml_breaker.call_sync(_protected_encode))
         except ImportError:
             # Circuit breaker not available, direct call
             try:
-                return run_on_gpu_sync(_do_encode)
+                return np.asarray(run_on_gpu_sync(_do_encode))
             except Exception as e:
                 logger.error(f"Embedding failed: {e}")
                 raise
@@ -572,10 +561,33 @@ class BGEM3Embedder:
             return self.encode(texts)
 
     def encode_query(self, query: str) -> np.ndarray:
-        """Encode a single query with query prefix."""
+        """Encode a single query with query prefix.
+
+        OPTIMIZATION: Uses in-memory query embedding cache to avoid
+        redundant GPU calls for repeated queries (common in RAG retries).
+        """
         # BGE-M3 recommends query prefix for retrieval
         prefixed_query = f"query: {query}" if "bge" in self.model_id.lower() else query
-        return self.encode([prefixed_query])[0]
+
+        # Check query embedding cache (sync, O(1))
+        if hasattr(self, '_query_embed_cache'):
+            cached = self._query_embed_cache.get(prefixed_query)
+            if cached is not None:
+                return cached.copy()
+        else:
+            # Lazy-init bounded LRU cache (512 entries, ~2MB for 1024-dim)
+            from collections import OrderedDict
+            self._query_embed_cache: OrderedDict[str, np.ndarray] = OrderedDict()
+            self._query_embed_cache_max = 512
+
+        embedding: np.ndarray = self.encode([prefixed_query])[0]
+
+        # Cache the result with LRU eviction
+        if len(self._query_embed_cache) >= self._query_embed_cache_max:
+            self._query_embed_cache.popitem(last=False)
+        self._query_embed_cache[prefixed_query] = embedding.copy()
+
+        return embedding
 
     def encode_documents(self, documents: list[str]) -> np.ndarray:
         """Encode documents with M4-optimized batching."""
@@ -609,14 +621,8 @@ class BGEM3Embedder:
             embeddings = self.encode(chunk, batch_size=len(chunk), show_progress=False)
             all_embeddings.append(embeddings)
 
-            # M4 Memory cleanup between chunks
-            try:
-                import torch
-
-                if torch.backends.mps.is_available():
-                    torch.mps.empty_cache()
-            except Exception:
-                pass
+            # Note: torch.mps.empty_cache() removed from chunk loop — it added
+            # ~5ms per chunk with no measurable benefit. MPS manages cache internally.
 
         return np.vstack(all_embeddings)
 
@@ -647,12 +653,8 @@ class BGEReranker:
 
         # Fallback auto-detect device
         if device is None and not hasattr(self, "device"):
-            if torch.cuda.is_available():
-                self.device = "cuda"
-            elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-                self.device = "mps"
-            else:
-                self.device = "cpu"
+            from backend.core.hal import get_device
+            self.device = get_device()
         elif device is not None:
             self.device = device
 
@@ -760,14 +762,9 @@ class BGEReranker:
 
         self._memory_registered = False
 
-        # Clear MPS cache if applicable
-        try:
-            import torch
-
-            if torch.backends.mps.is_available():
-                torch.mps.empty_cache()
-        except Exception:
-            pass
+        # Clear GPU cache if applicable
+        from backend.core.hal import empty_gpu_cache
+        empty_gpu_cache()
 
         gc.collect()
         logger.info("BGE Reranker unloaded")
@@ -798,6 +795,7 @@ class BGEReranker:
             if getattr(self, "_use_cross_encoder", False):
                 pairs = [[query, doc] for doc in documents]
                 # Use batch_size=100 for optimal MPS throughput (no numpy conversion for speed)
+                assert self._model is not None
                 scores = self._model.predict(pairs, batch_size=100)
                 ranked = sorted(enumerate(scores), key=lambda x: x[1], reverse=True)
                 return ranked[:top_k]
@@ -805,6 +803,7 @@ class BGEReranker:
             # FlagEmbedding API
             elif hasattr(self._model, "compute_score"):
                 pairs = [[query, doc] for doc in documents]
+                assert self._model is not None
                 scores = self._model.compute_score(pairs)
 
                 # Handle single score vs list
@@ -828,7 +827,7 @@ class BGEReranker:
                 ).to(self.device)
 
                 with torch.inference_mode():  # Faster than no_grad on M4
-                    scores = self._model(**inputs).logits.squeeze(-1).cpu().numpy()
+                    scores = self._model(**inputs).logits.squeeze(-1).cpu().numpy()  # type: ignore[misc]
 
                 ranked = sorted(enumerate(scores), key=lambda x: x[1], reverse=True)
                 return ranked[:top_k]
@@ -850,7 +849,7 @@ class RAGService:
     - Hybrid search support (dense + sparse)
     """
 
-    def __init__(self, embedder: BGEM3Embedder = None, reranker: BGEReranker = None):
+    def __init__(self, embedder: BGEM3Embedder | None = None, reranker: BGEReranker | None = None):
         # Use singleton embedder/reranker to avoid loading 4GB+ models multiple times
         self.embedder = embedder or get_embedder()
         self.reranker = reranker or get_reranker()
@@ -943,7 +942,7 @@ class RAGService:
         document_id: str,
         text: str,
         metadata: dict | None = None,
-        db: Session = None,
+        db: Session | None = None,
     ) -> int:
         """
         Index a document for retrieval (synchronous).
@@ -1016,7 +1015,7 @@ class RAGService:
         ef_search = int(HNSW_EF_SEARCH)  # Ensure int type for SQL injection prevention
         db.execute(text(f"SET LOCAL hnsw.ef_search = {ef_search}"))
 
-        return db.execute(
+        return list(db.execute(
             text("""
                 SELECT
                     dc.id,
@@ -1032,7 +1031,7 @@ class RAGService:
                 "vector": "[" + ",".join(str(x) for x in embedding_list) + "]",
                 "limit": limit,
             },
-        ).fetchall()
+        ).fetchall())
 
     def _rows_to_candidates(self, rows: list[Any]) -> list[RetrievalResult]:
         """Convert database rows to RetrievalResult candidates."""
@@ -1065,7 +1064,7 @@ class RAGService:
         query: str,
         top_k: int = 10,
         rerank: bool = True,
-        db: Session = None,
+        db: Session | None = None,
         use_cache: bool = True,
     ) -> list[RetrievalResult]:
         """
@@ -1095,6 +1094,8 @@ class RAGService:
         close_session = db is None
         if close_session:
             db = SessionLocal()
+
+        assert db is not None
 
         try:
             # Vector similarity search - retrieve more candidates for reranking
@@ -1130,7 +1131,7 @@ class RAGService:
         top_k: int = 5,
         rerank: bool = True,
         generate_answer: bool = False,
-        db: Session = None,
+        db: Session | None = None,
     ) -> RAGResponse:
         """
         Perform RAG query (async).
@@ -1183,7 +1184,7 @@ Answer:"""
 
         return RAGResponse(query=query, context=context, sources=results, answer=answer)
 
-    def get_embedding_stats(self, db: Session = None) -> dict:
+    def get_embedding_stats(self, db: Session | None = None) -> dict:
         """Get statistics about indexed embeddings."""
         close_session = False
         if db is None:
@@ -1200,9 +1201,17 @@ Answer:"""
             """)
             ).fetchone()
 
+            if result is not None:
+                return {
+                    "total_chunks": result.total_chunks,
+                    "total_documents": result.total_documents,
+                    "embedding_model": self.embedder.model_id,
+                    "embedding_dimension": self.embedding_dimension,
+                    "reranker_model": self.reranker.model_id,
+                }
             return {
-                "total_chunks": result.total_chunks,
-                "total_documents": result.total_documents,
+                "total_chunks": 0,
+                "total_documents": 0,
                 "embedding_model": self.embedder.model_id,
                 "embedding_dimension": self.embedding_dimension,
                 "reranker_model": self.reranker.model_id,

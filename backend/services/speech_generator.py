@@ -53,15 +53,15 @@ try:
             try:
                 try:
                     asyncio.get_running_loop()
-                    # Already in async context, use thread
-                    import concurrent.futures
+                    # Already in async context, use shared ML pool thread
+                    from ..core.optimized.thread_pool_manager import get_ml_executor
 
-                    with concurrent.futures.ThreadPoolExecutor() as pool:
-                        future = pool.submit(
-                            asyncio.run,
-                            self._async_client.process(text, language, **kwargs),
-                        )
-                        return future.result(timeout=60)
+                    pool = get_ml_executor()
+                    future = pool.submit(
+                        asyncio.run,
+                        self._async_client.process(text, language, **kwargs),
+                    )
+                    return future.result(timeout=60)
                 except RuntimeError:
                     # No running loop, create one
                     return asyncio.run(

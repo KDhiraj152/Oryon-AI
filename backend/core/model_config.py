@@ -11,37 +11,15 @@ import logging
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
-from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+
+from .types import ModelTier, TaskType
 
 logger = logging.getLogger(__name__)
 
 # Default config file path
 CONFIG_DIR = Path(__file__).parent
 DEFAULT_CONFIG_FILE = CONFIG_DIR / "models.json"
-
-
-class ModelTier(str, Enum):
-    """Model capability tiers."""
-
-    LIGHTWEIGHT = "lightweight"
-    STANDARD = "standard"
-    STRONG = "strong"
-    SPECIALIZED = "specialized"
-
-
-class TaskType(str, Enum):
-    """Task types for model routing."""
-
-    CHAT = "chat"
-    REASONING = "reasoning"
-    CODE = "code"
-    TRANSLATION = "translation"
-    EMBEDDING = "embedding"
-    RERANKING = "reranking"
-    VALIDATION = "validation"
-    SYSTEM = "system"
 
 
 @dataclass
@@ -172,8 +150,8 @@ class ModelConfigLoader:
         """Load hardcoded defaults as fallback."""
         with self._lock:
             self._models = {
-                "qwen2.5-3b": ModelConfig(
-                    model_id="Qwen/Qwen2.5-3B-Instruct",
+                "qwen3-8b": ModelConfig(
+                    model_id="Qwen/Qwen3-8B",
                     tier=ModelTier.STANDARD,
                     max_tokens=4096,
                     context_window=8192,

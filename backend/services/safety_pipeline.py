@@ -11,13 +11,14 @@ This completes the safety pipeline that was marked as "Partial (6/10)"
 in the enterprise RAG alignment analysis.
 """
 
+import asyncio
 import logging
 import re
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 logger = logging.getLogger(__name__)
 
@@ -228,8 +229,8 @@ class SafetyPipeline:
 
         start_time = time.time()
 
-        pass_results = []
-        all_issues = []
+        pass_results: list[SafetyCheckResult] = []
+        all_issues: list[SafetyIssue] = []
         context = context or []
         metadata = metadata or {}
 
@@ -249,14 +250,14 @@ class SafetyPipeline:
             pass_names.append("pass_3")
 
         if pass_coros:
-            import asyncio as _aio
-            gathered = await _aio.gather(*pass_coros, return_exceptions=True)
+            gathered = await asyncio.gather(*pass_coros, return_exceptions=True)
             for name, result in zip(pass_names, gathered):
-                if isinstance(result, Exception):
+                if isinstance(result, BaseException):
                     logger.warning(f"Safety {name} failed: {result}")
                     continue
-                pass_results.append(result)
-                all_issues.extend(result.issues)
+                check_result = cast(SafetyCheckResult, result)
+                pass_results.append(check_result)
+                all_issues.extend(check_result.issues)
 
         # Determine overall result based on mode
         overall_safe, overall_level, rejection_reason = self._determine_overall_result(
@@ -280,6 +281,56 @@ class SafetyPipeline:
             rejection_reason=rejection_reason,
         )
 
+    # Stopwords for keyword fallback similarity
+    _STOPWORDS = frozenset({
+        "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
+        "have", "has", "had", "do", "does", "did", "will", "would", "could",
+        "should", "may", "might", "can", "to", "of", "in", "for", "on",
+        "with", "at", "by", "from", "as", "into", "through", "during",
+        "before", "after", "above", "below", "and", "but", "or", "if",
+        "then", "than", "so", "what", "how", "when", "where", "why", "who",
+        "which", "this", "that", "it", "i", "you", "me",
+    })
+
+    def _compute_embedding_similarity(self, query: str, response: str) -> tuple[float, bool]:
+        """Compute semantic similarity using embedder. Returns (similarity, used_embedder)."""
+        try:
+            embedder = self._get_embedder()
+            if not embedder:
+                return 0.0, False
+
+            import numpy as np
+            embeddings = embedder.encode([query, response])
+            emb_q, emb_r = embeddings[0], embeddings[1]
+
+            try:
+                from backend.core.optimized.simd_ops import cosine_similarity_single
+                return cosine_similarity_single(emb_q, emb_r), True
+            except ImportError:
+                norm_q = np.linalg.norm(emb_q)
+                norm_r = np.linalg.norm(emb_r)
+                if norm_q > 0 and norm_r > 0:
+                    return float(np.dot(emb_q, emb_r) / (norm_q * norm_r)), True
+                return 0.0, True
+        except Exception as e:
+            logger.warning(f"Semantic similarity check failed: {e}")
+            return 0.0, False
+
+    def _compute_keyword_similarity(self, query: str, response: str) -> float:
+        """Compute keyword-based similarity as fallback."""
+        query_words = {
+            w.lower() for w in query.split()
+            if w.lower() not in self._STOPWORDS and len(w) > 2
+        }
+        response_words = {
+            w.lower() for w in response.split()
+            if w.lower() not in self._STOPWORDS and len(w) > 2
+        }
+        if query_words and response_words:
+            overlap = len(query_words & response_words)
+            return min(1.0, overlap / max(1, len(query_words) * 0.3))
+        return 0.8  # Default if we can't analyze
+
     async def _pass_1_semantic_match(
         self,
         query: str,
@@ -295,143 +346,32 @@ class SafetyPipeline:
         """
         import time
 
+        await asyncio.sleep(0)  # Yield to event loop for concurrency
         start = time.time()
 
-        issues = []
+        issues: list[SafetyIssue] = []
 
-        # Try to use embedder for semantic similarity
-        similarity = 0.0
-        used_embedder = False
-        try:
-            embedder = self._get_embedder()
-            if embedder:
-                import numpy as np
-
-                embeddings = embedder.encode([query, response])
-                # SIMD-optimized cosine similarity
-                emb_q, emb_r = embeddings[0], embeddings[1]
-                try:
-                    from backend.core.optimized.simd_ops import cosine_similarity_single
-
-                    similarity = cosine_similarity_single(emb_q, emb_r)
-                except ImportError:
-                    norm_q = np.linalg.norm(emb_q)
-                    norm_r = np.linalg.norm(emb_r)
-                    if norm_q > 0 and norm_r > 0:
-                        similarity = float(np.dot(emb_q, emb_r) / (norm_q * norm_r))
-                used_embedder = True
-        except Exception as e:
-            logger.warning(f"Semantic similarity check failed: {e}")
-
-        # Fallback: improved keyword overlap with stopword filtering
+        similarity, used_embedder = self._compute_embedding_similarity(query, response)
         if not used_embedder:
-            stopwords = {
-                "the",
-                "a",
-                "an",
-                "is",
-                "are",
-                "was",
-                "were",
-                "be",
-                "been",
-                "being",
-                "have",
-                "has",
-                "had",
-                "do",
-                "does",
-                "did",
-                "will",
-                "would",
-                "could",
-                "should",
-                "may",
-                "might",
-                "can",
-                "to",
-                "of",
-                "in",
-                "for",
-                "on",
-                "with",
-                "at",
-                "by",
-                "from",
-                "as",
-                "into",
-                "through",
-                "during",
-                "before",
-                "after",
-                "above",
-                "below",
-                "and",
-                "but",
-                "or",
-                "if",
-                "then",
-                "than",
-                "so",
-                "what",
-                "how",
-                "when",
-                "where",
-                "why",
-                "who",
-                "which",
-                "this",
-                "that",
-                "it",
-                "i",
-                "you",
-                "me",
-            }
+            similarity = self._compute_keyword_similarity(query, response)
 
-            query_words = {
-                w.lower()
-                for w in query.split()
-                if w.lower() not in stopwords and len(w) > 2
-            }
-            response_words = {
-                w.lower()
-                for w in response.split()
-                if w.lower() not in stopwords and len(w) > 2
-            }
-
-            if query_words and response_words:
-                overlap = len(query_words & response_words)
-                # More lenient: count if response contains at least some query keywords
-                similarity = min(
-                    1.0, overlap / max(1, len(query_words) * 0.3)
-                )  # Only need 30% keyword match
-            else:
-                similarity = 0.8  # Default to passing if we can't analyze
-
-        # Use lower threshold for fallback method
         effective_threshold = self.semantic_threshold if used_embedder else 0.4
 
-        # Check for off-topic response
         if similarity < effective_threshold:
-            issues.append(
-                SafetyIssue(
-                    issue_type=IssueType.QUERY_MISMATCH,
-                    severity=SafetyLevel.CAUTION,
-                    description=f"Response may not fully address the query (similarity: {similarity:.2f})",
-                    confidence=1 - similarity,
-                )
-            )
+            issues.append(SafetyIssue(
+                issue_type=IssueType.QUERY_MISMATCH,
+                severity=SafetyLevel.CAUTION,
+                description=f"Response may not fully address the query (similarity: {similarity:.2f})",
+                confidence=1 - similarity,
+            ))
 
-        # Check for incomplete response
         if len(response.split()) < 10 and len(query.split()) > 5:
-            issues.append(
-                SafetyIssue(
-                    issue_type=IssueType.INCOMPLETE_RESPONSE,
-                    severity=SafetyLevel.CAUTION,
-                    description="Response appears too brief for the query",
-                    confidence=0.6,
-                )
-            )
+            issues.append(SafetyIssue(
+                issue_type=IssueType.INCOMPLETE_RESPONSE,
+                severity=SafetyLevel.CAUTION,
+                description="Response appears too brief for the query",
+                confidence=0.6,
+            ))
 
         passed = similarity >= self.semantic_threshold and not any(
             i.severity == SafetyLevel.BLOCKED for i in issues
@@ -462,9 +402,10 @@ class SafetyPipeline:
         """
         import time
 
+        await asyncio.sleep(0)  # Yield to event loop for concurrency
         start = time.time()
 
-        issues = []
+        issues: list[SafetyIssue] = []
 
         # Split response into sentences for analysis
         sentences = re.split(r"[.!?]+", response)
@@ -541,9 +482,10 @@ class SafetyPipeline:
         """
         import time
 
+        await asyncio.sleep(0)  # Yield to event loop for concurrency
         start = time.time()
 
-        issues = []
+        issues: list[SafetyIssue] = []
         response_lower = response.lower()
 
         # Toxicity check
@@ -724,7 +666,7 @@ class SafetyPipeline:
     def _filter_response(
         self,
         response: str,
-        issues: list[SafetyIssue],
+        _issues: list[SafetyIssue],
     ) -> str:
         """Filter response to remove or redact problematic content."""
         filtered = response

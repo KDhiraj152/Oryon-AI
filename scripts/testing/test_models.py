@@ -51,13 +51,12 @@ def test_embedding_model():
 
 
 def test_simplification_model():
-    """Test Qwen simplification model."""
-    print("\nTesting Qwen2.5-3B-Instruct (simplification)...")
+    """Test Qwen3-8B simplification model via MLX."""
+    print("\nTesting Qwen3-8B (simplification + validation)...")
     try:
-        import torch
-        from transformers import AutoModelForCausalLM, AutoTokenizer
+        import mlx_lm
 
-        model_id = "Qwen/Qwen2.5-3B-Instruct"
+        model_id = "mlx-community/Qwen3-8B-4bit"
 
         print("  Loading tokenizer...")
         tokenizer = AutoTokenizer.from_pretrained(model_id)
@@ -158,13 +157,12 @@ def test_translation_model():
 
 
 def test_validation_model():
-    """Test Gemma validation model."""
-    print("\nTesting Gemma-2-2b-it (validation)...")
+    """Test validation via Qwen3-8B (shared with simplification)."""
+    print("\nTesting Qwen3-8B (validation — shared with simplification)...")
     try:
-        import torch
-        from transformers import AutoModelForCausalLM, AutoTokenizer
+        import mlx_lm
 
-        model_id = "google/gemma-2-2b-it"
+        model_id = "mlx-community/Qwen3-8B-4bit"
 
         print("  Loading tokenizer...")
         tokenizer = AutoTokenizer.from_pretrained(model_id)
@@ -207,14 +205,40 @@ def test_validation_model():
         return False
 
 
+def test_database():
+    """Test database connection (absorbed from test_setup.py)."""
+    print("\nTesting database connection...")
+    try:
+        import os
+
+        from dotenv import load_dotenv
+        from sqlalchemy import create_engine, text
+
+        load_dotenv()
+        db_url = os.getenv(
+            "DATABASE_URL",
+            "postgresql://postgres:password@localhost:5432/education_content",
+        )
+
+        engine = create_engine(db_url)
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+            print("  ✓ Database connection successful")
+        return True
+    except Exception as e:
+        print(f"  ✗ Database test failed: {e}")
+        return False
+
+
 if __name__ == "__main__":
     print("=" * 60)
-    print("ShikshaSetu Model Test")
+    print("ShikshaSetu Model & Environment Test")
     print("=" * 60)
 
     results = {}
 
     results["imports"] = test_imports()
+    results["database"] = test_database()
     results["embeddings"] = test_embedding_model()
 
     # Only test heavy models if explicitly requested

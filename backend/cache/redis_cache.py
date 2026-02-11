@@ -1,16 +1,19 @@
 """
-Redis Cache Configuration (Principle P)
+Redis Cache Configuration (DEPRECATED)
 ========================================
-Configure Redis with TTL=15min, Max size=256MB for caching.
 
-Strategy:
+.. deprecated:: 2.1.0
+    This module is superseded by :mod:`backend.cache.multi_tier_cache`
+    which provides the production 3-tier cache (L1 memory, L2 Redis, L3 SQLite).
+    All production code paths use ``get_unified_cache()`` from multi_tier_cache.
+    This file is retained for backward compatibility only.
+
+Original design:
 - TTL-based expiration (15 minutes default)
 - Memory limit enforcement (256MB default)
 - LRU eviction when memory limit reached
 - Structured keys for different cache types
 - Compression for large values
-
-Reference: "TTL=15min, Max size=256MB"
 """
 
 import asyncio

@@ -6,7 +6,7 @@
 #
 # Models downloaded:
 #   Essential:
-#     1. Qwen2.5-3B-Instruct      - Text simplification LLM
+#     1. Qwen3-8B (MLX 4-bit)     - Main LLM (simplification + validation)
 #     2. IndicTrans2 (en->indic 1B)- Translation (10 Indian languages)
 #     3. BGE-M3                    - Multilingual embeddings
 #     4. BGE-Reranker-v2-M3       - Retrieval reranking
@@ -15,10 +15,9 @@
 #     7. Edge TTS (pip package)    - Cloud neural TTS
 #
 #   Optional (--all):
-#     8. Gemma-2-2B-IT             - Quality validation
-#     9. GOT-OCR2.0                - Document OCR
-#    10. MMS-TTS (all 26 languages)- Full offline TTS coverage
-#    11. MLX 4-bit variants        - Apple Silicon optimized (macOS only)
+#     8. GOT-OCR2.0                - Document OCR
+#     9. MMS-TTS (all 26 languages)- Full offline TTS coverage
+#    10. Qwen3-8B FP16 (HF)       - Full-precision weights (non-MLX)
 #
 # Usage:
 #   ./download_models.sh              # Download essential models
@@ -60,7 +59,7 @@ setup_hf_token() {
             if [[ -n "$HF_TOKEN" ]]; then info "Using HF token from $tp"; return; fi
         fi
     done
-    warn "No HF_TOKEN found — gated models (Qwen, Gemma, GOT-OCR) may fail"
+    warn "No HF_TOKEN found — gated models (GOT-OCR) may fail"
     echo "  Set via: HF_TOKEN=hf_xxx ./download_models.sh"
     echo "  Or:      huggingface-cli login"
     echo ""
@@ -147,7 +146,6 @@ ok "Dependencies ready"
 #   mlx_lm         = mlx_lm.load (Apple Silicon only)
 
 MODELS_ESSENTIAL=(
-    "Qwen/Qwen2.5-3B-Instruct|Qwen2.5-3B-Instruct|LLM text simplification|6GB|essential|true|causal_lm"
     "ai4bharat/indictrans2-en-indic-1B|IndicTrans2 en-indic 1B|Translation 10 languages|2GB|essential|false|seq2seq"
     "BAAI/bge-m3|BGE-M3|Multilingual embeddings|1.2GB|essential|false|sentence_embed"
     "BAAI/bge-reranker-v2-m3|BGE-Reranker-v2-M3|Retrieval reranking|1GB|essential|false|cross_encoder"
@@ -158,8 +156,8 @@ MODELS_ESSENTIAL=(
 )
 
 MODELS_OPTIONAL=(
-    "google/gemma-2-2b-it|Gemma-2-2B-IT|Quality validation|4GB|optional|true|causal_lm"
     "ucaslcl/GOT-OCR2_0|GOT-OCR2.0|Document OCR|1.5GB|optional|true|auto_model"
+    "Qwen/Qwen3-8B|Qwen3-8B FP16|Full-precision LLM weights|16GB|optional|false|causal_lm"
 )
 
 MMS_TTS_EXTRA=(
@@ -190,17 +188,17 @@ MMS_TTS_EXTRA=(
 )
 
 MLX_MODELS=(
-    "mlx-community/Qwen2.5-3B-Instruct-4bit|Qwen2.5-3B MLX 4bit|Apple Silicon LLM|1.8GB|optional|false|mlx_lm"
-    "mlx-community/gemma-2-2b-it-4bit|Gemma-2-2B MLX 4bit|Apple Silicon validation|1.2GB|optional|false|mlx_lm"
+    "mlx-community/Qwen3-8B-4bit|Qwen3-8B MLX 4bit|Apple Silicon LLM (primary)|4.6GB|essential|false|mlx_lm"
 )
 
 # ── Build download list ────────────────────────────────────────────────────
 declare -a ALL_MODELS
 for e in "${MODELS_ESSENTIAL[@]}"; do ALL_MODELS+=("$e"); done
+# MLX Qwen3-8B is essential on Apple Silicon (primary LLM)
+$IS_APPLE_SILICON && for e in "${MLX_MODELS[@]}"; do ALL_MODELS+=("$e"); done
 if [[ "$DOWNLOAD_MODE" == "all" ]]; then
     for e in "${MODELS_OPTIONAL[@]}"; do ALL_MODELS+=("$e"); done
     for e in "${MMS_TTS_EXTRA[@]}"; do ALL_MODELS+=("$e"); done
-    $IS_APPLE_SILICON && for e in "${MLX_MODELS[@]}"; do ALL_MODELS+=("$e"); done
 fi
 
 # ── --list ──────────────────────────────────────────────────────────────────
@@ -250,17 +248,15 @@ except Exception:
             if d.startswith("models--"):
                 cached.add(d.replace("models--","").replace("--","/"))
 models = [
-    ("Qwen/Qwen2.5-3B-Instruct","Qwen2.5-3B","essential"),
     ("ai4bharat/indictrans2-en-indic-1B","IndicTrans2","essential"),
     ("BAAI/bge-m3","BGE-M3","essential"),
     ("BAAI/bge-reranker-v2-m3","BGE-Reranker","essential"),
     ("openai/whisper-large-v3-turbo","Whisper V3 Turbo","essential"),
     ("facebook/mms-tts-hin","MMS-TTS Hindi","essential"),
     ("facebook/mms-tts-eng","MMS-TTS English","essential"),
-    ("google/gemma-2-2b-it","Gemma-2-2B-IT","optional"),
+    ("mlx-community/Qwen3-8B-4bit","Qwen3-8B MLX 4bit","essential"),
     ("ucaslcl/GOT-OCR2_0","GOT-OCR2.0","optional"),
-    ("mlx-community/Qwen2.5-3B-Instruct-4bit","Qwen MLX","optional"),
-    ("mlx-community/gemma-2-2b-it-4bit","Gemma MLX","optional"),
+    ("Qwen/Qwen3-8B","Qwen3-8B FP16","optional"),
 ]
 for l in "tam tel kan mal ben mar guj pan ory asm urd san nep snd kas spa fra deu por rus ara cmn jpn kor".split():
     models.append((f"facebook/mms-tts-{l}",f"MMS-TTS {l}","optional"))
@@ -340,7 +336,7 @@ try:
 
     kw = dict(token=hf_token)
 
-    # Causal LM (Qwen, Gemma)
+    # Causal LM (Qwen3)
     if loader == "causal_lm":
         from transformers import AutoModelForCausalLM, AutoTokenizer
         log(f"Downloading tokenizer: {model_id}")

@@ -14,24 +14,26 @@ from typing import Any, Dict, List
 # MODEL CONSTANTS
 # =========================================================================
 
-MODEL_QWEN25 = "Qwen2.5-3B"
+MODEL_QWEN3 = "Qwen3-8B"
 MODEL_INDICTRANS2 = "IndicTrans2-1B"
 MODEL_BGE_M3 = "BGE-M3"
 MODEL_BGE_RERANKER = "BGE-Reranker"
 MODEL_WHISPER = "Whisper-V3"
 MODEL_MMS_TTS = "MMS-TTS"
 MODEL_GOT_OCR2 = "GOT-OCR2"
-MODEL_GEMMA2 = "Gemma-2-2B"
+
+# Legacy aliases for backward compatibility
+MODEL_QWEN25 = MODEL_QWEN3
+MODEL_GEMMA2 = MODEL_QWEN3  # Validation now uses main Qwen3-8B LLM
 
 ALL_MODELS = [
-    MODEL_QWEN25,
+    MODEL_QWEN3,
     MODEL_INDICTRANS2,
     MODEL_BGE_M3,
     MODEL_BGE_RERANKER,
     MODEL_WHISPER,
     MODEL_MMS_TTS,
     MODEL_GOT_OCR2,
-    MODEL_GEMMA2,
 ]
 
 

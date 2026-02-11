@@ -24,30 +24,23 @@ import os
 import threading
 import time
 from dataclasses import dataclass
-from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
+
+from ..types import ModelType
 
 logger = logging.getLogger(__name__)
 
 
-class ModelType(str, Enum):
-    """Model types for the manager."""
-
-    LLM = "llm"
-    EMBEDDING = "embedding"
-    RERANKER = "reranker"
-    TTS = "tts"
-    STT = "stt"
-    TRANSLATION = "translation"
-    OCR = "ocr"
-
-
 @dataclass
-class ModelConfig:
-    """Configuration for a managed model."""
+class HardwareModelConfig:
+    """Hardware-level configuration for model loading and device placement.
+
+    Used by HighPerformanceModelManager to manage model lifecycle,
+    memory allocation, and inference optimization.
+    """
 
     model_id: str
     model_type: ModelType
@@ -59,14 +52,18 @@ class ModelConfig:
     cache_dir: str | None = None
 
 
+# Backward-compatible alias
+ModelConfig = HardwareModelConfig
+
+
 @dataclass
 class LoadedModel:
-    """Container for a loaded model."""
+    """Container for a loaded model with inference tracking."""
 
     model: Any
     tokenizer: Any | None = None
     processor: Any | None = None
-    config: ModelConfig | None = None
+    config: HardwareModelConfig | None = None
     load_time: float = 0.0
     warmup_time: float = 0.0
     inference_count: int = 0
@@ -510,11 +507,12 @@ class HighPerformanceModelManager(ModelWarmupMixin):
 
             import mlx_lm
 
-            model_id = "mlx-community/Qwen2.5-3B-Instruct-4bit"
+            model_id = "mlx-community/Qwen3-8B-4bit"
             logger.info(f"Loading LLM model ({model_id})...")
             start = time.perf_counter()
 
-            model, tokenizer = mlx_lm.load(model_id)
+            _loaded = mlx_lm.load(model_id)
+            model, tokenizer = _loaded[0], _loaded[1]
 
             load_time = time.perf_counter() - start
 
@@ -595,7 +593,7 @@ class HighPerformanceModelManager(ModelWarmupMixin):
         loaded.inference_count += len(texts)
         loaded.total_inference_time += elapsed
 
-        return embeddings
+        return np.asarray(embeddings)
 
     def rerank(
         self, query: str, documents: list[str], top_k: int | None = None
@@ -638,6 +636,8 @@ class HighPerformanceModelManager(ModelWarmupMixin):
 
         start = time.perf_counter()
 
+        if tokenizer is None:
+            raise RuntimeError("TTS tokenizer not loaded")
         inputs = tokenizer(text, return_tensors="pt").to(self._device)
 
         with torch.no_grad():
@@ -672,7 +672,7 @@ class HighPerformanceModelManager(ModelWarmupMixin):
         loaded.inference_count += 1
         loaded.total_inference_time += elapsed
 
-        return result.get("text", "")
+        return str(result.get("text", ""))
 
     def generate(
         self, prompt: str, max_tokens: int = 100, temperature: float = 0.7
@@ -684,6 +684,8 @@ class HighPerformanceModelManager(ModelWarmupMixin):
         model = loaded.model
         tokenizer = loaded.tokenizer
 
+        if tokenizer is None:
+            raise RuntimeError("LLM tokenizer not loaded")
         messages = [{"role": "user", "content": prompt}]
         prompt_text = tokenizer.apply_chat_template(
             messages, add_generation_prompt=True, tokenize=False

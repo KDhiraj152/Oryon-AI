@@ -321,9 +321,8 @@ class TestEndToEndRefinement:
         pytest.skip("Requires full model setup - run manually with models loaded")
 
         # This test requires:
-        # 1. Qwen2.5-3B-Instruct loaded
+        # 1. Qwen3-8B loaded (MLX)
         # 2. BGE-M3 embeddings loaded
-        # 3. Gemma-2-2B-IT for validation
 
         from backend.services.simplifier import TextSimplifier
 

@@ -26,8 +26,12 @@ from typing import Any, Dict, Optional, Tuple
 logger = logging.getLogger(__name__)
 
 
-class TaskType(str, Enum):
-    """Types of ML tasks for routing."""
+class DeviceTaskType(str, Enum):
+    """Types of ML tasks for hardware-level routing.
+
+    Maps ML workloads to optimal compute units (GPU/ANE/CPU).
+    Different from core.types.TaskType which handles request-level routing.
+    """
 
     LLM_INFERENCE = "llm_inference"  # Chat, completion
     EMBEDDING = "embedding"  # Text embeddings
@@ -38,6 +42,10 @@ class TaskType(str, Enum):
     TRANSLATION = "translation"  # Language translation
     CLASSIFICATION = "classification"  # Text classification
     SUMMARIZATION = "summarization"  # Text summarization
+
+
+# Backward-compatible alias
+TaskType = DeviceTaskType
 
 
 class ComputeBackend(str, Enum):
@@ -55,70 +63,70 @@ class ComputeBackend(str, Enum):
 # Base = M4 (10-core GPU, 120GB/s bandwidth)
 BATCH_SIZES_BY_CHIP = {
     "m4": {  # M4: 10-core GPU, 120 GB/s - baseline benchmarks
-        TaskType.EMBEDDING: 64,
-        TaskType.RERANKING: 32,
-        TaskType.TRANSLATION: 8,
-        TaskType.TTS: 1,
-        TaskType.STT: 4,
-        TaskType.LLM_INFERENCE: 1,
-        TaskType.OCR: 4,
-        TaskType.CLASSIFICATION: 64,
-        TaskType.SUMMARIZATION: 4,
+        DeviceTaskType.EMBEDDING: 64,
+        DeviceTaskType.RERANKING: 32,
+        DeviceTaskType.TRANSLATION: 8,
+        DeviceTaskType.TTS: 1,
+        DeviceTaskType.STT: 4,
+        DeviceTaskType.LLM_INFERENCE: 1,
+        DeviceTaskType.OCR: 4,
+        DeviceTaskType.CLASSIFICATION: 64,
+        DeviceTaskType.SUMMARIZATION: 4,
     },
     "m3": {  # M3: 10-core GPU, 100 GB/s - ~85% of M4
-        TaskType.EMBEDDING: 48,
-        TaskType.RERANKING: 24,
-        TaskType.TRANSLATION: 6,
-        TaskType.TTS: 1,
-        TaskType.STT: 4,
-        TaskType.LLM_INFERENCE: 1,
-        TaskType.OCR: 4,
-        TaskType.CLASSIFICATION: 48,
-        TaskType.SUMMARIZATION: 4,
+        DeviceTaskType.EMBEDDING: 48,
+        DeviceTaskType.RERANKING: 24,
+        DeviceTaskType.TRANSLATION: 6,
+        DeviceTaskType.TTS: 1,
+        DeviceTaskType.STT: 4,
+        DeviceTaskType.LLM_INFERENCE: 1,
+        DeviceTaskType.OCR: 4,
+        DeviceTaskType.CLASSIFICATION: 48,
+        DeviceTaskType.SUMMARIZATION: 4,
     },
     "m2": {  # M2: 8-10 core GPU, 100 GB/s - ~75% of M4
-        TaskType.EMBEDDING: 32,
-        TaskType.RERANKING: 16,
-        TaskType.TRANSLATION: 4,
-        TaskType.TTS: 1,
-        TaskType.STT: 2,
-        TaskType.LLM_INFERENCE: 1,
-        TaskType.OCR: 2,
-        TaskType.CLASSIFICATION: 32,
-        TaskType.SUMMARIZATION: 2,
+        DeviceTaskType.EMBEDDING: 32,
+        DeviceTaskType.RERANKING: 16,
+        DeviceTaskType.TRANSLATION: 4,
+        DeviceTaskType.TTS: 1,
+        DeviceTaskType.STT: 2,
+        DeviceTaskType.LLM_INFERENCE: 1,
+        DeviceTaskType.OCR: 2,
+        DeviceTaskType.CLASSIFICATION: 32,
+        DeviceTaskType.SUMMARIZATION: 2,
     },
     "m1": {  # M1: 7-8 core GPU, 68.25 GB/s - ~60% of M4
-        TaskType.EMBEDDING: 24,
-        TaskType.RERANKING: 12,
-        TaskType.TRANSLATION: 4,
-        TaskType.TTS: 1,
-        TaskType.STT: 2,
-        TaskType.LLM_INFERENCE: 1,
-        TaskType.OCR: 2,
-        TaskType.CLASSIFICATION: 24,
-        TaskType.SUMMARIZATION: 2,
+        DeviceTaskType.EMBEDDING: 24,
+        DeviceTaskType.RERANKING: 12,
+        DeviceTaskType.TRANSLATION: 4,
+        DeviceTaskType.TTS: 1,
+        DeviceTaskType.STT: 2,
+        DeviceTaskType.LLM_INFERENCE: 1,
+        DeviceTaskType.OCR: 2,
+        DeviceTaskType.CLASSIFICATION: 24,
+        DeviceTaskType.SUMMARIZATION: 2,
     },
     "cuda": {  # NVIDIA GPU - typically higher throughput
-        TaskType.EMBEDDING: 128,
-        TaskType.RERANKING: 64,
-        TaskType.TRANSLATION: 16,
-        TaskType.TTS: 1,
-        TaskType.STT: 8,
-        TaskType.LLM_INFERENCE: 1,
-        TaskType.OCR: 8,
-        TaskType.CLASSIFICATION: 128,
-        TaskType.SUMMARIZATION: 8,
+        DeviceTaskType.EMBEDDING: 128,
+        DeviceTaskType.RERANKING: 64,
+        DeviceTaskType.TRANSLATION: 16,
+        DeviceTaskType.TTS: 1,
+        DeviceTaskType.STT: 8,
+        DeviceTaskType.LLM_INFERENCE: 1,
+        DeviceTaskType.OCR: 8,
+        DeviceTaskType.CLASSIFICATION: 128,
+        DeviceTaskType.SUMMARIZATION: 8,
     },
     "cpu": {  # CPU fallback - conservative batching
-        TaskType.EMBEDDING: 8,
-        TaskType.RERANKING: 4,
-        TaskType.TRANSLATION: 2,
-        TaskType.TTS: 1,
-        TaskType.STT: 1,
-        TaskType.LLM_INFERENCE: 1,
-        TaskType.OCR: 1,
-        TaskType.CLASSIFICATION: 8,
-        TaskType.SUMMARIZATION: 1,
+        DeviceTaskType.EMBEDDING: 8,
+        DeviceTaskType.RERANKING: 4,
+        DeviceTaskType.TRANSLATION: 2,
+        DeviceTaskType.TTS: 1,
+        DeviceTaskType.STT: 1,
+        DeviceTaskType.LLM_INFERENCE: 1,
+        DeviceTaskType.OCR: 1,
+        DeviceTaskType.CLASSIFICATION: 8,
+        DeviceTaskType.SUMMARIZATION: 1,
     },
 }
 
@@ -128,7 +136,7 @@ M4_BATCH_SIZES = BATCH_SIZES_BY_CHIP["m4"]
 # M4 Memory budget (16GB unified) - optimized for model persistence
 M4_MEMORY_BUDGET = {
     "os_reserved": 2.5,  # macOS overhead (reduced)
-    "mlx_llm": 4.5,  # Qwen/Gemma 4-bit + KV cache
+    "mlx_llm": 4.6,  # Qwen3-8B 4-bit + KV cache
     "mps_models": 5.0,  # Translation/TTS/STT/OCR (persistent)
     "embeddings": 2.0,  # BGE-M3 + reranker (keep both loaded)
     "headroom": 2.0,  # Dynamic allocation
@@ -326,16 +334,16 @@ class M4ResourceManager:
         finally:
             sem.release()
 
-    def get_resource_for_task(self, task_type: TaskType):
+    def get_resource_for_task(self, task_type: DeviceTaskType):
         """Get appropriate resource context manager for task."""
         if task_type in (
-            TaskType.LLM_INFERENCE,
-            TaskType.TRANSLATION,
-            TaskType.TTS,
-            TaskType.STT,
+            DeviceTaskType.LLM_INFERENCE,
+            DeviceTaskType.TRANSLATION,
+            DeviceTaskType.TTS,
+            DeviceTaskType.STT,
         ):
             return self.acquire_gpu()
-        elif task_type in (TaskType.EMBEDDING, TaskType.CLASSIFICATION):
+        elif task_type in (DeviceTaskType.EMBEDDING, DeviceTaskType.CLASSIFICATION):
             return self.acquire_ane()
         else:
             return self.acquire_cpu()
@@ -373,51 +381,51 @@ class DeviceRouter:
 
     # Task -> Preferred backends (in priority order)
     # M4 Optimized: MLX for LLMs, MPS for most models (CoreML has size limits)
-    TASK_PREFERENCES: dict[TaskType, list] = {
-        TaskType.LLM_INFERENCE: [
+    TASK_PREFERENCES: dict[DeviceTaskType, list] = {
+        DeviceTaskType.LLM_INFERENCE: [
             ComputeBackend.MLX,  # Fastest on Apple Silicon (4-bit quantized, 12x)
             ComputeBackend.CUDA,  # Fast on NVIDIA
             ComputeBackend.MPS,  # Fallback on Apple
             ComputeBackend.ONNX,  # CPU optimized
         ],
-        TaskType.EMBEDDING: [
+        DeviceTaskType.EMBEDDING: [
             ComputeBackend.MPS,  # MPS for BGE-M3 (CoreML fails on 6GB model)
             ComputeBackend.COREML,  # ANE only for small embedding models
             ComputeBackend.CUDA,
             ComputeBackend.ONNX,
         ],
-        TaskType.RERANKING: [
+        DeviceTaskType.RERANKING: [
             ComputeBackend.MPS,  # MPS for reranker (batched cross-encoder)
             ComputeBackend.CUDA,
             ComputeBackend.CPU,
         ],
-        TaskType.TTS: [
+        DeviceTaskType.TTS: [
             ComputeBackend.MPS,  # Metal for VITS audio synthesis (8x)
             ComputeBackend.CUDA,
             ComputeBackend.CPU,
         ],
-        TaskType.STT: [
+        DeviceTaskType.STT: [
             ComputeBackend.MPS,  # Metal for Whisper (6x)
             ComputeBackend.CUDA,
             ComputeBackend.CPU,
         ],
-        TaskType.OCR: [
+        DeviceTaskType.OCR: [
             ComputeBackend.MPS,  # GPU for GOT-OCR2 vision model (5x)
             ComputeBackend.CPU,  # Vision framework fallback
         ],
-        TaskType.TRANSLATION: [
+        DeviceTaskType.TRANSLATION: [
             ComputeBackend.MPS,  # MPS for IndicTrans2 seq2seq (7x)
             ComputeBackend.MLX,  # MLX if model converted
             ComputeBackend.CUDA,
             ComputeBackend.ONNX,
         ],
-        TaskType.CLASSIFICATION: [
+        DeviceTaskType.CLASSIFICATION: [
             ComputeBackend.COREML,  # ANE good for small classifiers
             ComputeBackend.MPS,
             ComputeBackend.CUDA,
             ComputeBackend.CPU,
         ],
-        TaskType.SUMMARIZATION: [
+        DeviceTaskType.SUMMARIZATION: [
             ComputeBackend.MLX,  # MLX for text generation
             ComputeBackend.CUDA,
             ComputeBackend.MPS,
@@ -644,7 +652,7 @@ class DeviceRouter:
             except Exception:
                 pass
 
-    def route(self, task_type: TaskType) -> RoutingDecision:
+    def route(self, task_type: DeviceTaskType) -> RoutingDecision:
         """
         Route a task to the optimal compute backend.
 
@@ -686,13 +694,13 @@ class DeviceRouter:
         """Check if a backend is available."""
         match backend:
             case ComputeBackend.MLX:
-                return self.capabilities.mlx_available
+                return bool(self.capabilities.mlx_available)
             case ComputeBackend.COREML:
-                return self.capabilities.coreml_available
+                return bool(self.capabilities.coreml_available)
             case ComputeBackend.MPS:
-                return self.capabilities.has_mps
+                return bool(self.capabilities.has_mps)
             case ComputeBackend.CUDA:
-                return self.capabilities.has_cuda
+                return bool(self.capabilities.has_cuda)
             case ComputeBackend.ONNX | ComputeBackend.CPU:
                 return True
         return False
@@ -718,21 +726,21 @@ class DeviceRouter:
         idx = preferences.index(current) if current in preferences else -1
         for backend in preferences[idx + 1 :]:
             if self._is_backend_available(backend):
-                return backend
+                return ComputeBackend(backend)
         return ComputeBackend.CPU if current != ComputeBackend.CPU else None
 
-    def _get_memory_limit(self, task_type: TaskType) -> float:
+    def _get_memory_limit(self, task_type: DeviceTaskType) -> float:
         """Get memory limit for task type based on M4 budget."""
-        if task_type == TaskType.LLM_INFERENCE:
+        if task_type == DeviceTaskType.LLM_INFERENCE:
             return M4_MEMORY_BUDGET["mlx_llm"]
         elif task_type in (
-            TaskType.TRANSLATION,
-            TaskType.TTS,
-            TaskType.STT,
-            TaskType.OCR,
+            DeviceTaskType.TRANSLATION,
+            DeviceTaskType.TTS,
+            DeviceTaskType.STT,
+            DeviceTaskType.OCR,
         ):
             return M4_MEMORY_BUDGET["mps_models"]
-        elif task_type in (TaskType.EMBEDDING, TaskType.RERANKING):
+        elif task_type in (DeviceTaskType.EMBEDDING, DeviceTaskType.RERANKING):
             return M4_MEMORY_BUDGET["embeddings"]
         else:
             return M4_MEMORY_BUDGET["headroom"]
@@ -771,7 +779,7 @@ class DeviceRouter:
             return 1.25
         return 1.0
 
-    def _get_optimal_batch_size(self, task_type: TaskType) -> int:
+    def _get_optimal_batch_size(self, task_type: DeviceTaskType) -> int:
         """Get optimal batch size for task type based on detected hardware."""
         chip_key = self._get_chip_key()
         batch_sizes = BATCH_SIZES_BY_CHIP.get(chip_key, BATCH_SIZES_BY_CHIP["cpu"])
@@ -781,40 +789,40 @@ class DeviceRouter:
         multiplier = self._get_memory_multiplier()
         return max(1, int(base_batch * multiplier))
 
-    def _estimate_speedup(self, backend: ComputeBackend, task_type: TaskType) -> float:
+    def _estimate_speedup(self, backend: ComputeBackend, task_type: DeviceTaskType) -> float:
         """Estimate speedup over CPU baseline - M4 optimized benchmarks with warmup."""
         # M4-optimized speedups after model warmup and batch optimization
         # These are achievable with proper optimization
         speedups = {
             ComputeBackend.MLX: {
-                TaskType.LLM_INFERENCE: 15.0,  # MLX 4-bit on M4: 60-80 tok/s warmed up
-                TaskType.EMBEDDING: 6.0,  # MLX embeddings with batching
-                TaskType.TRANSLATION: 8.0,  # MLX seq2seq if available
-                TaskType.SUMMARIZATION: 12.0,
+                DeviceTaskType.LLM_INFERENCE: 15.0,  # MLX 4-bit on M4: 60-80 tok/s warmed up
+                DeviceTaskType.EMBEDDING: 6.0,  # MLX embeddings with batching
+                DeviceTaskType.TRANSLATION: 8.0,  # MLX seq2seq if available
+                DeviceTaskType.SUMMARIZATION: 12.0,
             },
             ComputeBackend.COREML: {
-                TaskType.EMBEDDING: 10.0,  # ANE for small embeddings
-                TaskType.CLASSIFICATION: 15.0,  # ANE excellent for classifiers
-                TaskType.RERANKING: 8.0,
+                DeviceTaskType.EMBEDDING: 10.0,  # ANE for small embeddings
+                DeviceTaskType.CLASSIFICATION: 15.0,  # ANE excellent for classifiers
+                DeviceTaskType.RERANKING: 8.0,
             },
             ComputeBackend.MPS: {
-                TaskType.LLM_INFERENCE: 5.0,  # PyTorch on Metal
-                TaskType.EMBEDDING: 10.0,  # BGE-M3 batched on Metal 4
-                TaskType.RERANKING: 8.0,  # Cross-encoder batched on Metal
-                TaskType.TTS: 25.0,  # VITS optimized (0.04x RTF = 25x)
-                TaskType.STT: 3.0,  # Whisper on Metal 4 (target 0.33x RTF)
-                TaskType.TRANSLATION: 10.0,  # IndicTrans2 batched on Metal
-                TaskType.OCR: 8.0,  # GOT-OCR2 vision on Metal
+                DeviceTaskType.LLM_INFERENCE: 5.0,  # PyTorch on Metal
+                DeviceTaskType.EMBEDDING: 10.0,  # BGE-M3 batched on Metal 4
+                DeviceTaskType.RERANKING: 8.0,  # Cross-encoder batched on Metal
+                DeviceTaskType.TTS: 25.0,  # VITS optimized (0.04x RTF = 25x)
+                DeviceTaskType.STT: 3.0,  # Whisper on Metal 4 (target 0.33x RTF)
+                DeviceTaskType.TRANSLATION: 10.0,  # IndicTrans2 batched on Metal
+                DeviceTaskType.OCR: 8.0,  # GOT-OCR2 vision on Metal
             },
             ComputeBackend.CUDA: {
-                TaskType.LLM_INFERENCE: 20.0,
-                TaskType.EMBEDDING: 15.0,
-                TaskType.TTS: 12.0,
-                TaskType.STT: 10.0,
+                DeviceTaskType.LLM_INFERENCE: 20.0,
+                DeviceTaskType.EMBEDDING: 15.0,
+                DeviceTaskType.TTS: 12.0,
+                DeviceTaskType.STT: 10.0,
             },
             ComputeBackend.ONNX: {
-                TaskType.LLM_INFERENCE: 3.0,
-                TaskType.EMBEDDING: 4.0,
+                DeviceTaskType.LLM_INFERENCE: 3.0,
+                DeviceTaskType.EMBEDDING: 4.0,
             },
         }
 
@@ -856,7 +864,7 @@ class DeviceRouter:
             else {},
         }
 
-    def get_optimal_inference_config(self, task_type: TaskType) -> dict[str, Any]:
+    def get_optimal_inference_config(self, task_type: DeviceTaskType) -> dict[str, Any]:
         """
         Get optimal inference configuration for a task.
 

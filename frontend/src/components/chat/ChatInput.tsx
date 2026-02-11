@@ -280,7 +280,8 @@ const ChatInput = memo(function ChatInput({
       )}
 
       {/* Main Input Container */}
-      <div
+      <section
+        aria-label="Message input area"
         className={`relative group transition-all duration-300 ease-out-expo
           ${isDragOver ? 'scale-[1.02]' : ''}`}
         onDragOver={handleDragOver}
@@ -429,7 +430,7 @@ const ChatInput = memo(function ChatInput({
             </div>
           </div>
         </div>
-      </div>
+      </section>
     </div>
   );
 });

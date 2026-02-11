@@ -68,14 +68,14 @@ class Settings:
     LOG_FILE: str = os.getenv("LOG_FILE", "shiksha_setu.log")
 
     # =================================================================
-    # OPTIMAL MODEL STACK (2025)
+    # OPTIMAL MODEL STACK (2026) — M4 16GB: 4-bit LLM + FP16 rest
     # =================================================================
 
-    # --- Text Simplification: Qwen2.5-3B-Instruct ---
+    # --- Text Simplification: Qwen3-8B (MLX 4-bit) ---
     SIMPLIFICATION_MODEL_ID: str = os.getenv(
-        "SIMPLIFICATION_MODEL_ID", "Qwen/Qwen2.5-3B-Instruct"
+        "SIMPLIFICATION_MODEL_ID", "Qwen/Qwen3-8B"
     )
-    SIMPLIFICATION_BACKEND: str = os.getenv("SIMPLIFICATION_BACKEND", "transformers")
+    SIMPLIFICATION_BACKEND: str = os.getenv("SIMPLIFICATION_BACKEND", "mlx")
     SIMPLIFICATION_MAX_LENGTH: int = int(
         os.getenv("SIMPLIFICATION_MAX_LENGTH", "4096")
     )  # Increased
@@ -136,9 +136,9 @@ class Settings:
     )
     STT_USE_GPU: bool = os.getenv("STT_USE_GPU", "true").lower() == "true"
 
-    # --- Validation: Gemma-2-2B-it ---
-    VALIDATION_MODEL_ID: str = os.getenv("VALIDATION_MODEL_ID", "google/gemma-2-2b-it")
-    VALIDATION_BACKEND: str = os.getenv("VALIDATION_BACKEND", "transformers")
+    # --- Validation: Reuses main Qwen3-8B LLM (no separate model) ---
+    VALIDATION_MODEL_ID: str = os.getenv("VALIDATION_MODEL_ID", "Qwen/Qwen3-8B")
+    VALIDATION_BACKEND: str = os.getenv("VALIDATION_BACKEND", "mlx")
 
     # --- OCR: GOT-OCR2 ---
     OCR_MODEL_ID: str = os.getenv("OCR_MODEL_ID", "ucaslcl/GOT-OCR2_0")
@@ -287,6 +287,22 @@ class Settings:
     ALLOW_CREDENTIALS: bool = True
     ALLOWED_METHODS: list[str] = ["*"]
     ALLOWED_HEADERS: list[str] = ["*"]
+
+    # =================================================================
+    # SERVICE TIMEOUTS (seconds) — centralized, config-driven
+    # =================================================================
+    SIMPLIFIER_TIMEOUT: float = float(os.getenv("SIMPLIFIER_TIMEOUT", "120.0"))
+    TTS_TIMEOUT: float = float(os.getenv("TTS_TIMEOUT", "60.0"))
+    OCR_TIMEOUT: float = float(os.getenv("OCR_TIMEOUT", "30.0"))
+    TRANSLATION_TIMEOUT: float = float(os.getenv("TRANSLATION_TIMEOUT", "60.0"))
+    EMBEDDING_TIMEOUT: float = float(os.getenv("EMBEDDING_TIMEOUT", "30.0"))
+    RERANKER_TIMEOUT: float = float(os.getenv("RERANKER_TIMEOUT", "30.0"))
+
+    # =================================================================
+    # INFERENCE DEFAULTS
+    # =================================================================
+    DEFAULT_MAX_LENGTH: int = int(os.getenv("DEFAULT_MAX_LENGTH", "512"))
+    VALIDATION_MAX_LENGTH: int = int(os.getenv("VALIDATION_MAX_LENGTH", "512"))
 
     # =================================================================
     # RATE LIMITING

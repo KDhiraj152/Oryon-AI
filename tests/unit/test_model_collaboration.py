@@ -87,13 +87,13 @@ class TestModelCollaboration:
 
         msg = ModelMessage(
             from_model="qwen",
-            to_model="gemma",
+            to_model="validator",
             content="Test content",
             context={"grade": 8},
         )
 
         assert msg.from_model == "qwen"
-        assert msg.to_model == "gemma"
+        assert msg.to_model == "validator"
         assert msg.content == "Test content"
         assert msg.context["grade"] == 8
 
@@ -172,13 +172,13 @@ class TestPipelineCollaborationIntegration:
             original_text="Test",
             collaboration_confidence=0.95,
             collaboration_consensus=True,
-            models_used=["qwen-3b", "gemma-2b", "bge-m3"],
+            models_used=["qwen3-8b", "bge-m3"],
             model_scores={"llm": 0.9, "semantic": 0.95},
         )
 
         assert abs(result.collaboration_confidence - 0.95) < 1e-9
         assert result.collaboration_consensus is True
-        assert "qwen-3b" in result.models_used
+        assert "qwen3-8b" in result.models_used
         assert abs(result.model_scores["llm"] - 0.9) < 1e-9
 
     def test_pipeline_exports_collaboration(self):
@@ -251,8 +251,8 @@ class TestCollaborationConvenienceFunctions:
         assert "subject" in params
 
 
-class TestEightModelCollaboration:
-    """Tests for new 8-model collaboration patterns."""
+class TestSevenModelCollaboration:
+    """Tests for 7-model collaboration patterns."""
 
     def test_new_patterns_defined(self):
         """Test new collaboration patterns are defined."""
@@ -274,12 +274,12 @@ class TestEightModelCollaboration:
         assert "rerank" in patterns
 
     def test_collaborator_has_all_model_accessors(self):
-        """Test ModelCollaborator has accessors for all 8 models."""
+        """Test ModelCollaborator has accessors for all 7 models."""
         from backend.services.pipeline.model_collaboration import ModelCollaborator
 
         collaborator = ModelCollaborator()
 
-        # Check all 8 model accessors exist
+        # Check all 7 model accessors exist
         assert hasattr(collaborator, "_get_llm")
         assert hasattr(collaborator, "_get_translator")
         assert hasattr(collaborator, "_get_embedder")

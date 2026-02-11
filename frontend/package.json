@@ -13,8 +13,6 @@
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.19",
-    "@types/katex": "^0.16.7",
-    "@types/react-syntax-highlighter": "^15.5.13",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "katex": "^0.16.25",
@@ -33,8 +31,10 @@
     "zustand": "^4.4.7"
   },
   "devDependencies": {
+    "@types/katex": "^0.16.7",
     "@types/react": "^18.2.37",
     "@types/react-dom": "^18.2.15",
+    "@types/react-syntax-highlighter": "^15.5.13",
     "@typescript-eslint/eslint-plugin": "^6.13.0",
     "@typescript-eslint/parser": "^6.13.0",
     "@vitejs/plugin-react": "^4.2.0",

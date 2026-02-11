@@ -1,11 +1,11 @@
-# Section 11: Contribution Summary
+# Contributing & Project History
 
 ---
 
 **Author:** K Dhiraj
 **Email:** k.dhiraj.srihari@gmail.com
-**Version:** 4.0.0 (Universal Mode)
-**Last Updated:** December 5, 2025
+**Version:** 4.1.0
+**Last Updated:** February 11, 2026
 
 ---
 
@@ -30,6 +30,7 @@ I am K Dhiraj, the architect and primary developer of Shiksha Setu. This project
 | 2.0 | Q2 2024 | Multi-language support, RAG implementation |
 | 3.0 | Q3 2024 | Production hardening, authentication |
 | 4.0 | Q4 2024 | Universal mode, 2025 model stack, M4 optimization |
+| 4.1 | Q1 2026 | Documentation restructuring, naming standardization |
 
 ---
 
@@ -43,7 +44,7 @@ Selected and integrated the optimal combination of AI models for the Indian educ
 
 | Component | Model | Rationale |
 |-----------|-------|-----------|
-| LLM | Qwen2.5-3B-Instruct | Best quality-to-latency ratio at 3B scale, excellent multilingual capability |
+| LLM | Qwen3-8B (MLX 4-bit) | Best quality-to-latency ratio at 8B scale, handles both simplification and validation |
 | Embeddings | BGE-M3 | Multilingual dense embeddings, SOTA on MTEB |
 | Reranker | BGE-Reranker-v2-M3 | Cross-encoder reranking for precision |
 | Translation | IndicTrans2-1B | Purpose-built for Indian languages, 22 language support |
@@ -55,8 +56,8 @@ Selected and integrated the optimal combination of AI models for the Indian educ
 # Model configuration with quantization
 MODEL_CONFIGS = {
     "llm": {
-        "model_id": "Qwen/Qwen2.5-3B-Instruct",
-        "quantization": "int4",
+        "model_id": "mlx-community/Qwen3-8B-4bit",
+        "quantization": "4bit",
         "context_length": 32768,
         "load_in_4bit": True,
     },
@@ -381,9 +382,9 @@ async def ask_question(
 
 ## Key Decisions
 
-### 1. Qwen2.5 over Llama 3.2
+### 1. Qwen3-8B over Qwen2.5-3B + Gemma-2-2B
 
-Selected Qwen2.5-3B-Instruct over Llama 3.2-3B for several reasons:
+Selected Qwen3-8B as a unified LLM to replace both Qwen2.5-3B-Instruct and Gemma-2-2B-IT:
 - Superior multilingual performance, especially for transliterated text
 - Better instruction following in educational contexts
 - More efficient INT4 quantization with minimal quality loss
@@ -414,18 +415,71 @@ Implemented dual TTS strategy:
 
 ---
 
+## Codebase Restructuring (June 2025)
+
+Full structural overhaul across backend, frontend, scripts, and documentation. This restructuring addressed architectural debt accumulated during rapid feature development. The codebase was standardized without altering runtime behavior.
+
+### Dead Code Elimination
+
+| File / Pattern | Action | Reason |
+|---|---|---|
+| `backend/integration.py` | Deleted | Zero consumers; legacy sync-only code (521 lines) |
+| `frontend/src/components/OmLogo.tsx` | Deleted | Dead; all imports use `landing/OmLogo.tsx` |
+| `ReviewQueue` global in `services/__init__.py` | Removed | Dead singleton pattern, never instantiated |
+
+### Type Unification (4x ModelConfig → 1 Canonical Source)
+
+Created `backend/core/types.py` as the single source of truth for shared enums:
+- `ModelTier` (FAST / BALANCED / QUALITY / PREMIUM)
+- `TaskType` (CHAT / REASONING / CODE / TRANSLATION / EMBEDDING)
+- `ModelType` (LLM / EMBEDDING / TTS / STT / OCR / TRANSLATION / RERANKER)
+
+### CircuitBreaker Consolidation (3x → 1)
+
+| Location | Before | After |
+|---|---|---|
+| `core/circuit_breaker.py` | Canonical implementation | Unchanged (canonical) |
+| `core/exceptions.py` | ~100-line duplicate class | Re-exports from `circuit_breaker.py` |
+| `pipeline/orchestrator_v2.py` | `PipelineCircuitBreaker` | Cleaned up (proper docs, private attrs) |
+
+### Lazy-Loading `core/optimized/`
+
+Rewrote `backend/core/optimized/__init__.py` from 384-line eager imports of 21 submodules to a ~220-line lazy-loading system using `__getattr__` + `_LAZY_IMPORTS` registry (180+ symbols). Reduces cold-start import time significantly.
+
+### Script Reorganization
+
+- **Extensions fixed** — Python scripts with `.sh` extensions corrected to `.py`
+- **Naming normalized** — kebab-case → snake_case across all scripts
+- **Testing consolidated** — 15 → 11 scripts (removed duplicates, merged overlaps)
+
+### Key Fixes
+
+- **AgentRegistry singleton**: Fixed `__new__` + `_initialized` guard so all callers share one registry
+- **Security gap in `system.ts`**: Replaced direct `localStorage` token reads with secure closure-based manager
+- **GPU coordination extracted**: ~120 lines moved from `inference/__init__.py` to dedicated `gpu_coordination.py`
+
+### Backward Compatibility
+
+All renamed types have backward-compatible aliases:
+- `ModelConfig = HardwareModelConfig` (in `model_manager.py`)
+- `TaskType = DeviceTaskType` (in `device_router.py`)
+- `CoreMLInferenceEngine = CoreMLEmbeddingEngine` (in `inference/__init__.py`)
+- `WarmupService = ModelWarmupService` (in `inference/__init__.py`)
+
+---
+
 ## Acknowledgments
 
 This project builds on the work of many open-source contributors:
 
-- **Hugging Face** - Model hosting and transformers library
-- **BAAI** - BGE embedding and reranking models
-- **AI4Bharat** - IndicTrans2 translation models
-- **Qwen Team** - Qwen2.5 language models
-- **OpenAI** - Whisper speech recognition
-- **Meta** - MMS text-to-speech
-- **PostgreSQL** - Database foundation
-- **pgvector** - Vector similarity search extension
+- **Hugging Face** — Model hosting and transformers library
+- **BAAI** — BGE embedding and reranking models
+- **AI4Bharat** — IndicTrans2 translation models
+- **Qwen Team** — Qwen3 language models
+- **OpenAI** — Whisper speech recognition
+- **Meta** — MMS text-to-speech
+- **PostgreSQL** — Database foundation
+- **pgvector** — Vector similarity search extension
 
 ---
 
@@ -435,7 +489,3 @@ For questions, collaboration opportunities, or feedback:
 
 **K Dhiraj**
 k.dhiraj.srihari@gmail.com
-
----
-
-*This concludes the Shiksha Setu v4.0 documentation series.*

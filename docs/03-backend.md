@@ -1,11 +1,11 @@
-# Section 3: Backend Architecture
+# Backend Architecture
 
 ---
 
 **Author:** K Dhiraj
 **Email:** k.dhiraj.srihari@gmail.com
-**Version:** 4.0.0 (Universal Mode)
-**Last Updated:** December 5, 2025
+**Version:** 4.1.0
+**Last Updated:** February 11, 2026
 
 ---
 
@@ -29,75 +29,120 @@ Built on Starlette with `uvloop` for async I/O, FastAPI delivers performance tha
 backend/
 ├── __init__.py
 ├── database.py              # SQLAlchemy engine & session management
-├── integration.py           # External service connectors
 │
 ├── api/                     # HTTP layer
 │   ├── __init__.py
 │   ├── main.py              # FastAPI app initialization & lifespan events
+│   ├── deps.py              # Shared lazy-loaded singletons (get_ai_engine, get_pipeline, json_dumps)
 │   ├── documentation.py     # OpenAPI customization
 │   ├── metrics.py           # Prometheus instrumentation
-│   ├── middleware.py        # Custom middleware implementations
-│   ├── unified_middleware.py # Consolidated middleware chain
+│   ├── middleware.py        # Exception handlers
+│   ├── unified_middleware.py    # Consolidated middleware chain
 │   ├── validation_middleware.py # Request validation
+│   ├── version_middleware.py    # API versioning headers
 │   └── routes/
-│       ├── __init__.py
+│       ├── __init__.py      # Router consolidation
 │       ├── auth.py          # Authentication endpoints
 │       ├── batch.py         # Batch processing endpoints
 │       ├── chat.py          # Chat & streaming endpoints
 │       ├── content.py       # Content processing endpoints
-│       └── health_routes.py # Health & status endpoints
+│       ├── health.py        # Health, status & admin endpoints
+│       └── agents.py        # Multi-agent system endpoints
 │
 ├── core/                    # Infrastructure & system-level operations
-│   ├── config.py            # Pydantic settings with env loading
-│   ├── security.py          # JWT encoding/decoding, password hashing
-│   ├── exceptions.py        # Custom exception classes
+│   ├── config.py            # Application settings (env-backed)
+│   ├── constants.py         # Application-wide constants
+│   ├── types.py             # Canonical enums: ModelTier, TaskType, ModelType
+│   ├── exceptions.py        # Custom exceptions with retry decorators
 │   ├── circuit_breaker.py   # Fault tolerance patterns
-│   └── optimized/           # M4-specific optimizations
-│       ├── memory_coordinator.py   # Global memory management
+│   ├── security.py          # JWT encoding/decoding, password hashing
+│   ├── storage.py           # Redis/Memory storage backends
+│   ├── policy.py            # Content policy engine
+│   ├── model_config.py      # Hot-reloadable model configuration
+│   ├── correlation.py       # Request correlation ID logging
+│   ├── tracing.py           # OpenTelemetry distributed tracing
+│   ├── hal.py               # Hardware abstraction layer
+│   └── optimized/           # M4-specific optimizations (lazy-loaded via __getattr__)
 │       ├── device_router.py        # MPS/CUDA/CPU routing
+│       ├── model_manager.py        # High-performance model lifecycle
+│       ├── memory_coordinator.py   # Global memory management
+│       ├── memory_pool.py          # Buffer pool management
 │       ├── async_optimizer.py      # Async-first patterns
 │       ├── gpu_pipeline.py         # GPU queue pipelining
-│       └── memory_pool.py          # Buffer pool management
+│       ├── core_affinity.py        # P/E core routing
+│       ├── apple_silicon.py        # M4-specific optimizations
+│       ├── rate_limiter.py         # Unified rate limiting
+│       ├── quantization.py         # INT4/INT8 quantization
+│       ├── benchmark.py            # Performance benchmarking
+│       └── ...                     # (22 submodules total)
 │
 ├── cache/                   # Multi-tier caching infrastructure
-│   └── unified/
-│       ├── multi_tier_cache.py    # L1/L2/L3 cache implementation
-│       └── fast_serializer.py     # msgpack serialization
+│   ├── __init__.py          # Redis client singleton
+│   ├── multi_tier_cache.py  # L1/L2/L3 cache implementation
+│   ├── redis_cache.py       # Redis cache backend
+│   ├── embedding_cache.py   # Embedding-specific cache (SQLite)
+│   ├── response_cache.py    # Response cache
+│   ├── kv_cache.py          # Key-value cache
+│   └── fast_serializer.py   # msgpack serialization
 │
 ├── services/                # Business logic
-│   ├── rag.py               # RAGService, BGEM3Embedder, BGEReranker
-│   ├── student_profile.py   # StudentProfileService
-│   ├── curriculum_validation.py # CurriculumValidationService
-│   ├── cultural_context.py  # UnifiedCulturalContextService
-│   ├── grade_adaptation.py  # GradeLevelAdaptationService
-│   ├── ocr.py               # OCRService
+│   ├── ai_core/             # AI engine (intent, routing, safety, prompts, citations)
+│   ├── pipeline/            # Content processing pipeline & orchestration
+│   ├── inference/           # ML backends (MLX, CoreML, unified engine)
+│   ├── evaluation/          # Semantic accuracy evaluation & refinement
+│   ├── translate/           # Translation (IndicTrans2 engine & service)
+│   ├── tts/                 # Text-to-Speech (Edge TTS, MMS-TTS)
+│   ├── validate/            # Curriculum validation (NCERT, CBSE standards)
+│   ├── rag.py               # RAG Q&A with BGE-M3 embeddings
+│   ├── ocr.py               # Document OCR (GOT-OCR2)
+│   ├── simplifier.py        # Content simplification
 │   ├── safety_pipeline.py   # 3-pass safety verification
+│   ├── cultural_context.py  # Indian cultural context adaptation
+│   ├── curriculum_validation.py  # Curriculum alignment checks
+│   ├── grade_adaptation.py  # Grade-level content adaptation
+│   ├── speech_generator.py  # Speech generation
+│   ├── speech_processor.py  # Speech processing
+│   ├── student_profile.py   # Student personalization
 │   ├── review_queue.py      # Teacher review workflow
-│   ├── translate/
-│   │   ├── model.py         # IndicTrans2 integration
-│   │   └── service.py       # TranslationService
-│   ├── tts/
-│   │   ├── edge_tts.py      # EdgeTTSService
-│   │   └── mms_tts.py       # MMSTTSService
-│   ├── inference/
-│   │   ├── __init__.py      # GPU semaphore management
-│   │   ├── warmup.py        # ModelWarmupService
-│   │   └── unified_engine.py # Unified inference engine
-│   └── pipeline/
-│       ├── orchestrator_v2.py # Pipeline orchestration
-│       └── unified_pipeline.py # UnifiedPipelineService
+│   └── error_tracking.py    # Sentry integration
 │
 ├── models/                  # SQLAlchemy ORM definitions
-│   └── *.py                 # User, Chat, Document, Embedding models
+│   ├── auth.py              # User, APIKey, Token models
+│   ├── chat.py              # Conversation, Message models
+│   ├── content.py           # ProcessedContent, Translation, Audio
+│   ├── progress.py          # StudentProgress, Quiz, Achievement
+│   ├── rag.py               # DocumentChunk, Embedding, ChatHistory
+│   └── student.py           # StudentProfile, LearningStyle
 │
 ├── schemas/                 # Pydantic request/response models
-│   └── *.py                 # Typed API contracts
+│   ├── auth.py              # Auth DTOs (UserCreate, Token, etc.)
+│   ├── content.py           # Content DTOs (ProcessRequest, etc.)
+│   └── qa.py                # Q&A DTOs (QAQueryRequest, etc.)
 │
-├── tasks/                   # Background task definitions
-│   └── *.py                 # Async processing jobs
+├── agents/                  # Multi-agent system
+│   ├── base.py              # BaseAgent protocol & registry
+│   ├── orchestrator.py      # Request routing & coordination
+│   ├── model_execution.py   # ML model lifecycle & inference
+│   ├── hardware_optimizer.py # Dynamic hardware tuning
+│   ├── evaluation.py        # Quality measurement
+│   ├── resource_monitor.py  # Memory, GPU, latency tracking
+│   └── self_improvement.py  # Closed-loop optimization
+│
+├── monitoring/              # Observability
+│   ├── metrics.py           # Prometheus metrics
+│   └── oom_alerts.py        # OOM detection & alerting
+│
+├── tasks/                   # Celery background tasks
+│   ├── celery_app.py        # Celery application instance
+│   ├── celery_config.py     # Worker configuration
+│   └── *_tasks.py           # Domain-specific async tasks
 │
 └── utils/                   # Shared utilities
-    └── logging.py           # Logging configuration
+    ├── auth.py              # Auth helpers (get_current_user)
+    ├── logging.py           # Structured logging setup
+    ├── hashing.py           # Hashing utilities
+    ├── cancellation.py      # Task cancellation
+    └── memory_guard.py      # Memory guard utilities
 ```
 
 ---
@@ -142,7 +187,8 @@ Endpoints are organized by domain in the `routes/` directory:
 | `chat.py` | `/api/v2/chat` | Streaming and non-streaming conversations |
 | `content.py` | `/api/v2/content` | Simplification, translation, TTS |
 | `batch.py` | `/api/v2/batch` | Bulk processing operations |
-| `health_routes.py` | `/api/v2/health` | Liveness and readiness probes |
+| `health.py` | `/api/v2/health` | Liveness, readiness probes, admin |
+| `agents.py` | `/api/v2/agents` | Multi-agent system endpoints |
 
 ### Middleware Pipeline
 
@@ -188,7 +234,7 @@ class Settings:
     MAX_GPU_MEMORY_GB: float = 16.0
 
     # Model Stack (2025 Optimal)
-    SIMPLIFICATION_MODEL_ID: str = "Qwen/Qwen2.5-3B-Instruct"
+    SIMPLIFICATION_MODEL_ID: str = "mlx-community/Qwen3-8B-4bit"
     TRANSLATION_MODEL_ID: str = "ai4bharat/indictrans2-en-indic-1B"
     EMBEDDING_MODEL_ID: str = "BAAI/bge-m3"
     RERANKER_MODEL_ID: str = "BAAI/bge-reranker-v2-m3"

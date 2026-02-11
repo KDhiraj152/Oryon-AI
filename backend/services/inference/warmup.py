@@ -84,7 +84,8 @@ class ModelWarmupService:
         self._max_memory_mb = max_memory_mb
         self._current_memory_mb = 0
         self._loading_lock = asyncio.Lock()
-        self._executor = ThreadPoolExecutor(max_workers=max_concurrent_loads)
+        from ...core.optimized.thread_pool_manager import get_ml_executor
+        self._executor = get_ml_executor()  # Shared ML pool
         self._load_order: list[str] = []
         self._background_task: asyncio.Task | None = None
 

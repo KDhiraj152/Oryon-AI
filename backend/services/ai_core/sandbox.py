@@ -192,7 +192,8 @@ class PythonCodeRunner(SandboxedTool):
     }
 
     def __init__(self):
-        self._executor = ThreadPoolExecutor(max_workers=2)
+        from ...core.optimized.thread_pool_manager import get_io_executor
+        self._executor = get_io_executor()  # Shared I/O pool
 
     def _validate_code(self, code: str) -> str | None:
         """Validate code for security issues."""

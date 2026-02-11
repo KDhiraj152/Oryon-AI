@@ -85,8 +85,8 @@ case $choice in
     3)
         echo ""
         echo "⏭️  Skipping authentication"
-        echo "📝 Note: The system will use ungated alternatives:"
-        echo "   • google/gemma-2-2b-it (primary validator)"
+        echo "📝 Note: The system will use ungated models:"
+        echo "   • Qwen3-8B via MLX (primary LLM + validator)"
         echo "   • Full accuracy for Indian language content"
         echo ""
         echo "To enable gated models later, run this script again or:"

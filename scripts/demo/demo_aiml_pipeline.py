@@ -78,7 +78,7 @@ try:
     bert = BERTClient()
     mms_tts = MMSTTSClient()
 
-    print(f"   ✓ Qwen2.5 Client: {qwen.model_id}")
+    print(f"   ✓ Qwen3-8B Client: {qwen.model_id}")
     print(f"   ✓ IndicTrans2 Client: {indictrans2.model_id}")
     print(f"   ✓ BERT Client: {bert.model_id}")
     print(f"   ✓ MMS-TTS Client: {mms_tts.model_id}")

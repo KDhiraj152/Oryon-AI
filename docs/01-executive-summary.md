@@ -1,11 +1,11 @@
-# Section 1: Executive Summary
+# Executive Summary
 
 ---
 
 **Author:** K Dhiraj
 **Email:** k.dhiraj.srihari@gmail.com
-**Version:** 4.0.0 (Universal Mode)
-**Last Updated:** December 5, 2025
+**Version:** 4.1.0
+**Last Updated:** February 11, 2026
 
 ---
 
@@ -54,7 +54,7 @@ The platform combines multiple specialized AI models with custom infrastructure 
 
 | Component | Model | Purpose |
 |-----------|-------|---------|
-| **Reasoning** | Qwen2.5-3B-Instruct | Text generation, explanation, Q&A |
+| **Reasoning** | Qwen3-8B (MLX 4-bit) | Text generation, explanation, Q&A, validation |
 | **Translation** | IndicTrans2-1B | Indian language translation |
 | **Embeddings** | BGE-M3 | Multilingual semantic search |
 | **Reranking** | BGE-Reranker-v2-M3 | Retrieval accuracy optimization |
@@ -114,7 +114,7 @@ Benchmarked on Apple Silicon M4 Pro with 16GB unified memory:
 | Operation | Performance | Notes |
 |-----------|-------------|-------|
 | **Embedding Throughput** | 348 texts/sec | BGE-M3 with MLX optimization |
-| **LLM Inference** | 50 tokens/sec | Qwen2.5-3B with INT4 quantization |
+| **LLM Inference** | 50 tokens/sec | Qwen3-8B with MLX 4-bit quantization |
 | **Text-to-Speech** | 31x realtime | MMS-TTS on Apple Silicon |
 | **Speech-to-Text** | 2x realtime | Whisper V3 Turbo |
 | **Reranking Latency** | 2.6ms/document | BGE-Reranker-v2-M3 |

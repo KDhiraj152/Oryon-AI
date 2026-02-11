@@ -1,4 +1,4 @@
-"""Validation Module for content quality assurance using Gemma-2-2B-IT."""
+"""Validation Module for content quality assurance using Qwen3-8B."""
 
 import logging
 import re
@@ -52,11 +52,11 @@ class QualityReport:
 
 
 class ValidationModule:
-    """Gemma-2-2B-IT validation module for educational content quality assurance.
+    """Qwen3-8B validation module for educational content quality assurance.
 
     Uses:
     - BGEM3Embedder for semantic similarity (cosine similarity between embeddings)
-    - Gemma-2-2B-IT via MLX for LLM-based validation prompts
+    - Qwen3-8B via MLX for LLM-based validation prompts
     """
 
     def __init__(self):
@@ -77,7 +77,7 @@ class ValidationModule:
         return self._embedder
 
     def _get_llm_engine(self):
-        """Lazy-load Gemma-2-2B-IT via MLX for validation prompts (with memory coordination)."""
+        """Lazy-load Qwen3-8B via MLX for validation prompts (reuses main LLM, with memory coordination)."""
         if self._llm_engine is None:
             # Acquire memory before loading validator LLM
             try:
@@ -95,15 +95,15 @@ class ValidationModule:
 
             from ..inference.mlx_backend import MLXInferenceEngine
 
-            self._llm_engine = MLXInferenceEngine(model_id="gemma2-2b")
+            self._llm_engine = MLXInferenceEngine(model_id="qwen3-8b")
             self._llm_engine.load()
-            logger.info("ValidationModule: Loaded Gemma-2-2B-IT via MLX")
+            logger.info("ValidationModule: Loaded Qwen3-8B via MLX")
         return self._llm_engine
 
     def unload_llm(self) -> None:
         """Unload the validation LLM to free memory."""
         if self._llm_engine is not None:
-            logger.info("ValidationModule: Unloading Gemma-2-2B-IT...")
+            logger.info("ValidationModule: Unloading Qwen3-8B...")
             try:
                 self._llm_engine.unload()
             except Exception as e:
@@ -120,7 +120,6 @@ class ValidationModule:
 
             self._llm_engine = None
             logger.info("ValidationModule: LLM unloaded")
-        return self._llm_engine
 
     def _get_ncert_loader(self):
         """Lazy-load NCERT standards loader."""
@@ -135,6 +134,58 @@ class ValidationModule:
             except Exception as e:
                 logger.warning(f"Could not load NCERT standards: {e}")
         return self._ncert_loader
+
+    def _check_ncert_alignment(
+        self,
+        translated_text: str,
+        grade_level: int,
+        subject: str,
+        universal_mode: bool,
+        issues: list,
+        recommendations: list,
+        quality_metrics: dict,
+    ) -> float:
+        """Check NCERT alignment, skipping in universal mode."""
+        if universal_mode:
+            quality_metrics["ncert_alignment"] = 1.0
+            quality_metrics["universal_mode"] = True
+            logger.debug("UNIVERSAL_MODE: Skipping NCERT alignment validation")
+            return 1.0
+        ncert_loader = self._get_ncert_loader()
+        ncert_score = self._validate_ncert_alignment(
+            translated_text, grade_level, subject, ncert_loader
+        )
+        quality_metrics["ncert_alignment"] = ncert_score
+        if ncert_score < self.quality_threshold:
+            issues.append(
+                f"NCERT alignment below threshold: {ncert_score:.2f} < {self.quality_threshold}"
+            )
+            recommendations.append("Align content with NCERT curriculum standards")
+        return ncert_score
+
+    def _check_age_appropriateness(
+        self,
+        translated_text: str,
+        grade_level: int,
+        universal_mode: bool,
+        issues: list,
+        recommendations: list,
+        quality_metrics: dict,
+    ) -> bool:
+        """Check age-appropriate language, skipping in universal mode."""
+        if universal_mode:
+            logger.debug("UNIVERSAL_MODE: Skipping age-appropriate language check")
+            return True
+        age_appropriate = self._check_age_appropriate_language(
+            translated_text, grade_level
+        )
+        quality_metrics["age_appropriate"] = 1.0 if age_appropriate else 0.0
+        if not age_appropriate:
+            issues.append("Language complexity not appropriate for grade level")
+            recommendations.append(
+                f"Simplify language for grade {grade_level} students"
+            )
+        return age_appropriate
 
     def validate_content(
         self,
@@ -152,87 +203,44 @@ class ValidationModule:
         """
         content_id = content_id or f"content_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
-        issues = []
-        recommendations = []
-        quality_metrics = {}
+        issues: list[str] = []
+        recommendations: list[str] = []
+        quality_metrics: dict[str, Any] = {}
 
-        # Check if universal mode is enabled
         universal_mode = _get_universal_mode()
 
-        # 1. Semantic accuracy validation (always performed - minimum 0.8 required)
-        semantic_score = self._validate_semantic_accuracy(
-            original_text, translated_text
-        )
+        # 1. Semantic accuracy validation
+        semantic_score = self._validate_semantic_accuracy(original_text, translated_text)
         quality_metrics["semantic_accuracy"] = semantic_score
-
         if semantic_score < 0.80:
-            issues.append(
-                f"Low semantic accuracy: {semantic_score:.2f} (minimum 0.80 required)"
-            )
-            recommendations.append(
-                "Review translation for meaning preservation - must achieve ≥80% accuracy"
-            )
+            issues.append(f"Low semantic accuracy: {semantic_score:.2f} (minimum 0.80 required)")
+            recommendations.append("Review translation for meaning preservation - must achieve ≥80% accuracy")
 
-        # 2. NCERT alignment checking (SKIPPED in UNIVERSAL_MODE)
-        if universal_mode:
-            # In universal mode, skip NCERT validation entirely
-            ncert_score = 1.0  # Perfect score - no curriculum constraints
-            quality_metrics["ncert_alignment"] = ncert_score
-            quality_metrics["universal_mode"] = True
-            logger.debug("UNIVERSAL_MODE: Skipping NCERT alignment validation")
-        else:
-            ncert_loader = self._get_ncert_loader()
-            ncert_score = self._validate_ncert_alignment(
-                translated_text, grade_level, subject, ncert_loader
-            )
-            quality_metrics["ncert_alignment"] = ncert_score
+        # 2. NCERT alignment checking
+        ncert_score = self._check_ncert_alignment(
+            translated_text, grade_level, subject, universal_mode, issues, recommendations, quality_metrics
+        )
 
-            if ncert_score < self.quality_threshold:
-                issues.append(
-                    f"NCERT alignment below threshold: {ncert_score:.2f} < {self.quality_threshold}"
-                )
-                recommendations.append("Align content with NCERT curriculum standards")
-
-        # 3. Script accuracy validation (always performed)
+        # 3. Script accuracy validation
         script_accuracy = self._validate_script_accuracy(translated_text, language)
         quality_metrics["script_accuracy"] = 1.0 if script_accuracy else 0.0
-
         if not script_accuracy:
             issues.append("Script rendering issues detected")
             recommendations.append("Fix mathematical/scientific notation rendering")
 
-        # 4. Age-appropriate language check (SKIPPED in UNIVERSAL_MODE)
-        if universal_mode:
-            # In universal mode, all language complexity is acceptable
-            age_appropriate = True
-            logger.debug("UNIVERSAL_MODE: Skipping age-appropriate language check")
-        else:
-            age_appropriate = self._check_age_appropriate_language(
-                translated_text, grade_level
-            )
-            quality_metrics["age_appropriate"] = 1.0 if age_appropriate else 0.0
-
-            if not age_appropriate:
-                issues.append("Language complexity not appropriate for grade level")
-                recommendations.append(
-                    f"Simplify language for grade {grade_level} students"
-                )
-
+        # 4. Age-appropriate language check
+        age_appropriate = self._check_age_appropriateness(
+            translated_text, grade_level, universal_mode, issues, recommendations, quality_metrics
+        )
         quality_metrics["age_appropriate"] = 1.0 if age_appropriate else 0.0
 
         # 5. Technical terminology preservation
-        tech_terms_preserved = self._check_technical_terminology(
-            original_text, translated_text, subject
-        )
-        quality_metrics["technical_terms_preserved"] = (
-            1.0 if tech_terms_preserved else 0.0
-        )
-
+        tech_terms_preserved = self._check_technical_terminology(original_text, translated_text, subject)
+        quality_metrics["technical_terms_preserved"] = 1.0 if tech_terms_preserved else 0.0
         if not tech_terms_preserved:
             issues.append("Technical terminology may not be properly preserved")
             recommendations.append("Review subject-specific term translations")
 
-        # Determine overall status
         overall_status = self._determine_overall_status(
             semantic_score, ncert_score, script_accuracy, age_appropriate
         )
@@ -556,18 +564,19 @@ class ValidationModule:
         )
 
         # Get detailed NCERT matching information
-        matched_standards = self.ncert_loader.find_matching_standards(
+        ncert_loader = self._get_ncert_loader()
+        matched_standards = ncert_loader.find_matching_standards(
             translated_text, grade_level, subject, top_k=5
         )
 
         # Calculate detailed metrics
         keyword_overlap_scores = [
-            self.ncert_loader.check_keyword_overlap(translated_text, standard)
+            ncert_loader.check_keyword_overlap(translated_text, standard)
             for standard, _ in matched_standards
         ]
 
         learning_objective_matches = [
-            self.ncert_loader.get_learning_objectives_match(translated_text, standard)
+            ncert_loader.get_learning_objectives_match(translated_text, standard)
             for standard, _ in matched_standards
         ]
 

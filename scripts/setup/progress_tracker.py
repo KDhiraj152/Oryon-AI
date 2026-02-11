@@ -133,7 +133,7 @@ def print_model_info(model_name, model_id, model_size, description):
 if __name__ == "__main__":
     # Demo
     models = [
-        {"name": "Qwen2.5-3B", "size": "6GB"},
+        {"name": "Qwen3-8B", "size": "4.6GB"},
         {"name": "IndicTrans2", "size": "2GB"},
         {"name": "BGE-M3", "size": "1.2GB"},
         {"name": "BGE-Reranker", "size": "1GB"}

@@ -17,7 +17,7 @@ import logging
 import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, cast
 
 import numpy as np
 
@@ -103,12 +103,12 @@ class CoreMLEmbeddingEngine:
     @property
     def dimension(self) -> int:
         """Get embedding dimension."""
-        return int(self._config["dimension"])
+        return int(str(self._config["dimension"]))
 
     @property
     def max_length(self) -> int:
         """Get max sequence length."""
-        return int(self._config["max_length"])
+        return int(str(self._config["max_length"]))
 
     def _get_coreml_path(self) -> Path:
         """Get path to CoreML model."""

@@ -26,15 +26,14 @@
 #   - Transformers 4.45+ for model loading
 #   - Circuit breakers and OpenTelemetry tracing (optional)
 #
-# Model Stack (8 Models):
-#   - LLM:            Qwen/Qwen2.5-3B-Instruct (via MLX or Transformers)
-#   - Translation:    ai4bharat/indictrans2-en-indic-1B
-#   - Embeddings:     BAAI/bge-m3 (via sentence-transformers)
-#   - Reranker:       BAAI/bge-reranker-v2-m3
-#   - OCR:            ucaslcl/GOT-OCR2_0
-#   - STT:            openai/whisper-large-v3-turbo
-#   - TTS:            edge-tts (Microsoft Azure Neural voices)
-#   - Eval:           google/gemma-2-2b-it (teacher evaluation)
+# Model Stack (7 Models):
+#   - LLM + Validation: mlx-community/Qwen3-8B-4bit (via MLX)
+#   - Translation:      ai4bharat/indictrans2-en-indic-1B
+#   - Embeddings:       BAAI/bge-m3 (via sentence-transformers)
+#   - Reranker:         BAAI/bge-reranker-v2-m3
+#   - OCR:              ucaslcl/GOT-OCR2_0
+#   - STT:              openai/whisper-large-v3-turbo
+#   - TTS:              edge-tts (Microsoft Azure Neural voices)
 
 # ============================================================================
 # WEB FRAMEWORK

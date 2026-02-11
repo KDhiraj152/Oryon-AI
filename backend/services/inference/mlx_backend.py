@@ -10,10 +10,9 @@ MLX is specifically designed for Apple Silicon and provides:
 - Native FP16 support
 
 Performance on M4 (with 5-Phase Optimization):
-- Qwen2.5-3B (FP16): 80-100 tokens/sec
-- Qwen2.5-3B (INT4): 120-150 tokens/sec
-- First token latency: <100ms (warm), ~150ms (cold)
-- Peak throughput (batch): 200+ tokens/sec
+- Qwen3-8B (INT4): 80-120 tokens/sec
+- First token latency: <150ms (warm), ~300ms (cold)
+- Peak throughput (batch): 150+ tokens/sec
 """
 
 import asyncio
@@ -65,18 +64,15 @@ class MLXInferenceEngine:
     """
 
     # Default model ID constant
-    DEFAULT_MODEL_ID = "qwen2.5-3b"
+    DEFAULT_MODEL_ID = "qwen3-8b"
 
     # Supported models with MLX weights
     SUPPORTED_MODELS = {
-        "qwen2.5-0.5b": "mlx-community/Qwen2.5-0.5B-Instruct-4bit",
-        "qwen2.5-1.5b": "mlx-community/Qwen2.5-1.5B-Instruct-4bit",
-        DEFAULT_MODEL_ID: "mlx-community/Qwen2.5-3B-Instruct-4bit",
-        "qwen2.5-7b": "mlx-community/Qwen2.5-7B-Instruct-4bit",
+        "qwen3-8b": "mlx-community/Qwen3-8B-4bit",
+        # Legacy Qwen2.5 entries removed — use Qwen3 family instead
         "llama3.2-1b": "mlx-community/Llama-3.2-1B-Instruct-4bit",
         "llama3.2-3b": "mlx-community/Llama-3.2-3B-Instruct-4bit",
         "phi3-mini": "mlx-community/Phi-3-mini-4k-instruct-4bit",
-        "gemma2-2b": "mlx-community/gemma-2-2b-it-4bit",
     }
 
     def __init__(
@@ -111,15 +107,17 @@ class MLXInferenceEngine:
         # Memory coordinator integration
         self._memory_registered = False
 
+        # Prompt cache for system prompt prefix reuse
+        self._prompt_cache: Any = None
+        self._cached_system_prompt: str | None = None
+
     def _get_executor(self) -> ThreadPoolExecutor:
-        """Get or create executor lazily. Thread-safe."""
+        """Get executor from unified ThreadPoolManager. Thread-safe."""
         if self._executor is None:
             with self._executor_lock:
                 if self._executor is None:
-                    # M4 Optimization: 2 workers for concurrent prefetch/generate
-                    self._executor = ThreadPoolExecutor(
-                        max_workers=2, thread_name_prefix="mlx_"
-                    )
+                    from ...core.optimized.thread_pool_manager import get_ml_executor
+                    self._executor = get_ml_executor()
         return self._executor
 
     def __enter__(self):
@@ -139,18 +137,10 @@ class MLXInferenceEngine:
             pass  # Ignore errors during interpreter shutdown
 
     def _cleanup_executor(self) -> None:
-        """Safely cleanup executor with proper wait."""
+        """Release reference to shared executor (pool is managed globally)."""
         with self._executor_lock:
-            if self._executor is not None:
-                try:
-                    # Wait for pending tasks to complete (max 5 seconds)
-                    self._executor.shutdown(wait=True, cancel_futures=True)
-                except TypeError:
-                    # Python < 3.9 doesn't have cancel_futures
-                    self._executor.shutdown(wait=True)
-                except Exception:
-                    pass
-                self._executor = None
+            # Don't shutdown — executor is owned by ThreadPoolManager
+            self._executor = None
 
     def _get_model_path(self) -> str:
         """Get HuggingFace model path."""
@@ -235,6 +225,8 @@ class MLXInferenceEngine:
             self._model = None
             self._tokenizer = None
             self._is_loaded = False
+            self._prompt_cache = None
+            self._cached_system_prompt = None
 
             # CRITICAL FIX: Shutdown executor to prevent thread leaks
             self._cleanup_executor()
@@ -301,7 +293,7 @@ class MLXInferenceEngine:
         prompt: str,
         config: MLXGenerationConfig,
     ) -> str:
-        """Synchronous generation using MLX-LM 0.28+ API."""
+        """Synchronous generation using MLX-LM 0.28+ API with prompt caching."""
         try:
             from mlx_lm import generate
             from mlx_lm.sample_utils import make_sampler
@@ -311,12 +303,21 @@ class MLXInferenceEngine:
             # Create sampler with temperature and top_p (new MLX API)
             sampler = make_sampler(temp=config.temperature, top_p=config.top_p)
 
+            # Use prompt cache if available for system prompt prefix reuse
+            prompt_cache = self._get_or_build_prompt_cache(prompt)
+
+            generate_kwargs: dict[str, Any] = {
+                "prompt": prompt,
+                "max_tokens": config.max_tokens,
+                "sampler": sampler,
+            }
+            if prompt_cache is not None:
+                generate_kwargs["prompt_cache"] = prompt_cache
+
             response = generate(
                 self._model,
                 self._tokenizer,
-                prompt=prompt,
-                max_tokens=config.max_tokens,
-                sampler=sampler,
+                **generate_kwargs,
             )
 
             elapsed = time.perf_counter() - start
@@ -336,6 +337,58 @@ class MLXInferenceEngine:
         except Exception as e:
             logger.error(f"[MLX] Generation error: {e}")
             raise
+
+    def _get_or_build_prompt_cache(self, prompt: str) -> Any:
+        """
+        Build/reuse a prompt cache for the system prompt prefix.
+
+        If the prompt starts with the same system instructions as before,
+        reuse the prefilled KV cache to skip redundant prefill computation.
+        Returns the prompt_cache object or None if caching is unavailable.
+        """
+        try:
+            from mlx_lm.models.cache import make_prompt_cache
+        except ImportError:
+            return None
+
+        # Extract system prompt prefix (everything before the user message)
+        # Heuristic: system prompt ends at the first "User:" or similar marker
+        # For chat-template-formatted prompts, the system block is consistent
+        system_end_markers = ["\nUser:", "\n<|user|>", "\n<|im_start|>user"]
+        system_prefix = prompt
+        for marker in system_end_markers:
+            idx = prompt.find(marker)
+            if idx > 0:
+                system_prefix = prompt[:idx]
+                break
+
+        # Only cache if system prefix is substantial and stable
+        if len(system_prefix) < 50 or system_prefix == prompt:
+            return None
+
+        # Reuse existing cache if system prompt hasn't changed
+        if self._prompt_cache is not None and self._cached_system_prompt == system_prefix:
+            return self._prompt_cache
+
+        # Build new prompt cache
+        try:
+            import mlx.core as mx
+            from mlx_lm.generate import generate_step
+
+            cache = make_prompt_cache(self._model)
+            tokens = mx.array(self._tokenizer.encode(system_prefix))
+
+            # Prefill the cache with system prompt tokens
+            for _ in generate_step(tokens, self._model, max_tokens=0, prompt_cache=cache):
+                pass
+
+            self._prompt_cache = cache
+            self._cached_system_prompt = system_prefix
+            logger.info(f"[MLX] Built prompt cache for system prefix ({len(system_prefix)} chars)")
+            return cache
+        except Exception as e:
+            logger.debug(f"[MLX] Prompt cache build failed: {e}")
+            return None
 
     async def generate_stream(
         self,
@@ -419,7 +472,7 @@ class MLXInferenceEngine:
         except Exception as e:
             logger.warning(f"[MLX] Chat template error: {e}")
 
-        # Fallback format (ChatML for Qwen2.5)
+        # Fallback format (ChatML for Qwen3)
         if system_prompt:
             return (
                 f"<|im_start|>system\n{system_prompt}<|im_end|>\n"

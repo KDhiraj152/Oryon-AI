@@ -26,6 +26,79 @@ class BasePatternsMixin:
     Requires ModelAccessorsMixin and CollaborationHelpersMixin to be mixed in.
     """
 
+    async def _chain_step_simplify(
+        self,
+        text: str,
+        grade_level: int,
+        subject: str,
+    ) -> tuple[str, list[str], dict[str, float]]:
+        """Chain step: LLM simplification."""
+        llm = self._get_llm()  # type: ignore
+        if not llm:
+            return text, [], {}
+
+        try:
+            prompt = f"""Simplify this text for Grade {grade_level} {subject} students:
+
+{text}
+
+Simplified version (keep key facts, use simple words):"""
+            simplified = await llm.generate_async(prompt, max_tokens=4096)
+            self._log_message("qwen", "chain", simplified, {"step": "simplify"})  # type: ignore
+            return simplified, ["qwen-3b"], {"simplification": 1.0}
+        except Exception as e:
+            logger.warning(f"[Chain] LLM step failed: {e}")
+            return text, [], {}
+
+    async def _chain_step_translate(
+        self,
+        text: str,
+        target_language: str,
+    ) -> tuple[str, list[str], dict[str, float]]:
+        """Chain step: Translation."""
+        import asyncio
+
+        if target_language.lower() == "english":
+            return text, [], {}
+
+        translator = self._get_translator()  # type: ignore
+        if not translator:
+            return text, [], {}
+
+        try:
+            translated = translator.translate(text, target_language)
+            await asyncio.sleep(0)  # yield to event loop after sync call
+            self._log_message(  # type: ignore
+                "indictrans2", "chain", translated.translated_text,
+                {"step": "translate", "language": target_language},
+            )
+            conf = translated.confidence if hasattr(translated, "confidence") else 0.9
+            return translated.translated_text, ["indictrans2"], {"translation": conf}
+        except Exception as e:
+            logger.warning(f"[Chain] Translation step failed: {e}")
+            return text, [], {}
+
+    async def _chain_step_semantic(
+        self,
+        current_text: str,
+        orig_emb_future: Any,
+    ) -> tuple[list[str], dict[str, float]]:
+        """Chain step: Semantic verification."""
+        try:
+            orig_emb = await orig_emb_future if orig_emb_future else None
+            curr_emb = await self._get_embedding(current_text)  # type: ignore
+
+            if orig_emb is not None and curr_emb is not None:
+                similarity = self._cosine_similarity(orig_emb, curr_emb)  # type: ignore
+                self._log_message(  # type: ignore
+                    "bge-m3", "chain", f"similarity={similarity:.3f}",
+                    {"step": "semantic_check"},
+                )
+                return ["bge-m3"], {"semantic_preservation": similarity}
+        except Exception as e:
+            logger.warning(f"[Chain] Semantic check failed: {e}")
+        return [], {}
+
     async def _chain_collaboration(
         self,
         _task: str,  # Reserved for future task-specific chains
@@ -38,90 +111,42 @@ class BasePatternsMixin:
         Each model processes in sequence, passing enriched context.
         Example: Simplify → Translate → Validate
         """
-        models_used = []
-        current_text = input_text
-        scores = {}
+        import asyncio as _aio
 
+        models_used: list[str] = []
+        scores: dict[str, float] = {}
         grade_level = context.get("grade_level", 8)
         subject = context.get("subject", "General")
         target_language = context.get("target_language", "Hindi")
 
-        # Pre-compute embedding of the original text as a background task.
-        # Step 3 (semantic check) needs this, and it depends only on
-        # input_text — not on the LLM or translator output — so we
-        # overlap its I/O with Step 1 and Step 2.
-        import asyncio as _aio
-
+        # Pre-compute embedding of original text as background task
         orig_emb_future: _aio.Task | None = None
         embedder = self._get_embedder()  # type: ignore
         if embedder and self.config.enable_semantic_verification:  # type: ignore
-            orig_emb_future = _aio.ensure_future(
-                self._get_embedding(input_text)  # type: ignore
-            )
+            orig_emb_future = _aio.ensure_future(self._get_embedding(input_text))  # type: ignore
 
-        # Step 1: LLM simplifies
-        llm = self._get_llm()  # type: ignore
-        if llm:
-            try:
-                prompt = f"""Simplify this text for Grade {grade_level} {subject} students:
+        # Step 1: Simplify
+        current_text, step_models, step_scores = await self._chain_step_simplify(
+            input_text, grade_level, subject
+        )
+        models_used.extend(step_models)
+        scores.update(step_scores)
 
-{current_text}
+        # Step 2: Translate
+        current_text, step_models, step_scores = await self._chain_step_translate(
+            current_text, target_language
+        )
+        models_used.extend(step_models)
+        scores.update(step_scores)
 
-Simplified version (keep key facts, use simple words):"""
-
-                simplified = await llm.generate_async(prompt, max_tokens=4096)
-
-                self._log_message("qwen", "chain", simplified, {"step": "simplify"})  # type: ignore
-                current_text = simplified
-                models_used.append("qwen-3b")
-                scores["simplification"] = 1.0
-            except Exception as e:
-                logger.warning(f"[Chain] LLM step failed: {e}")
-
-        # Step 2: Translate if needed
-        if target_language.lower() != "english":
-            translator = self._get_translator()  # type: ignore
-            if translator:
-                try:
-                    translated = translator.translate(current_text, target_language)
-
-                    self._log_message(  # type: ignore
-                        "indictrans2",
-                        "chain",
-                        translated.translated_text,
-                        {"step": "translate", "language": target_language},
-                    )
-                    current_text = translated.translated_text
-                    models_used.append("indictrans2")
-                    scores["translation"] = (
-                        translated.confidence
-                        if hasattr(translated, "confidence")
-                        else 0.9
-                    )
-                except Exception as e:
-                    logger.warning(f"[Chain] Translation step failed: {e}")
-
-        # Step 3: Validate with semantic check (reuse pre-computed original embedding)
+        # Step 3: Semantic check
         if embedder and self.config.enable_semantic_verification:  # type: ignore
-            try:
-                orig_emb = await orig_emb_future if orig_emb_future else None
-                curr_emb = await self._get_embedding(current_text)  # type: ignore
+            step_models, step_scores = await self._chain_step_semantic(
+                current_text, orig_emb_future
+            )
+            models_used.extend(step_models)
+            scores.update(step_scores)
 
-                if orig_emb is not None and curr_emb is not None:
-                    similarity = self._cosine_similarity(orig_emb, curr_emb)  # type: ignore
-                    scores["semantic_preservation"] = similarity
-                    models_used.append("bge-m3")
-
-                    self._log_message(  # type: ignore
-                        "bge-m3",
-                        "chain",
-                        f"similarity={similarity:.3f}",
-                        {"step": "semantic_check"},
-                    )
-            except Exception as e:
-                logger.warning(f"[Chain] Semantic check failed: {e}")
-
-        # Calculate overall confidence
         confidence = sum(scores.values()) / len(scores) if scores else 0.5
 
         return CollaborationResult(
@@ -136,6 +161,97 @@ Simplified version (keep key facts, use simple words):"""
             processing_time_ms=0,
         )
 
+    async def _verify_initial_generate(
+        self, llm: Any, input_text: str, task: str, grade_level: int, subject: str,
+    ) -> str:
+        """Generate initial output for verify pattern."""
+        prompt = f"""You are an expert educational content creator.
+
+Task: {task}
+Grade Level: {grade_level}
+Subject: {subject}
+
+Input:
+{input_text}
+
+Provide high-quality output suitable for the specified grade level:"""
+        result = await llm.generate_async(prompt, max_tokens=4096)
+        self._log_message("qwen", "validator", result, {"iteration": 1, "action": "generate"})  # type: ignore
+        return str(result)
+
+    async def _verify_refine(
+        self, llm: Any, current_text: str, eval_result: Any, score: float, iteration: int,
+    ) -> str | None:
+        """Refine text based on validation feedback. Returns None if no refinement needed."""
+        weak_dims = [
+            dim for dim, ds in eval_result.dimension_scores.items() if ds.score < 8.0
+        ]
+        if not weak_dims:
+            return None
+
+        feedback_prompt = f"""The following content needs improvement.
+
+Current output:
+{current_text}
+
+Issues to address:
+{", ".join(weak_dims)}
+
+Current score: {score:.1f}/10
+
+Please improve the content to address these issues while maintaining accuracy:"""
+        refined = await llm.generate_async(feedback_prompt, max_tokens=4096)
+        self._log_message(  # type: ignore
+            "qwen", "validator", refined, {"iteration": iteration, "action": "refine"},
+        )
+        return str(refined)
+
+    async def _verify_evaluate_step(
+        self,
+        validator: Any,
+        llm: Any,
+        input_text: str,
+        current_text: str,
+        models_used: list[str],
+        scores: dict[str, float],
+        iteration_idx: int,
+        best_score: float,
+        best_text: str,
+        grade_level: int,
+        subject: str,
+    ) -> tuple[float, str, str, bool]:
+        """Run one verify-refine iteration. Returns (best_score, best_text, current_text, should_stop)."""
+        eval_result = await validator.evaluate(
+            original_text=input_text, processed_text=current_text,
+            grade_level=grade_level, subject=subject,
+        )
+        score = eval_result.overall_score
+        scores[f"iteration_{iteration_idx + 1}"] = score
+
+        if "qwen3" not in str(models_used):
+            models_used.append("qwen3-8b")
+
+        self._log_message(  # type: ignore
+            "qwen3", "qwen", f"score={score:.2f}",
+            {"iteration": iteration_idx + 1, "action": "validate"},
+        )
+
+        if score > best_score:
+            best_score = score
+            best_text = current_text
+
+        if score >= self.config.min_confidence * 10:  # type: ignore
+            logger.info(f"[Verify] Target reached at iteration {iteration_idx + 1}: {score:.2f}")
+            return best_score, best_text, current_text, True
+
+        # Refine if not last iteration
+        if iteration_idx < self.config.max_iterations - 1:  # type: ignore
+            refined = await self._verify_refine(llm, current_text, eval_result, score, iteration_idx + 1)
+            if refined:
+                current_text = refined
+
+        return best_score, best_text, current_text, False
+
     async def _verify_collaboration(
         self,
         task: str,
@@ -147,8 +263,8 @@ Simplified version (keep key facts, use simple words):"""
 
         One model generates, another validates, generator refines based on feedback.
         """
-        models_used = []
-        scores = {}
+        models_used: list[str] = []
+        scores: dict[str, float] = {}
         iterations = 0
 
         grade_level = context.get("grade_level", 8)
@@ -160,111 +276,35 @@ Simplified version (keep key facts, use simple words):"""
         if not llm:
             return self._fallback_result(CollaborationPattern.VERIFY, input_text)  # type: ignore
 
-        current_text = input_text
         best_text = input_text
         best_score = 0.0
+
+        # Initial generation
+        current_text = await self._verify_initial_generate(llm, input_text, task, grade_level, subject)
+        models_used.append("qwen-3b")
 
         for i in range(self.config.max_iterations):  # type: ignore
             iterations += 1
 
-            # Step 1: Generate/refine
-            if i == 0:
-                # Initial generation
-                prompt = f"""You are an expert educational content creator.
-
-Task: {task}
-Grade Level: {grade_level}
-Subject: {subject}
-
-Input:
-{input_text}
-
-Provide high-quality output suitable for the specified grade level:"""
-
-                current_text = await llm.generate_async(prompt, max_tokens=4096)
-                models_used.append("qwen-3b")
-                self._log_message(  # type: ignore
-                    "qwen",
-                    "validator",
-                    current_text,
-                    {"iteration": i + 1, "action": "generate"},
-                )
-
-            # Step 2: Validate
-            if validator:
-                try:
-                    eval_result = await validator.evaluate(
-                        original_text=input_text,
-                        processed_text=current_text,
-                        grade_level=grade_level,
-                        subject=subject,
-                    )
-
-                    score = eval_result.overall_score
-                    scores[f"iteration_{i + 1}"] = score
-
-                    if "gemma" not in models_used:
-                        models_used.append("gemma-2b")
-
-                    self._log_message(  # type: ignore
-                        "gemma",
-                        "qwen",
-                        f"score={score:.2f}",
-                        {"iteration": i + 1, "action": "validate"},
-                    )
-
-                    # Track best
-                    if score > best_score:
-                        best_score = score
-                        best_text = current_text
-
-                    # Check if good enough
-                    if score >= self.config.min_confidence * 10:  # type: ignore
-                        logger.info(
-                            f"[Verify] Target reached at iteration {i + 1}: {score:.2f}"
-                        )
-                        break
-
-                    # Step 3: Refine based on feedback
-                    if i < self.config.max_iterations - 1:  # type: ignore
-                        # Get dimension feedback
-                        weak_dims = [
-                            dim
-                            for dim, ds in eval_result.dimension_scores.items()
-                            if ds.score < 8.0
-                        ]
-
-                        if weak_dims:
-                            feedback_prompt = f"""The following content needs improvement.
-
-Current output:
-{current_text}
-
-Issues to address:
-{", ".join(weak_dims)}
-
-Current score: {score:.1f}/10
-
-Please improve the content to address these issues while maintaining accuracy:"""
-
-                            current_text = await llm.generate_async(
-                                feedback_prompt, max_tokens=4096
-                            )
-                            self._log_message(  # type: ignore
-                                "qwen",
-                                "validator",
-                                current_text,
-                                {"iteration": i + 1, "action": "refine"},
-                            )
-                except Exception as e:
-                    logger.warning(f"[Verify] Validation failed: {e}")
-                    scores[f"iteration_{i + 1}"] = 7.0  # Default score
-                    break
-            else:
-                # No validator, just return generated output
+            if not validator:
                 break
 
-        confidence = best_score / 10.0  # Normalize to 0-1
+            try:
+                best_score, best_text, current_text, should_stop = (
+                    await self._verify_evaluate_step(
+                        validator, llm, input_text, current_text,
+                        models_used, scores, i, best_score, best_text,
+                        grade_level, subject,
+                    )
+                )
+                if should_stop:
+                    break
+            except Exception as e:
+                logger.warning(f"[Verify] Validation failed: {e}")
+                scores[f"iteration_{i + 1}"] = 7.0
+                break
+
+        confidence = best_score / 10.0
 
         return CollaborationResult(
             pattern=CollaborationPattern.VERIFY,

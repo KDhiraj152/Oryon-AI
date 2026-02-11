@@ -415,7 +415,7 @@ DEVICE=auto
 MODEL_CACHE_DIR=./data/models
 EMBEDDING_MODEL_ID=BAAI/bge-m3
 RERANKER_MODEL_ID=BAAI/bge-reranker-v2-m3
-SIMPLIFICATION_MODEL_ID=Qwen/Qwen2.5-3B-Instruct
+SIMPLIFICATION_MODEL_ID=mlx-community/Qwen3-8B-4bit
 EOF
     ok ".env created with secure keys"
 else
@@ -467,12 +467,12 @@ hf_token = os.environ.get('HF_TOKEN', '')
 
 models_to_download = [
     {
-        "name": "Qwen2.5-3B-Instruct",
-        "id": "Qwen/Qwen2.5-3B-Instruct",
+        "name": "Qwen3-8B (MLX 4-bit)",
+        "id": "mlx-community/Qwen3-8B-4bit",
         "type": "causal_lm",
-        "description": "LLM for text simplification",
-        "size": "6GB",
-        "gated": True
+        "description": "LLM for text simplification + validation",
+        "size": "4.6GB",
+        "gated": False
     },
     {
         "name": "IndicTrans2-1B",
@@ -498,14 +498,7 @@ models_to_download = [
         "size": "1GB",
         "gated": False
     },
-    {
-        "name": "Gemma-2-2B-IT",
-        "id": "google/gemma-2-2b-it",
-        "type": "causal_lm",
-        "description": "Quality checking",
-        "size": "4GB",
-        "gated": True
-    },
+
     {
         "name": "GOT-OCR2.0",
         "id": "ucaslcl/GOT-OCR2_0",
@@ -732,12 +725,12 @@ if ! $QUIET; then
     echo ""
     echo -e "  ${CYAN}AI Models:${NC}"
     if $DOWNLOAD_MODELS; then
-        echo -e "     Qwen2.5-3B-Instruct │ LLM (50+ tok/s) - ${GREEN}✓ DOWNLOADED${NC}"
+        echo -e "     Qwen3-8B (MLX)      │ LLM (50+ tok/s) - ${GREEN}✓ DOWNLOADED${NC}"
         echo -e "     IndicTrans2-1B      │ Translation (10 languages) - ${GREEN}✓ DOWNLOADED${NC}"
         echo -e "     BGE-M3              │ Embeddings (348 texts/s) - ${GREEN}✓ DOWNLOADED${NC}"
         echo -e "     BGE-Reranker-v2-M3  │ Reranking (2.6ms/doc) - ${GREEN}✓ DOWNLOADED${NC}"
     else
-        echo -e "     Qwen2.5-3B-Instruct │ LLM (50+ tok/s) - ${YELLOW}[download on first use]${NC}"
+        echo -e "     Qwen3-8B (MLX)      │ LLM (50+ tok/s) - ${YELLOW}[download on first use]${NC}"
         echo -e "     IndicTrans2-1B      │ Translation (10 languages) - ${YELLOW}[download on first use]${NC}"
         echo -e "     BGE-M3              │ Embeddings (348 texts/s) - ${YELLOW}[download on first use]${NC}"
         echo -e "     BGE-Reranker-v2-M3  │ Reranking (2.6ms/doc) - ${YELLOW}[download on first use]${NC}"

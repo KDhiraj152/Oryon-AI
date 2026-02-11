@@ -1,7 +1,7 @@
 """
 Simplification Tasks (Celery)
 ==============================
-Tasks for text simplification using Qwen2.5-3B-Instruct.
+Tasks for text simplification using Qwen3-8B.
 """
 
 import logging

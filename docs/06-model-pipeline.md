@@ -1,11 +1,11 @@
-# Section 7: Model Pipeline
+# Model Pipeline
 
 ---
 
 **Author:** K Dhiraj
 **Email:** k.dhiraj.srihari@gmail.com
-**Version:** 4.0.0 (Universal Mode)
-**Last Updated:** December 5, 2025
+**Version:** 4.1.0
+**Last Updated:** February 11, 2026
 
 ---
 
@@ -15,7 +15,7 @@ The model selection prioritizes quality-per-parameter efficiency, multilingual c
 
 | Component | Model | Parameters | Size (INT4) | Purpose |
 |-----------|-------|------------|-------------|---------|
-| **LLM** | Qwen2.5-3B-Instruct | 3B | 2.0 GB | Text generation, reasoning |
+| **LLM** | Qwen3-8B (MLX 4-bit) | 8B | 4.6 GB | Text generation, reasoning, validation |
 | **Translation** | IndicTrans2-1B | 1B | 800 MB | Indian language translation |
 | **Embeddings** | BGE-M3 | 568M | 600 MB | Multilingual semantic search |
 | **Reranker** | BGE-Reranker-v2-M3 | 568M | 600 MB | Cross-encoder reranking |
@@ -207,9 +207,9 @@ class BGEReranker:
 
 ## Generation Pipeline
 
-### Qwen2.5-3B-Instruct
+### Qwen3-8B
 
-Qwen2.5-3B was selected for its superior quality-per-parameter ratio among 3B-class models, particularly for educational content and multilingual understanding.
+Qwen3-8B was selected for its superior quality-per-parameter ratio among 8B-class models, particularly for educational content and multilingual understanding. It replaces both Qwen2.5-3B (simplification) and Gemma-2-2B-IT (validation) with a single unified model.
 
 **Model Specifications:**
 - Parameters: 3B
@@ -509,7 +509,7 @@ class MemoryCoordinator:
 | Model | Priority | Eviction Order |
 |-------|----------|----------------|
 | BGE-M3 (Embeddings) | 2 | Last |
-| Qwen2.5-3B (LLM) | 2 | Last |
+| Qwen3-8B (LLM) | 2 | Last |
 | BGE-Reranker | 1 | Middle |
 | Whisper (STT) | 0 | First |
 | IndicTrans2 | 0 | First |

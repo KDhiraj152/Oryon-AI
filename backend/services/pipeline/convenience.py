@@ -159,7 +159,7 @@ async def process_document(
     """
     Full document processing: OCR → Simplify → Translate → Audio
 
-    Pipeline: GOT-OCR2 → Qwen2.5 → IndicTrans2 → MMS-TTS
+    Pipeline: GOT-OCR2 → Qwen3-8B → IndicTrans2 → MMS-TTS
 
     Args:
         image_path: Path to document/image
@@ -197,7 +197,7 @@ async def generate_best_output(
     """
     Generate multiple candidates and select the best using reranking.
 
-    Pipeline: Qwen2.5 (3x) → BGE-Reranker → BGE-M3 verification
+    Pipeline: Qwen3-8B (3x) → BGE-Reranker → BGE-M3 verification
 
     Args:
         text: Input text
@@ -235,15 +235,15 @@ async def full_educational_pipeline(
     verify_all_steps: bool = True,
 ) -> dict[str, Any]:
     """
-    Complete educational content processing with all 8 models.
+    Complete educational content processing with all 7 models.
 
     Full Pipeline:
-    1. Qwen2.5: Simplify content for grade level
+    1. Qwen3-8B: Simplify content for grade level
     2. BGE-Reranker: Select best simplification
     3. IndicTrans2: Translate to target language
     4. Back-translate verification
     5. BGE-M3: Semantic preservation check
-    6. Gemma-2-2B: Quality validation
+    6. Qwen3-8B: Quality validation
     7. MMS-TTS: Generate audio
     8. Whisper: Verify audio accuracy
 
@@ -294,7 +294,7 @@ async def full_educational_pipeline(
             "scores": scores,
         }
         confidences.append(conf)
-        all_models.add("Qwen2.5-3B")
+        all_models.add("Qwen3-8B")
         all_models.add("bge-reranker")
     except Exception as e:
         results["steps"]["simplification"] = {"error": str(e)}
@@ -332,7 +332,7 @@ async def full_educational_pipeline(
             "scores": eval_scores,
         }
         confidences.append(eval_conf)
-        all_models.add("gemma-2-2b")
+        all_models.add("qwen3-8b")
     except Exception as e:
         results["steps"]["validation"] = {"error": str(e)}
 

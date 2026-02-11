@@ -134,7 +134,7 @@ def simplify_text_task(
         if api_key:
             try:
                 model_client = QwenSimplificationClient(api_key)
-                logger.info("Qwen2.5-3B model client initialized")
+                logger.info("Qwen3-8B model client initialized")
             except Exception as e:
                 logger.warning(f"Failed to initialize Qwen client: {e}")
 

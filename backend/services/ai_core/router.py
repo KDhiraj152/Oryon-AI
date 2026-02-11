@@ -11,22 +11,14 @@ Routes requests to appropriate models based on:
 import logging
 import time
 from dataclasses import dataclass
-from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
+
+from ...core.types import ModelTier, TaskType
 
 logger = logging.getLogger(__name__)
 
 # Default model key used for standard chat fallbacks
-_STANDARD_MODEL_KEY = "qwen2.5-3b"
-
-
-class ModelTier(str, Enum):
-    """Model tiers by capability."""
-
-    LIGHTWEIGHT = "lightweight"  # Fast, for simple tasks
-    STANDARD = "standard"  # Balanced, for general chat
-    STRONG = "strong"  # Powerful, for complex reasoning
-    SPECIALIZED = "specialized"  # Domain-specific models
+_STANDARD_MODEL_KEY = "qwen3-8b"
 
 
 # Numeric ordering for tier-ceiling enforcement
@@ -36,20 +28,6 @@ TIER_ORDER: dict[ModelTier, int] = {
     ModelTier.STRONG: 2,
     ModelTier.SPECIALIZED: 2,  # domain-specific, same cost level as STRONG
 }
-
-
-class TaskType(str, Enum):
-    """Types of tasks for routing."""
-
-    CHAT = "chat"
-    REASONING = "reasoning"
-    CODE = "code"
-    TRANSLATION = "translation"
-    SUMMARIZATION = "summarization"
-    EMBEDDING = "embedding"
-    RERANKING = "reranking"
-    VALIDATION = "validation"
-    SYSTEM = "system"
 
 
 @dataclass
@@ -82,7 +60,7 @@ class RoutingDecision:
     estimated_cost: float
     fallback_model_id: str | None = None
     estimated_max_tokens: int = 4096  # Dynamic token allocation based on prompt
-    model_key: str = ""  # Internal short name (e.g. "qwen2.5-3b") for inference backend
+    model_key: str = ""  # Internal short name (e.g. "qwen3-8b") for inference backend
 
 
 # Token allocation based on prompt type and complexity
@@ -177,28 +155,28 @@ class ModelRouter:
     # Default model configurations
     DEFAULT_MODELS = {
         # Lightweight (fast responses)
-        "qwen2.5-0.5b": ModelConfig(
-            model_id="Qwen/Qwen2.5-0.5B-Instruct",
+        "qwen3-1.7b": ModelConfig(
+            model_id="Qwen/Qwen3-1.7B",
             tier=ModelTier.LIGHTWEIGHT,
-            max_tokens=1024,  # Increased from 512
+            max_tokens=1024,
             context_window=2048,
             avg_latency_ms=50,
             task_types=[TaskType.SYSTEM, TaskType.CHAT],
         ),
         # Standard (general chat) - PRIMARY MODEL
         _STANDARD_MODEL_KEY: ModelConfig(
-            model_id="Qwen/Qwen2.5-3B-Instruct",
+            model_id="Qwen/Qwen3-8B",
             tier=ModelTier.STANDARD,
             max_tokens=4096,  # Increased from 2048 - full potential
             context_window=8192,
             avg_latency_ms=200,
-            task_types=[TaskType.CHAT, TaskType.REASONING, TaskType.CODE],
+            task_types=[TaskType.CHAT, TaskType.REASONING, TaskType.CODE, TaskType.VALIDATION],
         ),
         # Strong (complex reasoning)
-        "qwen2.5-7b": ModelConfig(
-            model_id="Qwen/Qwen2.5-7B-Instruct",
+        "qwen3-14b": ModelConfig(
+            model_id="Qwen/Qwen3-14B",
             tier=ModelTier.STRONG,
-            max_tokens=6144,  # Increased from 4096
+            max_tokens=6144,
             context_window=32768,
             avg_latency_ms=500,
             task_types=[TaskType.REASONING, TaskType.CODE],
@@ -227,14 +205,6 @@ class ModelRouter:
             context_window=512,
             avg_latency_ms=20,
             task_types=[TaskType.RERANKING],
-        ),
-        "gemma-2b": ModelConfig(
-            model_id="google/gemma-2-2b-it",
-            tier=ModelTier.SPECIALIZED,
-            max_tokens=1024,
-            context_window=4096,
-            avg_latency_ms=100,
-            task_types=[TaskType.VALIDATION],
         ),
     }
 

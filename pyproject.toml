@@ -11,7 +11,7 @@
 
 [project]
 name = "shiksha-setu"
-version = "4.0.0"
+version = "4.1.0"
 description = "AI Education Platform for India - Universal Learning Assistant"
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -158,11 +158,13 @@ markers = [
 asyncio_mode = "auto"
 
 # Default options (override with command line)
+# For coverage: pytest --cov=backend --cov-report=term-missing --cov-fail-under=70
 addopts = [
     "--tb=short",
     "-q",
-    "--strict-markers",
     "--maxfail=5",
+    "--disable-warnings",
+    "-ra",
 ]
 
 # Filter warnings
@@ -170,6 +172,16 @@ filterwarnings = [
     "ignore::DeprecationWarning",
     "ignore::PendingDeprecationWarning",
 ]
+
+# Logging
+log_cli = true
+log_cli_level = "INFO"
+log_cli_format = "%(asctime)s [%(levelname)8s] %(message)s"
+log_cli_date_format = "%Y-%m-%d %H:%M:%S"
+
+# Timeout
+timeout = 300
+timeout_method = "thread"
 
 # ============================================================================
 # COVERAGE - Code Coverage

@@ -200,8 +200,8 @@ manager = get_model_manager()
 
 # Download optimal 2025 model stack
 try:
-    logger.info("Downloading Qwen2.5-3B-Instruct (LLM)...")
-    manager.load_text_model("Qwen/Qwen2.5-3B-Instruct")
+    logger.info("Downloading Qwen3-8B (LLM via MLX)...")
+    manager.load_text_model("mlx-community/Qwen3-8B-4bit")
 
     logger.info("Downloading BGE-M3 (Embeddings)...")
     manager.load_embedding_model("BAAI/bge-m3")
@@ -264,9 +264,9 @@ FLASK_PORT=5000
 HUGGINGFACE_API_KEY=
 
 # Model Configuration (Optimal 2025 Stack)
-SIMPLIFICATION_MODEL_ID=Qwen/Qwen2.5-3B-Instruct
+SIMPLIFICATION_MODEL_ID=mlx-community/Qwen3-8B-4bit
 TRANSLATION_MODEL_ID=ai4bharat/indictrans2-en-indic-1B
-VALIDATION_MODEL_ID=google/gemma-2-2b-it
+VALIDATION_MODEL_ID=mlx-community/Qwen3-8B-4bit
 EMBEDDING_MODEL_ID=BAAI/bge-m3
 RERANKER_MODEL_ID=BAAI/bge-reranker-v2-m3
 TTS_MODEL_ID=facebook/mms-tts-hin

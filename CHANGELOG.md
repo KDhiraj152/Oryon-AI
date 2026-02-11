@@ -4,6 +4,86 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [4.1.0] - 2026-02-11
+
+### Documentation Restructuring
+
+Simplified and unified documentation naming, merged overlapping documents, removed redundancy. Version bumped from 4.0.0 to 4.1.0.
+
+#### Changed
+- Renamed all docs from `NN_UPPER_SNAKE_CASE.md` to `NN-kebab-case.md` (e.g., `01_EXECUTIVE_SUMMARY.md` → `01-executive-summary.md`)
+- Removed `Section N:` prefixes from all document titles
+- Updated version from 4.0.0 to 4.1.0 across all docs and `pyproject.toml`
+- Updated all dates to February 11, 2026
+- Updated README.md docs directory tree to reflect new names
+
+#### Merged
+- `02_ARCHITECTURE_DIAGRAM.md` + `05_DATA_FLOW.md` → `02-architecture.md` (system diagrams and data flow traces combined)
+- `11_CONTRIBUTION_SUMMARY.md` + `12_RESTRUCTURING_SUMMARY.md` → `11-contributing.md` (project history and restructuring notes combined)
+
+#### Removed
+- `14_MASTER_DOCUMENTATION.md` — entirely redundant (condensed duplicate of all other docs)
+
+#### Final Structure (14 → 11 files)
+
+| # | File | Content |
+|---|------|----------|
+| 01 | `01-executive-summary.md` | Project overview and mission |
+| 02 | `02-architecture.md` | System diagrams + data flow traces |
+| 03 | `03-backend.md` | Backend services and structure |
+| 04 | `04-frontend.md` | React application architecture |
+| 05 | `05-api-reference.md` | Complete API reference |
+| 06 | `06-model-pipeline.md` | AI model integration |
+| 07 | `07-deployment.md` | Deployment procedures |
+| 08 | `08-code-quality.md` | Quality standards and testing |
+| 09 | `09-hardware-optimization.md` | Hardware optimization guide |
+| 10 | `10-roadmap.md` | Development roadmap |
+| 11 | `11-contributing.md` | Author contributions + project history |
+
+---
+
+## [2.8.0] - 2025-06-12
+
+### Codebase Restructuring & Standardization
+
+Full structural overhaul: dead code removal, type unification, security fix, lazy loading, singleton fix, script consolidation, and frontend cleanup. Zero behavioral changes — all modifications are organizational.
+
+#### Added
+- `backend/core/types.py` — canonical source of truth for shared enums (`ModelTier`, `TaskType`, `ModelType`)
+- `backend/api/deps.py` — shared lazy-loaded route dependencies (`get_ai_engine`, `get_pipeline`, `json_dumps`)
+- `backend/services/inference/gpu_coordination.py` — extracted GPU resource management (locks, semaphores, executor)
+- `scripts/README.md` — script directory documentation
+- `docs/12_RESTRUCTURING_SUMMARY.md` — comprehensive restructuring documentation
+
+#### Fixed
+- **AgentRegistry singleton bug**: `AgentRegistry()` was creating new empty registries (losing registered agents). Fixed via `__new__` + `_initialized` guard.
+- **Security gap in `system.ts`**: Was reading tokens from `localStorage` (XSS-vulnerable) while all other modules used secure closure-based manager. Now imports from `client.ts`.
+- **3 Python scripts had wrong `.sh` extensions**: `test_backend_live`, `test_demo`, `validate` — corrected to `.py`.
+
+#### Changed
+- `core/optimized/__init__.py`: Rewritten from 384-line eager imports to lazy-loading via `__getattr__` (180+ symbols, 21 submodules)
+- `core/exceptions.py`: Replaced ~100-line duplicate `CircuitBreaker` with re-export from `circuit_breaker.py`
+- `optimized/model_manager.py`: `ModelConfig` → `HardwareModelConfig` (backward alias preserved)
+- `optimized/device_router.py`: `TaskType` → `DeviceTaskType` (backward alias preserved)
+- `inference/__init__.py`: GPU coordination extracted to dedicated module (179 → ~75 lines)
+- `frontend/package.json`: `@types/katex`, `@types/react-syntax-highlighter` moved to `devDependencies`
+- `frontend/components/chat/Toast.tsx` → `components/ui/Toast.tsx` (generic UI primitive)
+- All scripts (`deployment/`, `testing/`, `validation/`) normalized to snake_case naming
+- Testing scripts consolidated: 15 → 11 (removed 3 duplicates, merged 1)
+- Route modules (`chat.py`, `content.py`, `health.py`) use shared deps instead of duplicated helpers
+
+#### Removed
+- `backend/integration.py` (521 lines, zero consumers)
+- `frontend/src/components/OmLogo.tsx` (88 lines, dead — superseded by `landing/OmLogo.tsx`)
+- `scripts/testing/test_all_features.sh` (inferior duplicate of `test.sh`)
+- `scripts/testing/smoke_test.sh` (redundant with `test.sh`)
+- `scripts/testing/test_setup.py` (absorbed into `test_models.py`)
+- `scripts/testing/smoke_unrestricted.sh` (absorbed into `test_policy_toggle.sh`)
+- Dead `__all__` entries in `services/__init__.py`
+- Dead `ReviewQueue` global state pattern
+
+---
+
 ## [2.7.0] - 2025-12-04
 
 ### PROJECT X: Autonomous Codebase Transformation
@@ -72,7 +152,7 @@ Complete frontend-backend integration with real-time system status, improved scr
 |--------|-------|-------|
 | Backend Benchmarks | **864% improvement** | After dead code removal |
 | Embeddings | **348 texts/sec** | BGE-M3 with MLX |
-| LLM Inference | **50 tokens/sec** | Qwen2.5-3B |
+| LLM Inference | **50 tokens/sec** | Qwen3-8B (MLX 4-bit) |
 | TTS | **31x realtime** | MMS-TTS on Apple Silicon |
 | STT | **2x realtime** | Whisper V3 Turbo |
 | Reranking | **2.6ms/doc** | BGE-Reranker-v2-M3 |
@@ -474,7 +554,7 @@ Complete integration of all AI models into the UnifiedPipelineService and migrat
 
 | Method | Model | Purpose |
 |--------|-------|---------|
-| `_simplify()` | Qwen2.5-3B-Instruct | Text simplification (MLX) |
+| `_simplify()` | Qwen3-8B (MLX) | Text simplification |
 | `_translate()` | IndicTrans2-1B | Translation (10 Indian languages) |
 | `_validate()` | ValidationModule + BERT | NCERT curriculum validation |
 | `_generate_audio()` | MMS-TTS / Edge TTS | Text-to-speech |
@@ -482,7 +562,7 @@ Complete integration of all AI models into the UnifiedPipelineService and migrat
 | `rerank()` | BGE-Reranker-v2-M3 | Document reranking |
 | `ocr()` | GOT-OCR2 | Image text extraction |
 | `transcribe()` | Whisper V3 Turbo | Speech-to-text |
-| `chat()` | Qwen2.5-3B-Instruct | Conversational AI |
+| `chat()` | Qwen3-8B (MLX) | Conversational AI |
 
 **New V2 API Endpoints:**
 
@@ -1004,20 +1084,21 @@ Moved unused files to `_archive/` folders:
 - **Embeddings:** `BAAI/bge-m3` — 1024D vectors, multilingual
 - **Reranker:** `BAAI/bge-reranker-v2-m3` — 20% better retrieval
 
-#### Content Generation
-- **Primary:** `Qwen/Qwen2.5-3B-Instruct` — 3B params, efficient
+#### Content Generation & Validation
+- **Primary:** `mlx-community/Qwen3-8B-4bit` — 8B params, unified simplification + validation
+- **Removed:** Qwen2.5-3B-Instruct (replaced by Qwen3-8B)
 - **Removed:** Qwen2.5-7B-Instruct (redundant, higher VRAM)
 
 #### Translation
 - **Model:** `ai4bharat/indictrans2-en-indic-1B` — 10 Indian languages
 
 #### Validation
-- **Model:** `google/gemma-2-2b-it` — NCERT curriculum alignment
+- **Model:** Qwen3-8B (shared with LLM) — NCERT curriculum alignment
 
 ### Removed
 - Deleted 21+ GB of unused model cache (nllb, mbart, speecht5, flan-t5, opus-mt, cmu-arctic)
 - Removed `all-MiniLM-L6-v2` (replaced by BGE-M3)
-- Removed `Llama-3.2-3B-Instruct` (replaced by Qwen2.5-3B)
+- Removed `Llama-3.2-3B-Instruct` (replaced by Qwen3-8B)
 - Removed `load_coqui_tts()` from `backend/utils/models.py`
 
 ### Fixed

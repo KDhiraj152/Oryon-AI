@@ -20,6 +20,7 @@ import logging
 import sqlite3
 import threading
 import time
+from collections import OrderedDict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -89,9 +90,8 @@ class EmbeddingCache:
         self.similarity_threshold = similarity_threshold
         self.use_float16 = use_float16
 
-        # In-memory cache for hot embeddings
-        self._memory_cache: dict[str, tuple[np.ndarray, float]] = {}
-        self._cache_order: list[str] = []  # LRU order tracking
+        # In-memory cache for hot embeddings — OrderedDict for O(1) LRU
+        self._memory_cache: OrderedDict[str, tuple[np.ndarray, float]] = OrderedDict()
         self._lock = threading.Lock()
 
         # M4 batch size for operations
@@ -158,35 +158,30 @@ class EmbeddingCache:
         return np.frombuffer(data, dtype=np.float32).reshape(-1)
 
     def _add_to_memory_cache(self, key: str, embedding: np.ndarray):
-        """Add embedding to memory cache with LRU eviction."""
+        """Add embedding to memory cache with O(1) LRU eviction via OrderedDict."""
         with self._lock:
-            # Remove if exists to update position
+            # Remove if exists to update position (O(1) in OrderedDict)
             if key in self._memory_cache:
-                self._cache_order.remove(key)
+                self._memory_cache.move_to_end(key)
+                self._memory_cache[key] = (embedding.copy(), time.time())
+                return
 
-            # Evict oldest if at capacity
-            while (
-                len(self._memory_cache) >= self.memory_cache_size and self._cache_order
-            ):
-                oldest = self._cache_order.pop(0)
-                self._memory_cache.pop(oldest, None)
+            # Evict oldest if at capacity (O(1) via popitem(last=False))
+            while len(self._memory_cache) >= self.memory_cache_size:
+                self._memory_cache.popitem(last=False)
 
             self._memory_cache[key] = (embedding.copy(), time.time())
-            self._cache_order.append(key)
 
     async def get(self, text: str, model_id: str = "default") -> np.ndarray | None:
         """Get embedding for text."""
         key = self._hash_text(text, model_id)
 
-        # Check memory cache
+        # Check memory cache — O(1) LRU update via OrderedDict.move_to_end
         with self._lock:
             if key in self._memory_cache:
                 self.hits += 1
+                self._memory_cache.move_to_end(key)
                 emb, _ = self._memory_cache[key]
-                # Move to end of LRU
-                if key in self._cache_order:
-                    self._cache_order.remove(key)
-                    self._cache_order.append(key)
                 return emb.copy()
 
         # Check SQLite
@@ -283,21 +278,8 @@ class EmbeddingCache:
             logger.warning(f"EmbeddingCache set error: {e}")
             return False
 
-    def _add_to_memory_cache(self, key: str, embedding: np.ndarray):
-        """Add embedding to memory cache with LRU eviction."""
-        with self._lock:
-            # Evict if at capacity
-            if len(self._memory_cache) >= self.memory_cache_size:
-                # OPTIMIZATION: Use pop on cache_order list instead of min()
-                if self._cache_order:
-                    oldest_key = self._cache_order.pop(0)
-                    self._memory_cache.pop(oldest_key, None)
-
-            self._memory_cache[key] = (embedding.copy(), time.time())
-            # Track order for LRU
-            if key in self._cache_order:
-                self._cache_order.remove(key)
-            self._cache_order.append(key)
+    # NOTE: _add_to_memory_cache is defined once above using O(1) OrderedDict.
+    # The duplicate definition that was here has been removed (Fix 8).
 
     async def get_batch(
         self, texts: list[str], model_id: str = "default"
@@ -321,10 +303,8 @@ class EmbeddingCache:
                 if key in self._memory_cache:
                     emb, _ = self._memory_cache[key]
                     found[text] = emb.copy()
-                    # Update LRU order
-                    if key in self._cache_order:
-                        self._cache_order.remove(key)
-                        self._cache_order.append(key)
+                    # Update LRU order via OrderedDict.move_to_end
+                    self._memory_cache.move_to_end(key)
                 else:
                     db_lookups.append((text, key))
 

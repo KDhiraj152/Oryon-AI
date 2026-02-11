@@ -51,7 +51,7 @@ default_exchange = Exchange("ssetu", type="direct")
 # Define queues - each model type gets its own queue
 # Workers subscribe to only ONE queue to ensure single-model loading
 TASK_QUEUES = (
-    # LLM Simplification Queue (Qwen2.5-3B-Instruct)
+    # LLM Simplification Queue (Qwen3-8B)
     Queue(
         "simplify",
         default_exchange,
@@ -185,7 +185,7 @@ class WorkerType:
 
 # Model memory requirements (GB)
 MODEL_MEMORY = {
-    WorkerType.SIMPLIFY: 2.5,  # Qwen2.5-3B INT4
+    WorkerType.SIMPLIFY: 4.6,  # Qwen3-8B 4-bit MLX
     WorkerType.TRANSLATE: 1.5,  # IndicTrans2-1B
     WorkerType.OCR: 2.0,  # GOT-OCR2
     WorkerType.EMBEDDING: 2.5,  # BGE-M3
@@ -244,7 +244,7 @@ def get_worker_memory_limit(worker_type: str) -> int:
 """
 Start specialized workers with these commands (Principle N compliant):
 
-# Simplification worker (Qwen2.5-3B-Instruct)
+# Simplification worker (Qwen3-8B)
 celery -A backend.tasks.celery_config worker \
     --queues=simplify,default \
     --concurrency=1 \

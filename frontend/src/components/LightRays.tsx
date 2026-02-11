@@ -31,7 +31,7 @@ const DEFAULT_COLOR = '#ffffff';
 
 const hexToRgb = (hex: string): [number, number, number] => {
   const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  return m ? [parseInt(m[1], 16) / 255, parseInt(m[2], 16) / 255, parseInt(m[3], 16) / 255] : [1, 1, 1];
+  return m ? [Number.parseInt(m[1], 16) / 255, Number.parseInt(m[2], 16) / 255, Number.parseInt(m[3], 16) / 255] : [1, 1, 1];
 };
 
 const getAnchorAndDir = (
@@ -88,12 +88,12 @@ const LightRays: React.FC<LightRaysProps> = ({
   lightSpread = 1,
   rayLength = 2,
   pulsating = false,
-  fadeDistance = 1.0,
-  saturation = 1.0,
+  fadeDistance = 1,
+  saturation = 1,
   followMouse = true,
   mouseInfluence = 0.1,
-  noiseAmount = 0.0,
-  distortion = 0.0,
+  noiseAmount = 0,
+  distortion = 0,
   className = ''
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -154,7 +154,7 @@ const LightRays: React.FC<LightRaysProps> = ({
       gl.canvas.style.height = '100%';
 
       while (containerRef.current.firstChild) {
-        containerRef.current.removeChild(containerRef.current.firstChild);
+        containerRef.current.firstChild.remove();
       }
       containerRef.current.appendChild(gl.canvas);
 
@@ -271,7 +271,7 @@ void main() {
         raysSpeed: { value: raysSpeed },
         lightSpread: { value: lightSpread },
         rayLength: { value: rayLength },
-        pulsating: { value: pulsating ? 1.0 : 0.0 },
+        pulsating: { value: pulsating ? 1 : 0 },
         fadeDistance: { value: fadeDistance },
         saturation: { value: saturation },
         mousePos: { value: [0.5, 0.5] },
@@ -316,7 +316,7 @@ void main() {
 
         uniforms.iTime.value = t * 0.001;
 
-        if (followMouse && mouseInfluence > 0.0) {
+        if (followMouse && mouseInfluence > 0) {
           const smoothing = 0.92;
 
           smoothMouseRef.current.x = smoothMouseRef.current.x * smoothing + mouseRef.current.x * (1 - smoothing);
@@ -355,7 +355,7 @@ void main() {
             }
 
             if (canvas && canvas.parentNode) {
-              canvas.parentNode.removeChild(canvas);
+              canvas.remove();
             }
           } catch (error) {
             console.warn('Error during WebGL cleanup:', error);
@@ -402,7 +402,7 @@ void main() {
     u.raysSpeed.value = raysSpeed;
     u.lightSpread.value = lightSpread;
     u.rayLength.value = rayLength;
-    u.pulsating.value = pulsating ? 1.0 : 0.0;
+    u.pulsating.value = pulsating ? 1 : 0;
     u.fadeDistance.value = fadeDistance;
     u.saturation.value = saturation;
     u.mouseInfluence.value = mouseInfluence;
@@ -438,8 +438,8 @@ void main() {
     };
 
     if (followMouse) {
-      window.addEventListener('mousemove', handleMouseMove);
-      return () => window.removeEventListener('mousemove', handleMouseMove);
+      globalThis.addEventListener('mousemove', handleMouseMove);
+      return () => globalThis.removeEventListener('mousemove', handleMouseMove);
     }
   }, [followMouse]);
 

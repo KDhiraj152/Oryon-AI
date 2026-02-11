@@ -55,6 +55,8 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+_APPLE_SILICON_DEFAULT = "Apple Silicon"
+
 
 # =============================================================================
 # Tesseract Fallback OCR - Supports all Indian Languages
@@ -99,8 +101,8 @@ class TesseractOCR:
 
     def __init__(self):
         """Initialize Tesseract OCR."""
-        self._available = None
-        self._available_languages = None
+        self._available: bool | None = None
+        self._available_languages: list[str] | None = None
 
     def is_available(self) -> bool:
         """Check if Tesseract is installed."""
@@ -206,7 +208,7 @@ class TesseractOCR:
             # Run OCR
             text = pytesseract.image_to_string(img, lang=lang, config=config)
 
-            return text.strip()
+            return str(text).strip()
 
         except Exception as e:
             logger.error(f"Tesseract OCR failed: {e}")
@@ -367,7 +369,7 @@ class GOTOCR2:
                 # Get Apple Silicon info
                 import platform
 
-                chip = platform.processor() or "Apple Silicon"
+                chip = platform.processor() or _APPLE_SILICON_DEFAULT
                 logger.info(f"MPS (Metal) available on {chip} - using GPU acceleration")
                 return "mps"
             except Exception as e:
@@ -429,11 +431,23 @@ class GOTOCR2:
         return model
 
     def _load_model(self):
-        """Lazy load the GOT-OCR2 model with device-specific optimizations."""
+        """Lazy load the GOT-OCR2 model with device-specific optimizations.
+
+        Memory coordination added to prevent OOM from concurrent model loading.
+        """
         if self._model is not None:
             return
 
         logger.info(f"Loading GOT-OCR2 model: {self.model_id} on {self.device}")
+
+        # Memory coordination: reserve ~2GB for GOT-OCR2
+        coordinator = None
+        try:
+            from backend.core.optimized.memory_coordinator import get_memory_coordinator
+            coordinator = get_memory_coordinator()
+            coordinator.try_acquire_sync("got_ocr2")
+        except (ImportError, Exception) as e:
+            logger.debug(f"Memory coordinator not available for GOT-OCR2: {e}")
 
         try:
             from transformers import AutoModel, AutoTokenizer
@@ -467,6 +481,17 @@ class GOTOCR2:
             self._model = self._post_load_device_setup(self._model, load_kwargs)
             self._model.eval()
 
+            # Register with memory coordinator after successful load
+            if coordinator:
+                try:
+                    coordinator.register_model(
+                        "got_ocr2",
+                        self._model,
+                        unload_fn=self._unload_model,
+                    )
+                except Exception as e:
+                    logger.debug(f"Memory coordinator registration failed: {e}")
+
             # MPS shader warmup
             if self.device == "mps":
                 self._warmup_mps()
@@ -477,6 +502,20 @@ class GOTOCR2:
             logger.error(f"Failed to load GOT-OCR2: {e}")
             logger.info("Will use Tesseract fallback")
             raise
+
+    def _unload_model(self) -> None:
+        """Unload the GOT-OCR2 model (called by memory coordinator for eviction)."""
+        import gc
+        self._model = None
+        self._tokenizer = None
+        gc.collect()
+        try:
+            import torch
+            if torch.backends.mps.is_available():
+                torch.mps.empty_cache()
+        except Exception:
+            pass
+        logger.info("GOT-OCR2 model unloaded by memory coordinator")
 
     def _warmup_mps(self):
         """Warm up MPS by running a dummy inference to compile Metal shaders."""
@@ -513,7 +552,8 @@ class GOTOCR2:
         if max(img.size) > max_size:
             ratio = max_size / max(img.size)
             new_size = tuple(int(dim * ratio) for dim in img.size)
-            img = img.resize(new_size, Image.LANCZOS)
+            resample = getattr(Image, "LANCZOS", 1)
+            img = img.resize(new_size, resample)  # type: ignore[arg-type]
 
         return img
 
@@ -535,6 +575,7 @@ class GOTOCR2:
             Extracted text
         """
         self._load_model()
+        assert self._model is not None
 
         img = self._preprocess_image(image)
 
@@ -551,7 +592,7 @@ class GOTOCR2:
                 ocr_color="",
             )
 
-            return result.strip()
+            return str(result).strip()
 
         except Exception as e:
             logger.error(f"GOT-OCR2 inference failed: {e}")
@@ -566,6 +607,7 @@ class GOTOCR2:
             List of formula dictionaries with LaTeX representations
         """
         self._load_model()
+        assert self._model is not None
 
         img = self._preprocess_image(image)
 
@@ -616,6 +658,7 @@ class GOTOCR2:
             List of table dictionaries with structured data
         """
         self._load_model()
+        assert self._model is not None
 
         img = self._preprocess_image(image)
 
@@ -713,7 +756,7 @@ class GOTOCR2:
 class PDFProcessor:
     """Process PDF documents using GOT-OCR2."""
 
-    def __init__(self, ocr: GOTOCR2 = None):
+    def __init__(self, ocr: "GOTOCR2 | None" = None):
         self.ocr = ocr or GOTOCR2()
 
     def process_pdf(
@@ -802,7 +845,7 @@ class PDFProcessor:
         if not FITZ_AVAILABLE:
             raise ImportError("PyMuPDF required for PDF page conversion")
         pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
-        return Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+        return Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
 
     def _extract_page_formulas(self, img: Image.Image, page_num: int) -> list:
         """Extract formulas from page image."""
@@ -921,7 +964,7 @@ class OCRService:
         # Initialize backends
         self._got_ocr = None
         self._tesseract = get_tesseract_ocr()
-        self._got_available = None
+        self._got_available: bool | None = None
         self._device_info = self._get_device_info()
 
         # Determine which backend to use
@@ -975,7 +1018,7 @@ class OCRService:
                         if match:
                             info["chip"] = match.group(0)
                 except Exception:
-                    info["chip"] = "Apple Silicon"
+                    info["chip"] = _APPLE_SILICON_DEFAULT
 
                 # Get unified memory
                 try:
@@ -1032,7 +1075,7 @@ class OCRService:
             if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
                 # Apple Silicon with unified memory - check if we have enough RAM
                 mem_gb = self._device_info.get("memory_gb", 8)
-                chip = self._device_info.get("chip", "Apple Silicon")
+                chip = self._device_info.get("chip", _APPLE_SILICON_DEFAULT)
 
                 # M4 chips have excellent MPS performance
                 # Require at least 16GB unified memory for GOT-OCR2
@@ -1164,7 +1207,7 @@ class OCRService:
                 # If insufficient text, use OCR
                 if len(text) < 100:
                     pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
-                    img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                    img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
                     text = self._tesseract.ocr_image(img, languages=self.languages)
 
                 page_texts.append(text)

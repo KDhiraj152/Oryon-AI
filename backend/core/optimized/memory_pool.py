@@ -211,17 +211,17 @@ class SizeClassAllocator:
     def acquire_typed(
         self,
         shape: tuple[int, ...],
-        dtype: np.dtype = np.float32,
+        dtype: type = np.float32,
     ) -> np.ndarray:
         """
         Acquire a typed numpy array from pool.
 
         More convenient than acquire() for tensor operations.
         """
-        size = np.prod(shape) * np.dtype(dtype).itemsize
+        size = int(np.prod(shape)) * np.dtype(dtype).itemsize
         buffer = self.acquire(size)
         # View buffer as requested type/shape
-        return buffer[:size].view(dtype).reshape(shape)
+        return np.ndarray(shape, dtype=dtype, buffer=bytes(buffer[:size]))
 
     def get_stats(self) -> dict[str, Any]:
         """Get allocator statistics."""
@@ -305,7 +305,7 @@ class TensorPool:
     def acquire(
         self,
         shape: tuple[int, ...],
-        dtype: np.dtype = np.float32,
+        dtype: type = np.float32,
     ) -> np.ndarray:
         """Get tensor from pool or allocate new one."""
         key = (shape, str(dtype))
@@ -498,7 +498,7 @@ class UnifiedMemoryPool:
 
     def acquire_buffer(self, size: int) -> np.ndarray:
         """Acquire buffer from size-class allocator."""
-        return self.size_allocator.acquire(size)
+        return np.asarray(self.size_allocator.acquire(size))
 
     def release_buffer(self, buffer: np.ndarray):
         """Release buffer back to pool."""
@@ -507,10 +507,10 @@ class UnifiedMemoryPool:
     def acquire_tensor(
         self,
         shape: tuple[int, ...],
-        dtype: np.dtype = np.float32,
+        dtype: type = np.float32,
     ) -> np.ndarray:
         """Acquire typed tensor from pool."""
-        return self.tensor_pool.acquire(shape, dtype)
+        return np.asarray(self.tensor_pool.acquire(shape, dtype))
 
     def release_tensor(self, tensor: np.ndarray):
         """Release tensor back to pool."""
@@ -518,7 +518,7 @@ class UnifiedMemoryPool:
 
     def load_weights(self, name: str) -> np.ndarray:
         """Load model weights via memory mapping."""
-        return self.mmap_weights.load_weights(name)
+        return np.asarray(self.mmap_weights.load_weights(name))
 
     def trigger_gc(self):
         """Trigger garbage collection and memory cleanup."""

@@ -7,11 +7,10 @@ v2.1.0 - Advanced Caching Integration (December 2025)
 Combines ALL optimized AI/ML models into a single, efficient API:
 
 MODELS USED:
-- Qwen2.5-3B-Instruct (MLX): Text simplification & chat
+- Qwen3-8B (MLX 4-bit): Text simplification, chat & validation
 - IndicTrans2-1B: Translation to 10 Indian languages
 - BGE-M3: Multilingual embeddings (1024D)
 - BGE-Reranker-v2-M3: Enhanced retrieval accuracy
-- Gemma-2-2B-IT: Content validation & curriculum alignment
 - MMS-TTS (Facebook): Text-to-speech for Indian languages
 - Whisper V3 Turbo: Speech-to-text (99 languages)
 - GOT-OCR2: Vision-language OCR for Indian scripts
@@ -129,6 +128,7 @@ class ProcessingRequest:
 
     # Parameters
     target_language: str = "Hindi"
+    subject: str = "General"
 
     # Quality settings
     quality_mode: str = "balanced"  # fast, balanced, quality
@@ -211,11 +211,11 @@ class UnifiedPipelineService:
     - OCR Results: task_type="ocr_result" (persistent L3)
 
     MODELS INTEGRATED:
-    - LLM: Qwen2.5-3B via MLX (chat, simplification)
+    - LLM: Qwen3-8B via MLX (chat, simplification, validation)
     - Translation: IndicTrans2-1B (10 Indian languages)
     - Embeddings: BGE-M3 (1024D multilingual)
     - Reranker: BGE-Reranker-v2-M3 (retrieval)
-    - Validation: Gemma-2-2B-IT (curriculum alignment)
+    - Validation: Qwen3-8B (curriculum alignment)
     - TTS: MMS-TTS (Facebook's multilingual)
     - STT: Whisper V3 Turbo
     - OCR: GOT-OCR2
@@ -262,7 +262,7 @@ Format: SCORE: X/10 | FEEDBACK: [your feedback]"""
 
     def __init__(
         self,
-        llm_model: str = "qwen2.5-3b",
+        llm_model: str = "qwen3-8b",
         embedding_model: str = "all-MiniLM-L6-v2",
     ):
         """
@@ -302,7 +302,7 @@ Format: SCORE: X/10 | FEEDBACK: [your feedback]"""
 
         # Specialized services (all lazy-loaded)
         self._translation_engine = None  # IndicTrans2-1B
-        self._validation_module = None  # Gemma-2-2B + BERT
+        self._validation_module = None  # Qwen3-8B (shared LLM) + BERT
         self._tts_service = None  # MMS-TTS
         self._stt_service = None  # Whisper V3 Turbo
         self._ocr_service = None  # GOT-OCR2
@@ -330,7 +330,7 @@ Format: SCORE: X/10 | FEEDBACK: [your feedback]"""
             f"[UnifiedPipeline] Initialized on {self.device_router.capabilities.chip_name}"
         )
         logger.info(
-            "[UnifiedPipeline] Models: Qwen2.5-3B, IndicTrans2, BGE-M3, MMS-TTS, Whisper"
+            "[UnifiedPipeline] Models: Qwen3-8B, IndicTrans2, BGE-M3, MMS-TTS, Whisper"
         )
         logger.info(
             "[UnifiedPipeline] Features: Model Collaboration, 5-Phase M4 Optimization"
@@ -394,13 +394,13 @@ Format: SCORE: X/10 | FEEDBACK: [your feedback]"""
         return self._translation_engine
 
     def _get_validation_module(self):
-        """Lazy-load Gemma-2 validation module."""
+        """Lazy-load Qwen3-8B validation module."""
         if self._validation_module is None:
             try:
                 from ..validate.validator import ValidationModule
 
                 self._validation_module = ValidationModule()
-                logger.info("[UnifiedPipeline] Gemma-2 validation module loaded")
+                logger.info("[UnifiedPipeline] Qwen3-8B validation module loaded")
             except Exception as e:
                 logger.warning(f"[UnifiedPipeline] Could not load validation: {e}")
         return self._validation_module
@@ -631,7 +631,7 @@ Format: SCORE: X/10 | FEEDBACK: [your feedback]"""
                 request.subject,
             )
             stage_times["simplify"] = (time.perf_counter() - stage_start) * 1000
-            result.models_used.append("qwen2.5-3b")
+            result.models_used.append("qwen3-8b")
 
             # Cache and return
             await self._cache_pipeline_result(cache_key, result)
@@ -912,7 +912,7 @@ Format: SCORE: X/10 | FEEDBACK: [your feedback]"""
         cached = await self._cache_get("llm_output", cache_key)
         if cached:
             logger.debug("[Pipeline] Simplification cache hit")
-            return cached
+            return str(cached)
 
         # Generate simplified text
         prompt = self.SIMPLIFY_PROMPT.format(
@@ -960,7 +960,7 @@ Format: SCORE: X/10 | FEEDBACK: [your feedback]"""
         cached = await self._cache_get("translation", cache_key)
         if cached:
             logger.debug(f"[Pipeline] Translation cache hit for {target_language}")
-            return cached
+            return str(cached)
 
         result = None
 
@@ -1032,7 +1032,7 @@ Text:
         language: str = "English",
     ) -> tuple[float, str]:
         """
-        Validate content using Gemma-2-2B-IT + BERT semantic analysis.
+        Validate content using Qwen3-8B + BERT semantic analysis.
 
         Caching strategy:
         - Uses task_type="validation" for validation result caching
@@ -1052,7 +1052,7 @@ Text:
             logger.debug("[Pipeline] Validation cache hit")
             return cached_result
 
-        # Try Gemma-2 validation, fall back to LLM
+        # Try Qwen3-8B validation, fall back to LLM
         result_score, result_feedback = self._validate_with_gemma_sync(
             text, subject, original_text, language
         )
@@ -1078,15 +1078,15 @@ Text:
         return None
 
     def _validate_with_gemma_sync(
-        self, text: str, subject: str, original_text: str, language: str
+        self, text: str, subject: str, original_text: str | None, language: str
     ) -> tuple[float | None, str]:
-        """Validate content using Gemma-2 validation module (sync)."""
+        """Validate content using Qwen3-8B validation module (sync)."""
         validation_module = self._get_validation_module()
         if not validation_module:
             return None, ""
 
         try:
-            logger.info("[Pipeline] Using Gemma-2-2B + BERT validation")
+            logger.info("[Pipeline] Using Qwen3-8B + BERT validation")
             result = validation_module.validate_content(
                 original_text=original_text or text,
                 translated_text=text,
@@ -1104,12 +1104,12 @@ Text:
                 else "Content validated"
             )
             logger.info(
-                f"[Pipeline] Gemma-2 validation: {overall:.1f}/10, status: {result.overall_status}"
+                f"[Pipeline] Qwen3-8B validation: {overall:.1f}/10, status: {result.overall_status}"
             )
 
             return overall, feedback
         except Exception as e:
-            logger.warning(f"[Pipeline] Gemma-2 validation failed, using LLM: {e}")
+            logger.warning(f"[Pipeline] Qwen3-8B validation failed, using LLM: {e}")
             return None, ""
 
     async def _validate_with_llm(self, text: str, subject: str) -> tuple[float, str]:
@@ -1155,7 +1155,7 @@ Text:
 
         Uses the Model Collaboration System to:
         1. Generate simplified content (Qwen)
-        2. Validate quality (Gemma)
+        2. Validate quality (Qwen)
         3. Check semantic preservation (BGE-M3)
         4. Refine if needed
 
@@ -1249,7 +1249,7 @@ Text:
         Uses multiple models to evaluate:
         - LLM (Qwen): Overall quality assessment
         - Embedder (BGE-M3): Semantic preservation
-        - Validator (Gemma): Content quality
+        - Validator (Qwen): Content quality
 
         Returns weighted consensus score.
 
@@ -1293,7 +1293,7 @@ Text:
         Process content with maximum model collaboration.
 
         This is the premium processing mode where all models work together:
-        1. Collaborative simplification (Qwen + Gemma + BGE-M3)
+        1. Collaborative simplification (Qwen + BGE-M3)
         2. Verified translation (IndicTrans2 + back-translation + BGE-M3)
         3. Ensemble validation (all models vote)
         4. Audio generation with STT verification (if requested)
@@ -1348,7 +1348,7 @@ Text:
         if cached:
             logger.debug(f"[Pipeline] TTS cache hit for {language}")
             self._cache_stats["tts_hits"] = self._cache_stats.get("tts_hits", 0) + 1
-            return cached
+            return str(cached)
 
         self._cache_stats["tts_misses"] = self._cache_stats.get("tts_misses", 0) + 1
 
@@ -1389,7 +1389,7 @@ Text:
                     "tts_audio", cache_key, audio_path, tier=CacheTier.L3
                 )
 
-            return audio_path
+            return str(audio_path) if audio_path else None
 
         except Exception as e:
             logger.warning(f"[Pipeline] Audio generation failed: {e}")
@@ -1555,7 +1555,7 @@ Text:
         if ocr_service and file_ext in [".png", ".jpg", ".jpeg", ".bmp", ".webp"]:
             try:
                 result = await asyncio.to_thread(
-                    ocr_service.process_image, file_path, languages=languages
+                    ocr_service._process_image, file_path
                 )
                 return {
                     "text": result.text if hasattr(result, "text") else str(result),
@@ -1636,7 +1636,7 @@ Text:
         system_prompt: str | None = None,
     ) -> str:
         """
-        Simple chat interface using Qwen2.5-3B via MLX.
+        Simple chat interface using Qwen3-8B via MLX.
 
         Args:
             message: User message
@@ -1684,7 +1684,7 @@ Text:
         system_prompt: str | None = None,
     ) -> AsyncGenerator[str, None]:
         """
-        Streaming chat interface using Qwen2.5-3B via MLX.
+        Streaming chat interface using Qwen3-8B via MLX.
 
         Yields:
             Response chunks as they are generated
@@ -1829,7 +1829,7 @@ Text:
         embedder = self._get_embedder()
         if not embedder:
             # Fallback to inference engine
-            return [await self.embed(t) for t in texts]
+            return [await self.embed([t]) for t in texts]
 
         all_embeddings = []
         for i in range(0, len(texts), batch_size):
@@ -1844,9 +1844,9 @@ Text:
     def get_stats(self) -> dict[str, Any]:
         """Get comprehensive pipeline statistics with model and cache status."""
         models_loaded = {
-            "llm_qwen": bool(getattr(self.inference_engine, '_mlx_engines', None)),
+            "llm_qwen3": bool(getattr(self.inference_engine, '_mlx_engines', None)),
             "translation_indictrans2": self._translation_engine is not None,
-            "validation_gemma2": self._validation_module is not None,
+            "validation_qwen3": self._validation_module is not None,
             "embeddings_bge_m3": self._embedder is not None,
             "reranker_bge": self._reranker is not None,
             "tts_mms": self._tts_service is not None,

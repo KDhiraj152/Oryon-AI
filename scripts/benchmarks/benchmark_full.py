@@ -424,12 +424,12 @@ def benchmark_model_loading(suite: BenchmarkSuite):
         import mlx_lm
 
         start = time.perf_counter()
-        model, tokenizer = mlx_lm.load("mlx-community/Qwen2.5-3B-Instruct-4bit")
+        model, tokenizer = mlx_lm.load("mlx-community/Qwen3-8B-4bit")
         load_time = time.perf_counter() - start
 
         suite.add_result(
             BenchmarkResult(
-                name="Qwen2.5-3B Load",
+                name="Qwen3-8B Load",
                 metric="time",
                 value=load_time,
                 unit="sec",
@@ -441,7 +441,7 @@ def benchmark_model_loading(suite: BenchmarkSuite):
     except Exception as e:
         suite.add_result(
             BenchmarkResult(
-                name="Qwen2.5-3B Load",
+                name="Qwen3-8B Load",
                 metric="error",
                 value=0,
                 unit="",
@@ -533,7 +533,7 @@ def benchmark_inference(suite: BenchmarkSuite):
     try:
         import mlx_lm
 
-        model, tokenizer = mlx_lm.load("mlx-community/Qwen2.5-3B-Instruct-4bit")
+        model, tokenizer = mlx_lm.load("mlx-community/Qwen3-8B-4bit")
 
         prompt = "Explain photosynthesis in simple terms for a 5th grade student."
         messages = [{"role": "user", "content": prompt}]

@@ -20,43 +20,7 @@ from pydantic import BaseModel, Field
 
 from ...cache import get_unified_cache
 from ...utils.memory_guard import require_memory
-
-# OPTIMIZATION: Lazy-loaded singletons to avoid repeated imports in hot paths
-_pipeline_service = None
-_ai_engine = None
-
-
-def _get_pipeline():
-    """Get pipeline service singleton (lazy-loaded)."""
-    global _pipeline_service
-    if _pipeline_service is None:
-        from ...services.pipeline import get_pipeline_service
-
-        _pipeline_service = get_pipeline_service()
-    return _pipeline_service
-
-
-def _get_ai_engine():
-    """Get AI engine singleton (lazy-loaded)."""
-    global _ai_engine
-    if _ai_engine is None:
-        from ...services.ai_core.engine import get_ai_engine
-
-        _ai_engine = get_ai_engine()
-    return _ai_engine
-
-
-# Use orjson for faster JSON in SSE (falls back to json if not available)
-try:
-    import orjson
-
-    def _json_dumps(data: dict[str, Any]) -> str:
-        return orjson.dumps(data).decode("utf-8")
-except ImportError:
-    import json
-
-    def _json_dumps(data: dict[str, Any]) -> str:
-        return json.dumps(data)
+from ..deps import get_ai_engine as _get_ai_engine, get_pipeline as _get_pipeline, json_dumps as _json_dumps
 
 
 logger = logging.getLogger(__name__)

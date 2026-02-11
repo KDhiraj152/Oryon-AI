@@ -360,11 +360,49 @@ TTS_RETRY_CONFIG = RetryConfig(max_attempts=2, initial_delay=1.0, max_delay=10.0
 EMBEDDING_RETRY_CONFIG = RetryConfig(max_attempts=3, initial_delay=0.5, max_delay=5.0)
 
 
+def _compute_retry_delay(cfg: RetryConfig, attempt: int) -> float:
+    """Compute delay for a retry attempt with optional jitter."""
+    delay = min(
+        cfg.initial_delay * (cfg.exponential_base ** (attempt - 1)),
+        cfg.max_delay,
+    )
+    if cfg.jitter:
+        delay += delay * cfg.jitter_factor * random.random()
+    return delay
+
+
+def _raise_if_wrapped(
+    last_exc: Exception | None,
+    wrapper: type[PipelineError] | None,
+    max_attempts: int,
+) -> None:
+    """Raise the final exception, optionally wrapped."""
+    if wrapper and last_exc:
+        raise wrapper(
+            detail=f"Failed after {max_attempts} attempts: {last_exc}",
+            original_error=last_exc,
+        ) from last_exc
+    if last_exc:
+        raise last_exc
+
+
+def _handle_non_retryable(
+    exc: Exception,
+    func_name: str,
+    wrapper: type[PipelineError] | None,
+) -> None:
+    """Handle a non-retryable exception by wrapping and re-raising."""
+    logger.warning(f"[Retry] Non-retryable in {func_name}: {exc}")
+    if wrapper:
+        raise wrapper(detail=str(exc), original_error=exc) from exc
+    raise
+
+
 def with_retry(
-    config: RetryConfig = None,
+    config: RetryConfig | None = None,
     on_retry: Callable[[int, Exception, float], None] | None = None,
     exception_wrapper: type[PipelineError] | None = None,
-):
+) -> Callable[[F], F]:
     """
     Retry decorator with exponential backoff.
 
@@ -373,182 +411,100 @@ def with_retry(
         async def translate_text(text: str) -> str:
             ...
     """
-    config = config or DEFAULT_RETRY_CONFIG
+    cfg = config or DEFAULT_RETRY_CONFIG
 
     def decorator(func: F) -> F:
         @functools.wraps(func)
-        async def async_wrapper(*args, **kwargs):
-            last_exception = None
-
-            for attempt in range(1, config.max_attempts + 1):
-                try:
-                    return await func(*args, **kwargs)
-                except config.non_retryable_exceptions as e:
-                    logger.warning(f"[Retry] Non-retryable in {func.__name__}: {e}")
-                    if exception_wrapper:
-                        raise exception_wrapper(detail=str(e), original_error=e) from e
-                    raise
-                except config.retryable_exceptions as e:
-                    last_exception = e
-                    if attempt >= config.max_attempts:
-                        break
-                    delay = min(
-                        config.initial_delay
-                        * (config.exponential_base ** (attempt - 1)),
-                        config.max_delay,
-                    )
-                    if config.jitter:
-                        delay += delay * config.jitter_factor * random.random()
-                    logger.warning(
-                        f"[Retry] {func.__name__} attempt {attempt}/{config.max_attempts}. Retrying in {delay:.2f}s..."
-                    )
-                    if on_retry:
-                        on_retry(attempt, e, delay)
-                    await asyncio.sleep(delay)
-                except Exception as e:
-                    if isinstance(e, PipelineError) and not e.retryable:
-                        raise
-                    last_exception = e
-                    if attempt >= config.max_attempts:
-                        break
-                    await asyncio.sleep(config.initial_delay)
-
-            if exception_wrapper and last_exception:
-                raise exception_wrapper(
-                    detail=f"Failed after {config.max_attempts} attempts: {last_exception}",
-                    original_error=last_exception,
-                ) from last_exception
-            if last_exception:
-                raise last_exception
+        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
+            return await _run_async_with_retry(func, args, kwargs, cfg, on_retry, exception_wrapper)
 
         @functools.wraps(func)
-        def sync_wrapper(*args, **kwargs):
-            last_exception = None
-            for attempt in range(1, config.max_attempts + 1):
-                try:
-                    return func(*args, **kwargs)
-                except config.non_retryable_exceptions as e:
-                    if exception_wrapper:
-                        raise exception_wrapper(detail=str(e), original_error=e) from e
-                    raise
-                except (config.retryable_exceptions, Exception) as e:
-                    last_exception = e
-                    if attempt >= config.max_attempts:
-                        break
-                    delay = config.initial_delay * (
-                        config.exponential_base ** (attempt - 1)
-                    )
-                    time.sleep(delay)
-            if last_exception:
-                raise last_exception
+        def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
+            return _run_sync_with_retry(func, args, kwargs, cfg, exception_wrapper)
 
-        return async_wrapper if asyncio.iscoroutinefunction(func) else sync_wrapper
+        if asyncio.iscoroutinefunction(func):
+            return async_wrapper  # type: ignore[return-value]
+        return sync_wrapper  # type: ignore[return-value]
 
     return decorator
 
 
+async def _handle_retryable_async(
+    exc: Exception,
+    func_name: str,
+    attempt: int,
+    cfg: RetryConfig,
+    on_retry: Callable[[int, Exception, float], None] | None,
+) -> None:
+    """Handle a retryable exception: log, notify callback, and sleep."""
+    delay = _compute_retry_delay(cfg, attempt)
+    logger.warning(
+        f"[Retry] {func_name} attempt {attempt}/{cfg.max_attempts}. "
+        f"Retrying in {delay:.2f}s..."
+    )
+    if on_retry:
+        on_retry(attempt, exc, delay)
+    await asyncio.sleep(delay)
+
+
+async def _run_async_with_retry(
+    func: Callable,
+    args: tuple,
+    kwargs: dict,
+    cfg: RetryConfig,
+    on_retry: Callable[[int, Exception, float], None] | None,
+    wrapper: type[PipelineError] | None,
+) -> Any:
+    """Run an async function with retry logic."""
+    last_exception: Exception | None = None
+    for attempt in range(1, cfg.max_attempts + 1):
+        try:
+            return await func(*args, **kwargs)
+        except cfg.non_retryable_exceptions as exc:
+            _handle_non_retryable(exc, func.__name__, wrapper)
+        except cfg.retryable_exceptions as exc:
+            last_exception = exc
+            if attempt < cfg.max_attempts:
+                await _handle_retryable_async(exc, func.__name__, attempt, cfg, on_retry)
+        except Exception as exc:
+            _check_non_retryable_pipeline_error(exc)
+            last_exception = exc
+            if attempt < cfg.max_attempts:
+                await asyncio.sleep(cfg.initial_delay)
+    _raise_if_wrapped(last_exception, wrapper, cfg.max_attempts)
+
+
+def _check_non_retryable_pipeline_error(exc: Exception) -> None:
+    """Re-raise if exception is a non-retryable PipelineError."""
+    if isinstance(exc, PipelineError) and not exc.retryable:
+        raise exc
+
+
+def _run_sync_with_retry(
+    func: Callable,
+    args: tuple,
+    kwargs: dict,
+    cfg: RetryConfig,
+    wrapper: type[PipelineError] | None,
+) -> Any:
+    """Run a sync function with retry logic."""
+    last_exception: Exception | None = None
+    for attempt in range(1, cfg.max_attempts + 1):
+        try:
+            return func(*args, **kwargs)
+        except cfg.non_retryable_exceptions as exc:
+            _handle_non_retryable(exc, func.__name__, wrapper)
+        except Exception as exc:
+            last_exception = exc
+            if attempt >= cfg.max_attempts:
+                break
+            delay = cfg.initial_delay * (cfg.exponential_base ** (attempt - 1))
+            time.sleep(delay)
+    _raise_if_wrapped(last_exception, wrapper, cfg.max_attempts)
+
+
 # =============================================================================
-# CIRCUIT BREAKER
+# CIRCUIT BREAKER — Canonical implementation in core/circuit_breaker.py
+# Re-exported here for backward compatibility.
 # =============================================================================
-
-
-class CircuitState(Enum):
-    CLOSED = "closed"
-    OPEN = "open"
-    HALF_OPEN = "half_open"
-
-
-@dataclass
-class CircuitBreakerConfig:
-    """Circuit breaker configuration."""
-
-    failure_threshold: int = 5
-    success_threshold: int = 3
-    timeout: float = 60.0
-
-
-class CircuitBreaker:
-    """Circuit breaker for graceful degradation."""
-
-    def __init__(
-        self,
-        name: str,
-        config: CircuitBreakerConfig = None,
-        fallback: Callable | None = None,
-    ):
-        self.name = name
-        self.config = config or CircuitBreakerConfig()
-        self.fallback = fallback
-        self._state = CircuitState.CLOSED
-        self._failure_count = 0
-        self._success_count = 0
-        self._last_failure_time = 0.0
-        self._lock = asyncio.Lock()
-
-    @property
-    def state(self) -> CircuitState:
-        return self._state
-
-    async def _should_allow(self) -> bool:
-        async with self._lock:
-            if self._state == CircuitState.CLOSED:
-                return True
-            if self._state == CircuitState.OPEN:
-                if time.time() - self._last_failure_time >= self.config.timeout:
-                    self._state = CircuitState.HALF_OPEN
-                    self._success_count = 0
-                    return True
-                return False
-            return True
-
-    async def _record_success(self):
-        async with self._lock:
-            if self._state == CircuitState.HALF_OPEN:
-                self._success_count += 1
-                if self._success_count >= self.config.success_threshold:
-                    self._state = CircuitState.CLOSED
-                    self._failure_count = 0
-            elif self._state == CircuitState.CLOSED:
-                self._failure_count = 0
-
-    async def _record_failure(self):
-        async with self._lock:
-            self._failure_count += 1
-            self._last_failure_time = time.time()
-            if self._state == CircuitState.HALF_OPEN:
-                self._state = CircuitState.OPEN
-            elif self._failure_count >= self.config.failure_threshold:
-                self._state = CircuitState.OPEN
-                logger.warning(
-                    f"[CircuitBreaker:{self.name}] OPEN after {self._failure_count} failures"
-                )
-
-    def __call__(self, func: F) -> F:
-        @functools.wraps(func)
-        async def wrapper(*args, **kwargs):
-            if not await self._should_allow():
-                if self.fallback:
-                    return (
-                        await self.fallback(*args, **kwargs)
-                        if asyncio.iscoroutinefunction(self.fallback)
-                        else self.fallback(*args, **kwargs)
-                    )
-                raise PipelineError(
-                    detail=f"Circuit breaker '{self.name}' is OPEN",
-                    stage=self.name,
-                    retryable=False,
-                )
-            try:
-                result = await func(*args, **kwargs)
-                await self._record_success()
-                return result
-            except Exception:
-                await self._record_failure()
-                raise
-
-        return wrapper
-
-    def reset(self):
-        self._state = CircuitState.CLOSED
-        self._failure_count = 0
-        self._success_count = 0
+from .circuit_breaker import CircuitBreaker, CircuitBreakerConfig

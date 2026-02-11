@@ -1,6 +1,10 @@
 """
 Unified Rate Limiter - Consolidates all rate limiting implementations.
 
+DEPRECATED: This module is NOT mounted in production. The active rate limiter
+is inline within `backend.api.unified_middleware.UnifiedMiddleware._check_rate_limit()`.
+This module is only referenced by manual tests.
+
 This module provides a single, optimized rate limiter that:
 - Uses async Redis with fallback to memory
 - Supports per-user role-based limits

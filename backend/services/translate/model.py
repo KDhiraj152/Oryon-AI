@@ -15,9 +15,10 @@ Hardware Optimization:
 import logging
 import os
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional
 
-import torch
+if TYPE_CHECKING:
+    import torch  # For type hints only
 
 from ...core.config import settings
 
@@ -112,6 +113,8 @@ class IndicTrans2:
             model_id: Model identifier (default from config)
             device: Device to use (auto-detected if not specified)
         """
+        import torch  # Lazy import — avoid GPU memory init at module load time
+
         self.model_id = model_id or settings.TRANSLATION_MODEL_ID
 
         # Use hardware optimizer for intelligent device routing if available
@@ -129,12 +132,8 @@ class IndicTrans2:
 
         # Fallback auto-detect device
         if device is None and not hasattr(self, "device"):
-            if torch.cuda.is_available():
-                self.device = "cuda"
-            elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-                self.device = "mps"
-            else:
-                self.device = "cpu"
+            from backend.core.hal import get_device
+            self.device = get_device()
         elif device is not None:
             self.device = device
 
@@ -145,11 +144,22 @@ class IndicTrans2:
         logger.info(f"IndicTrans2 initialized: {self.model_id} on {self.device}")
 
     def _load_model(self):
-        """Lazy load the model."""
+        """Lazy load the model with memory coordination."""
+        import torch  # Lazy import
+
         if self._model is not None:
             return
 
         logger.info(f"Loading IndicTrans2 model: {self.model_id}")
+
+        # Memory coordination: reserve ~2GB for IndicTrans2 1B model
+        try:
+            from backend.core.optimized.memory_coordinator import get_memory_coordinator
+            coordinator = get_memory_coordinator()
+            coordinator.acquire_memory_sync("indictrans2", 2.0, priority=1).__enter__()
+        except (ImportError, Exception) as e:
+            logger.debug(f"Memory coordinator not available for IndicTrans2: {e}")
+            coordinator = None
 
         try:
             # Try loading with AI4Bharat's IndicTrans2 library
@@ -216,9 +226,33 @@ class IndicTrans2:
 
             logger.info(f"IndicTrans2 model loaded on {self.device} (M4 optimized)")
 
+            # Register with memory coordinator for eviction tracking
+            if coordinator is not None:
+                try:
+                    coordinator.register_model(
+                        "indictrans2", self._model, self._unload_model
+                    )
+                except Exception:
+                    pass
+
         except Exception as e:
             logger.error(f"Failed to load IndicTrans2: {e}")
             raise RuntimeError(f"IndicTrans2 model loading failed: {e}")
+
+    def _unload_model(self):
+        """Unload model to free memory (called by coordinator)."""
+        import gc
+        self._model = None
+        self._tokenizer = None
+        self._processor = None
+        gc.collect()
+        try:
+            import torch
+            if torch.backends.mps.is_available():
+                torch.mps.empty_cache()
+        except Exception:
+            pass
+        logger.info("IndicTrans2 model unloaded")
 
     def get_lang_code(self, language: str) -> str:
         """Get IndicTrans2 language code."""
@@ -243,6 +277,8 @@ class IndicTrans2:
         Returns:
             TranslationResult with translated text
         """
+        import torch  # Lazy import
+
         self._load_model()
 
         if not text or not text.strip():
@@ -299,9 +335,8 @@ class IndicTrans2:
                     use_cache=False,  # Required for IndicTrans2 compatibility
                 )
 
-            # M4 Memory cleanup
-            if self.device == "mps":
-                torch.mps.empty_cache()
+            # Note: torch.mps.empty_cache() removed from hot path — MPS manages
+            # its cache efficiently; per-call flush adds ~5ms overhead with no benefit.
 
             # Decode
             translated_raw = self._tokenizer.batch_decode(
@@ -375,6 +410,8 @@ class IndicTrans2:
         Returns:
             List of TranslationResults
         """
+        import torch  # Lazy import
+
         self._load_model()
 
         if not texts:
@@ -507,6 +544,7 @@ class IndicTrans2:
 
             # Free MPS cache
             try:
+                import torch
                 if self.device == "mps":
                     torch.mps.empty_cache()
             except Exception:

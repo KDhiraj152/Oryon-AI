@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 class TokenizerType(Enum):
     """Types of tokenizers supported."""
 
-    LLM = "llm"  # Qwen2.5-3B tokenizer
+    LLM = "llm"  # Qwen3-8B tokenizer
     EMBEDDING = "embedding"  # BGE-M3 tokenizer
     TRANSLATION = "translation"  # IndicTrans2 tokenizer
 
@@ -53,7 +53,7 @@ class TokenizationConfig:
     """Configuration for pre-tokenization."""
 
     # Max sequence lengths per model type
-    max_length_llm: int = 4096  # Qwen2.5-3B context
+    max_length_llm: int = 4096  # Qwen3-8B context
     max_length_embedding: int = 8192  # BGE-M3 context
     max_length_translation: int = 512  # IndicTrans2 optimal
 

@@ -312,7 +312,7 @@ class SpeculativeDecodingConfig:
     enabled: bool = False
 
     # Draft model (smaller, faster)
-    draft_model: str = "Qwen/Qwen2.5-0.5B-Instruct"
+    draft_model: str = "Qwen/Qwen3-1.7B"
 
     # Number of tokens to speculate
     num_speculative_tokens: int = 4
@@ -463,7 +463,7 @@ class MetalSpeculativeDecoder:
             # Fall back to normal generation
             return await self._normal_generate(prompt, max_tokens, temperature)
 
-        generated_tokens = []
+        generated_tokens: list[int] = []
         current_prompt = prompt
         rejections = 0
 
@@ -551,9 +551,10 @@ class MetalSpeculativeDecoder:
         # For Transformers: Use model.generate with max_new_tokens=k
 
         try:
-            if hasattr(self._draft_model, "generate_tokens"):
+            if self._draft_model is not None and hasattr(self._draft_model, "generate_tokens"):
                 # Custom interface for draft generation
-                return await self._draft_model.generate_tokens(prompt, k, temperature)
+                result: tuple[list[int], list[np.ndarray]] = await self._draft_model.generate_tokens(prompt, k, temperature)
+                return result
             else:
                 # Fallback: generate one at a time (slower)
                 tokens = []
@@ -562,7 +563,7 @@ class MetalSpeculativeDecoder:
 
                 for _ in range(k):
                     # Simulate single token generation
-                    token, prob = await self._single_token_generate(
+                    token, prob = self._single_token_generate(
                         self._draft_model, current, temperature
                     )
                     tokens.append(token)
@@ -593,7 +594,7 @@ class MetalSpeculativeDecoder:
             return [], []
 
         try:
-            if hasattr(self._main_model, "verify_tokens"):
+            if self._main_model is not None and hasattr(self._main_model, "verify_tokens"):
                 # Custom interface for verification
                 accepted, probs = await self._main_model.verify_tokens(
                     prompt, draft_tokens, temperature, self.config.acceptance_threshold
@@ -602,7 +603,7 @@ class MetalSpeculativeDecoder:
 
             # Default verification logic
             # Get probabilities from main model for each position
-            main_probs = await self._get_token_probs(
+            main_probs = self._get_token_probs(
                 self._main_model, prompt, len(draft_tokens)
             )
 
@@ -636,7 +637,7 @@ class MetalSpeculativeDecoder:
     ) -> tuple[str, SpeculativeDecodingStats]:
         """Normal generation without speculation."""
         try:
-            if hasattr(self._main_model, "generate"):
+            if self._main_model is not None and hasattr(self._main_model, "generate"):
                 result = await self._main_model.generate(
                     prompt, max_tokens=max_tokens, temperature=temperature
                 )
@@ -692,7 +693,7 @@ class MetalSpeculativeDecoder:
         if diff.sum() > 0:
             diff = diff / diff.sum()
             # Use entropy from system for randomness (not cryptographic, just sampling)
-            rng = np.random.default_rng(seed=None)  # None uses system entropy
+            rng = np.random.default_rng(seed=42)  # Fixed seed for reproducible sampling
             return int(rng.choice(len(diff), p=diff))
         return int(np.argmax(main_prob))
 

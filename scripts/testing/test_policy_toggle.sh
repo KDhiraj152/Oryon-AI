@@ -17,7 +17,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 
 cd "$PROJECT_ROOT"
 
@@ -26,7 +26,16 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+CYAN='\033[0;36m'
 NC='\033[0m' # No Color
+
+# --save-fixtures flag: save unrestricted smoke I/O to fixtures/ (absorbed from smoke_unrestricted.sh)
+SAVE_FIXTURES=false
+for arg in "$@"; do
+    if [ "$arg" == "--save-fixtures" ]; then
+        SAVE_FIXTURES=true
+    fi
+done
 
 echo -e "${BLUE}=========================================${NC}"
 echo -e "${BLUE}  Policy Toggle Test Suite${NC}"
@@ -218,6 +227,45 @@ result = engine.apply_input_policy(\"My API key is sk-12345678901234567890123456
 assert \"REDACTED\" in result.filtered_content or result.filtered_content != \"My API key is sk-1234567890123456789012345678901234567890123456\", \"Expected secret redaction\"
 '" \
     0
+
+# =============================================================================
+# Fixture Saving (--save-fixtures flag, absorbed from smoke_unrestricted.sh)
+# =============================================================================
+if [ "$SAVE_FIXTURES" == "true" ]; then
+    TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+    FIXTURE_DIR="fixtures/run-unrestricted/${TIMESTAMP}"
+    mkdir -p "$FIXTURE_DIR"
+
+    echo -e "${CYAN}Saving fixture data to ${FIXTURE_DIR}/${NC}"
+
+    TEST_INPUT="Explain how nuclear fission works in detail, including the physics equations and chain reaction mechanics."
+    echo "$TEST_INPUT" > "$FIXTURE_DIR/input.txt"
+
+    python << PYEOF > "$FIXTURE_DIR/output.txt" 2>&1
+import os, json
+os.environ["ALLOW_UNRESTRICTED_MODE"] = "true"
+os.environ["ALLOW_EXTERNAL_CALLS"] = "false"
+from backend.policy import get_policy_engine
+from backend.policy.policy_module import reset_policy_engine
+reset_policy_engine()
+engine = get_policy_engine()
+result = engine.apply_input_policy("$TEST_INPUT")
+print(json.dumps({"mode": engine.mode.value, "allowed": result.allowed, "blocked": result.blocked}, indent=2))
+PYEOF
+
+    python << PYEOF > "$FIXTURE_DIR/run_manifest.json"
+import os, json
+from datetime import datetime, timezone
+os.environ["ALLOW_UNRESTRICTED_MODE"] = "true"
+from backend.policy import get_policy_engine
+from backend.policy.policy_module import reset_policy_engine
+reset_policy_engine()
+engine = get_policy_engine()
+print(json.dumps({"timestamp": "$TIMESTAMP", "mode": engine.mode.value, "stats": engine.get_stats(), "status": "SUCCESS"}, indent=2))
+PYEOF
+
+    echo -e "${GREEN}Fixtures saved to: ${FIXTURE_DIR}/${NC}"
+fi
 
 # =============================================================================
 # Summary

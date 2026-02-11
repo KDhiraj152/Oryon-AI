@@ -262,17 +262,32 @@ class KVCacheManager:
         """
         Find longest cached prefix that matches input tokens.
 
+        Uses binary search over prefix lengths for O(log n * hash_cost)
+        instead of linear O(n * hash_cost) scan.
         Useful for prompt caching - reuse KV from common prefixes.
         """
-        # Try decreasing prefix lengths
-        for length in range(len(tokens), 0, -1):
-            prefix = tokens[:length]
+        if not tokens or not self._cache:
+            return None
+
+        # Binary search: find the longest prefix length that has a cache hit
+        lo, hi = 1, len(tokens)
+        best_result = None
+        best_length = 0
+
+        while lo <= hi:
+            mid = (lo + hi) // 2
+            prefix = tokens[:mid]
             result = self.get(prefix, model_id)
             if result is not None:
-                logger.debug(f"KV cache prefix match at length {length}")
-                return result
+                best_result = result
+                best_length = mid
+                lo = mid + 1  # Try longer
+            else:
+                hi = mid - 1  # Try shorter
 
-        return None
+        if best_result is not None:
+            logger.debug(f"KV cache prefix match at length {best_length}")
+        return best_result
 
     def clear(self) -> None:
         """Clear all cached KV states."""

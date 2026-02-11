@@ -246,21 +246,6 @@ class UnifiedMiddleware:
             return client[0]
         return "unknown"
 
-    def _get_client_ip_fast(self, headers: list) -> str:
-        """
-        OPTIMIZATION: Faster client IP extraction with early return.
-        Inlined for hot path - avoids function call overhead.
-        """
-        for header_name, header_value in headers:
-            if header_name == _HEADER_FORWARDED_FOR:
-                # Fast path: first comma position
-                decoded = header_value.decode()
-                comma_pos = decoded.find(",")
-                if comma_pos > 0:
-                    return decoded[:comma_pos].strip()
-                return decoded.strip()
-        return ""
-
     def _check_rate_limit(self, client_ip: str) -> bool:
         """
         Optimized token bucket rate limiting using deque.

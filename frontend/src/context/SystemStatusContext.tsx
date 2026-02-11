@@ -146,6 +146,7 @@ export function SystemStatusProvider({ children }: { children: ReactNode }) {
 /**
  * Hook to access system status
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function useSystemStatus(): SystemStatusContextType {
   const context = useContext(SystemStatusContext);
   if (!context) {
@@ -157,6 +158,7 @@ export function useSystemStatus(): SystemStatusContextType {
 /**
  * Hook to get policy mode
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function usePolicyMode() {
   const { policy, health } = useSystemStatus();
   // Try dedicated policy endpoint first, fall back to health
@@ -166,6 +168,7 @@ export function usePolicyMode() {
 /**
  * Hook to get device info
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function useDeviceInfo() {
   const { hardware } = useSystemStatus();
   return hardware?.device ?? null;
@@ -174,6 +177,7 @@ export function useDeviceInfo() {
 /**
  * Hook to check if specific model is loaded
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function useModelStatus(modelName: string) {
   const { models } = useSystemStatus();
   const model = models?.models?.[modelName];

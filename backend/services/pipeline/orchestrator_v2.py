@@ -99,41 +99,44 @@ class ProcessedContentResult:
 
 
 class PipelineCircuitBreaker:
-    """Circuit breaker for cascading failure prevention."""
+    """Synchronous circuit breaker for pipeline cascading failure prevention.
+
+    Simplified version of core.circuit_breaker.CircuitBreaker for
+    non-async pipeline stages.
+    """
 
     def __init__(self, failure_threshold: int = 5, recovery_timeout: int = 300):
-        self.failure_count = 0
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
-        self.last_failure_time = None
-        self.is_open = False
+        self._failure_count = 0
+        self._last_failure_time: float = 0.0
+        self._is_open = False
 
-    def record_failure(self):
-        """Record a failure."""
-        self.failure_count += 1
-        self.last_failure_time = time.time()
-        if self.failure_count >= self.failure_threshold:
-            self.is_open = True
-            logger.warning(f"Circuit breaker OPEN after {self.failure_count} failures")
+    def record_failure(self) -> None:
+        """Record a failure and potentially open the circuit."""
+        self._failure_count += 1
+        self._last_failure_time = time.time()
+        if self._failure_count >= self.failure_threshold:
+            self._is_open = True
+            logger.warning(
+                f"Pipeline circuit breaker OPEN after {self._failure_count} failures"
+            )
 
-    def record_success(self):
-        """Record a success."""
-        if self.failure_count > 0:
-            self.failure_count -= 1
-        if self.failure_count == 0 and self.is_open:
-            self.is_open = False
-            logger.info("Circuit breaker CLOSED - recovery successful")
+    def record_success(self) -> None:
+        """Record a success and recover toward closed state."""
+        if self._failure_count > 0:
+            self._failure_count -= 1
+        if self._failure_count == 0 and self._is_open:
+            self._is_open = False
+            logger.info("Pipeline circuit breaker CLOSED — recovery successful")
 
     def check(self) -> bool:
-        """Check if circuit is open."""
-        if not self.is_open:
+        """Return True if requests should be allowed."""
+        if not self._is_open:
             return True
-
-        # Half-open state: try recovery after timeout
-        if time.time() - self.last_failure_time > self.recovery_timeout:
-            logger.info("Circuit breaker entering HALF-OPEN state for recovery")
+        if time.time() - self._last_failure_time > self.recovery_timeout:
+            logger.info("Pipeline circuit breaker entering HALF-OPEN state")
             return True
-
         return False
 
 
@@ -194,10 +197,10 @@ class ConcurrentPipelineOrchestrator:
     def __init__(self, api_key: str | None = None):
         """Initialize orchestrator with async model clients."""
         self.api_key = api_key
-        self.qwen_client = QwenAsyncClient(api_key)
-        self.indictrans2_client = IndicTrans2AsyncClient(api_key)
-        self.bert_client = BERTAsyncClient(api_key)
-        self.tts_client = MMSTTSAsyncClient(api_key)
+        self.qwen_client = QwenAsyncClient(api_key or "")
+        self.indictrans2_client = IndicTrans2AsyncClient(api_key or "")
+        self.bert_client = BERTAsyncClient(api_key or "")
+        self.tts_client = MMSTTSAsyncClient(api_key or "")
 
         # Initialize circuit breakers per stage
         self.circuit_breakers = {
@@ -269,8 +272,8 @@ class ConcurrentPipelineOrchestrator:
         original_text = input_data
         cache_key = self._compute_cache_key(original_text, target_language, grade_level)
 
-        # Check cache first (sync call - Redis ops are blocking)
-        cached_result = self._check_cache(cache_key)
+        # Check cache first (async - offloaded to executor to avoid blocking event loop)
+        cached_result = await self._check_cache_async(cache_key)
         if cached_result:
             logger.info(f"Cache hit for {cache_key}")
             add_breadcrumb("Cache hit", category="pipeline", level="debug")
@@ -355,11 +358,11 @@ class ConcurrentPipelineOrchestrator:
                     )
 
                     try:
-                        result, speech_metrics = await speech_task
+                        speech_result, speech_metrics = await speech_task
                         self.metrics.append(speech_metrics)
 
-                        if isinstance(result, tuple):
-                            audio_file_path, audio_accuracy_score = result
+                        if isinstance(speech_result, tuple):
+                            audio_file_path, audio_accuracy_score = speech_result
                     except TimeoutError:
                         logger.warning(
                             "Speech generation timeout - continuing without audio"
@@ -390,12 +393,12 @@ class ConcurrentPipelineOrchestrator:
 
                 # Run comprehensive curriculum validation using async session
                 async with get_async_db_session() as db:
-                    result = await db.execute(
+                    db_result = await db.execute(
                         select(ProcessedContent).where(
                             ProcessedContent.id == content_id
                         )
                     )
-                    content = result.scalar_one_or_none()
+                    content = db_result.scalar_one_or_none()
 
                     if content:
                         validate_in_pipeline = _get_validate_in_pipeline()
@@ -425,11 +428,12 @@ class ConcurrentPipelineOrchestrator:
                     metrics=self.metrics,
                 )
 
-                # Cache result (sync call - Redis ops are blocking)
-                self._cache_result(cache_key, result)
+                # Cache result (non-blocking via executor)
+                await self._cache_result_async(cache_key, result)
 
                 logger.info(f"Pipeline completed successfully: {content_id}")
-                return result
+                final_result: ProcessedContentResult = result
+                return final_result
 
         except TimeoutError as e:
             logger.error(f"Pipeline timeout: {e}")
@@ -531,9 +535,10 @@ class ConcurrentPipelineOrchestrator:
         self, original_text: str, simplified_text: str, grade_level: int, subject: str
     ) -> float:
         """Validate content for curriculum alignment."""
-        return await self.bert_client.process(
+        result = await self.bert_client.process(
             text=simplified_text, grade_level=grade_level, subject=subject
         )
+        return float(result) if not isinstance(result, float) else result  # type: ignore[arg-type]
 
     async def _generate_speech(
         self,
@@ -551,7 +556,7 @@ class ConcurrentPipelineOrchestrator:
         """
         # Subject parameter reserved for future voice style customization
         _ = subject
-        return await self.tts_client.process(text=text, language=language)
+        return await self.tts_client.process(text=text, language=language)  # type: ignore[return-value]
 
     async def _store_content_async(
         self,
@@ -586,7 +591,7 @@ class ConcurrentPipelineOrchestrator:
             content_id = content.id
             await db.commit()
 
-            return content_id
+            return str(content_id)
 
     def _compute_cache_key(self, text: str, language: str, grade_level: int) -> str:
         """Compute cache key for processed content."""
@@ -595,8 +600,15 @@ class ConcurrentPipelineOrchestrator:
         key_str = f"{text}|{language}|{grade_level}"
         return f"pipeline:{hashlib.md5(key_str.encode(), usedforsecurity=False).hexdigest()}"
 
+    async def _check_cache_async(self, cache_key: str) -> ProcessedContentResult | None:
+        """Check if result exists in cache (non-blocking, runs in executor)."""
+        import asyncio
+
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self._check_cache, cache_key)
+
     def _check_cache(self, cache_key: str) -> ProcessedContentResult | None:
-        """Check if result exists in cache (sync - Redis ops are blocking)."""
+        """Check if result exists in cache (sync helper for executor)."""
         redis = get_redis()
         if not redis:
             return None
@@ -614,8 +626,15 @@ class ConcurrentPipelineOrchestrator:
 
         return None
 
+    async def _cache_result_async(self, cache_key: str, result: ProcessedContentResult) -> None:
+        """Cache processing result (non-blocking, runs in executor)."""
+        import asyncio
+
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, self._cache_result, cache_key, result)
+
     def _cache_result(self, cache_key: str, result: ProcessedContentResult) -> None:
-        """Cache processing result (sync - Redis ops are blocking)."""
+        """Cache processing result (sync helper for executor)."""
         redis = get_redis()
         if not redis:
             return

@@ -143,8 +143,6 @@
 
 html {
   scroll-behavior: smooth;
-  -webkit-text-size-adjust: 100%;
-  text-size-adjust: 100%;
   /* PERFORMANCE: Enable hardware acceleration for smoother animations */
   -webkit-font-smoothing: antialiased;
 }
@@ -1063,8 +1061,7 @@ li .katex {
 
 /* Error styling for invalid LaTeX */
 .katex-error {
-  color: #dc2626;
-  background: rgba(220, 38, 38, 0.15);
+  color: #991b1b;
   padding: 2px 6px;
   border-radius: 4px;
   font-family: 'JetBrains Mono', monospace;

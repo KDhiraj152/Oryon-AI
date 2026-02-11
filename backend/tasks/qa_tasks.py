@@ -3,7 +3,7 @@ Celery tasks for Q&A (Question Answering) functionality.
 
 These tasks handle:
 - Processing uploaded documents for Q&A
-- Answering questions using RAG + Qwen2.5
+- Answering questions using RAG + Qwen3-8B
 - Storing Q&A history
 """
 
@@ -107,7 +107,7 @@ def answer_question_task(
     max_answer_length: int = 256,
 ) -> dict[str, Any]:
     """
-    Answer a question about a document using RAG + Qwen2.5.
+    Answer a question about a document using RAG + Qwen3-8B.
 
     Args:
         content_id: UUID of the processed content

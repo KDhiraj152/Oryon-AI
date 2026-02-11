@@ -55,8 +55,12 @@ function LandingHeader({ isDark }: Readonly<SectionProps>) {
 }
 
 function FeaturesSection({ isDark }: Readonly<SectionProps>) {
-  const audioBarHeights = useMemo(
-    () => Array.from({ length: 12 }, () => `${Math.random() * 60 + 20}%`),
+  const audioBarData = useMemo(
+    () => Array.from({ length: 12 }, (_, i) => ({
+      id: `audio-bar-${i}`,
+      height: `${Math.random() * 60 + 20}%`,
+      delay: `${i * 0.1}s`,
+    })),
     []
   );
   return (
@@ -91,9 +95,10 @@ function FeaturesSection({ isDark }: Readonly<SectionProps>) {
             </div>
             <div className={`mt-8 h-24 rounded-xl w-full overflow-hidden relative ${isDark ? 'bg-white/5' : 'bg-gray-50'}`}>
               <div className="absolute inset-0 flex items-center justify-center gap-1">
-                {audioBarHeights.map((height, i) => (
-                  <div key={`audio-bar-${i}`} className={`w-1.5 rounded-full animate-pulse ${isDark ? 'bg-white/40' : 'bg-black/20'}`}
-                       style={{ height, animationDelay: `${i * 0.1}s` }} />
+                {audioBarData.map((bar) => (
+                  <div key={bar.id}
+                       ref={el => { if (el) { el.style.height = bar.height; el.style.animationDelay = bar.delay; } }}
+                       className={`w-1.5 rounded-full animate-pulse ${isDark ? 'bg-white/40' : 'bg-black/20'}`} />
                 ))}
               </div>
             </div>
@@ -111,7 +116,7 @@ function FeaturesSection({ isDark }: Readonly<SectionProps>) {
             <div className="flex items-start justify-between mb-6">
               <div className={`p-3 rounded-xl ${isDark ? 'bg-white/10 text-white' : 'bg-gray-100 text-black'}`}><Brain className="w-6 h-6" /></div>
             </div>
-            <h3 className="text-xl font-bold mb-2">Qwen2.5-3B</h3>
+            <h3 className="text-xl font-bold mb-2">Qwen3-8B</h3>
             <p className={`text-sm leading-relaxed ${isDark ? 'text-white/60' : 'text-black/60'}`}>
               Advanced reasoning that simplifies complex topics to your level.
             </p>

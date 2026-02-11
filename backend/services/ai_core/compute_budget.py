@@ -174,6 +174,46 @@ _TRIVIAL_GREETINGS: list[str] = [
 ]
 
 
+def _is_critical_compute(msg_lower: str) -> bool:
+    """Check if message requires CRITICAL compute tier."""
+    if any(p in msg_lower for p in _CRITICAL_PATTERNS):
+        return True
+    precision_hits = sum(1 for s in _PRECISION_SIGNALS if s in msg_lower)
+    return precision_hits >= 2
+
+
+def _is_trivial_compute(message: str, msg_lower: str, msg_len: int, intent: Intent) -> bool:
+    """Check if message qualifies for TRIVIAL compute tier."""
+    # Ultra-short non-questions
+    if msg_len < 20 and "?" not in message:
+        return True
+
+    # Short greetings / acknowledgments
+    if msg_len < 50 and "?" not in message and len(msg_lower.split()) <= 4:
+        if any(msg_lower.startswith(g) or msg_lower == g for g in _TRIVIAL_GREETINGS):
+            return True
+
+    # Small talk intent — only if genuinely just a greeting
+    if intent == Intent.SMALL_TALK:
+        if msg_len < 50 and "?" not in message and len(msg_lower.split()) <= 4:
+            return True
+
+    return False
+
+
+def _is_complex_compute(msg_lower: str, msg_len: int, intent: Intent) -> bool:
+    """Check if message requires COMPLEX compute tier."""
+    if intent in (Intent.CODE_REQUEST, Intent.COMPARISON):
+        return True
+    if msg_len > 300:
+        return True
+    if any(k in msg_lower for k in _COMPLEX_KEYWORDS):
+        return True
+    if msg_lower.count("?") >= 2:
+        return True
+    return False
+
+
 def classify_compute(message: str, intent: Intent) -> ComputeClass:
     """Classify a user message into a compute class.
 
@@ -189,52 +229,13 @@ def classify_compute(message: str, intent: Intent) -> ComputeClass:
     msg_lower = message.lower().strip()
     msg_len = len(message)
 
-    # ── CRITICAL  (check first — under-computation is dangerous) ──────
-    if any(p in msg_lower for p in _CRITICAL_PATTERNS):
+    if _is_critical_compute(msg_lower):
         return ComputeClass.CRITICAL
 
-    # Multiple precision signals also → CRITICAL
-    precision_hits = sum(1 for s in _PRECISION_SIGNALS if s in msg_lower)
-    if precision_hits >= 2:
-        return ComputeClass.CRITICAL
-
-    # ── TRIVIAL  (over-computation wastes resources) ──────────────────
-    # Pure length gate: only for non-question ultra-short messages
-    # ("What is DNA?" is 12 chars but a real question requiring STANDARD)
-    if msg_len < 20 and "?" not in message:
+    if _is_trivial_compute(message, msg_lower, msg_len, intent):
         return ComputeClass.TRIVIAL
 
-    # Greetings / acknowledgments — only if the message is genuinely
-    # just a greeting (short, no question mark, few words).
-    # "hey tell me about World War 2" starts with "hey" but is 7 words → not a greeting.
-    if msg_len < 50 and "?" not in message and len(msg_lower.split()) <= 4:
-        if any(msg_lower.startswith(g) or msg_lower == g for g in _TRIVIAL_GREETINGS):
-            return ComputeClass.TRIVIAL
-
-    if intent == Intent.SMALL_TALK:
-        # Only TRIVIAL if the message is genuinely just small talk,
-        # not "hello can you explain quantum physics?" or "hey tell me about X".
-        # Guard: short, no question mark, and few words (greetings are ≤4 words).
-        word_count = len(msg_lower.split())
-        if msg_len < 50 and "?" not in message and word_count <= 4:
-            return ComputeClass.TRIVIAL
-
-    # ── COMPLEX ───────────────────────────────────────────────────────
-    if intent == Intent.CODE_REQUEST:
+    if _is_complex_compute(msg_lower, msg_len, intent):
         return ComputeClass.COMPLEX
 
-    if intent == Intent.COMPARISON:
-        return ComputeClass.COMPLEX
-
-    if msg_len > 300:
-        return ComputeClass.COMPLEX
-
-    if any(k in msg_lower for k in _COMPLEX_KEYWORDS):
-        return ComputeClass.COMPLEX
-
-    # Multiple sub-questions imply multi-step reasoning
-    if msg_lower.count("?") >= 2:
-        return ComputeClass.COMPLEX
-
-    # ── STANDARD  (default — general Q&A, translation, explanation) ───
     return ComputeClass.STANDARD

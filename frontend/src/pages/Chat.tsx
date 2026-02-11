@@ -3,7 +3,7 @@ import { useChatStore, useThemeStore, useAuthStore, useProfileStore } from '../s
 import type { Message, Citation } from '../store';
 import ChatMessage from '../components/chat/ChatMessage';
 import ChatInput from '../components/chat/ChatInput';
-import { Toast, type ToastType } from '../components/chat/Toast';
+import { Toast, type ToastType } from '../components/ui/Toast';
 import { EmptyState } from '../components/chat/EmptyState';
 import { ThinkingIndicator, RegeneratingIndicator } from '../components/chat/ChatIndicators';
 import { useAudioPlayback, useChatScroll } from '../hooks/useChat';

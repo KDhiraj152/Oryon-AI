@@ -173,8 +173,8 @@ class MMSTTSService:
 
         self.models: dict[str, Any] = {}
         self.tokenizers: dict[str, Any] = {}
-        self.device = None
-        self.supported_languages = list(self.LANGUAGE_MAP.keys())
+        self.device: str | None = None
+        self.supported_languages: list[str] = list(self.LANGUAGE_MAP.keys())
 
     def _get_device(self) -> str:
         """Get optimal device for inference - M4 Mac optimized using device router."""
@@ -219,7 +219,10 @@ class MMSTTSService:
         return f"facebook/mms-tts-{mms_code}"
 
     def load_model(self, language: str = "en"):
-        """Load MMS-TTS model for a specific language (lazy loading) - M4 optimized."""
+        """Load MMS-TTS model for a specific language (lazy loading) - M4 optimized.
+
+        Memory coordination added to prevent OOM from concurrent model loading.
+        """
         lang = language.lower()[:2]
 
         if lang in self.models:
@@ -233,6 +236,15 @@ class MMSTTSService:
         model_id = self._get_model_id(lang)
         device = self._get_device()
         cache_dir = str(settings.MODEL_CACHE_DIR)
+
+        # Memory coordination: reserve ~0.5GB per TTS language model
+        coordinator = None
+        try:
+            from ...core.optimized.memory_coordinator import get_memory_coordinator
+            coordinator = get_memory_coordinator()
+            coordinator.try_acquire_sync(f"mms_tts_{lang}")
+        except (ImportError, Exception) as e:
+            logger.debug(f"Memory coordinator not available for MMS-TTS: {e}")
 
         logger.info(f"Loading MMS-TTS: {model_id} on {device}...")
 
@@ -255,11 +267,37 @@ class MMSTTSService:
             ).to(device)
             self.models[lang].eval()
 
+        # Register with memory coordinator after successful load
+        if coordinator:
+            try:
+                coordinator.register_model(
+                    f"mms_tts_{lang}",
+                    self.models[lang],
+                    unload_fn=lambda l=lang: self._unload_language(l),
+                )
+            except Exception as e:
+                logger.debug(f"Memory coordinator registration failed: {e}")
+
         # Clear MPS cache after loading
         if device == "mps":
             torch.mps.empty_cache()
 
         logger.info(f"MMS-TTS loaded for {lang} on {device}")
+
+    def _unload_language(self, lang: str) -> None:
+        """Unload a specific language model (called by memory coordinator eviction)."""
+        import gc
+        model = self.models.pop(lang, None)
+        self.tokenizers.pop(lang, None)
+        del model
+        gc.collect()
+        try:
+            import torch
+            if torch.backends.mps.is_available():
+                torch.mps.empty_cache()
+        except Exception:
+            pass
+        logger.info(f"MMS-TTS unloaded language: {lang}")
 
     def _normalize_language(self, language: str) -> str:
         """Normalize language code to 2-letter format."""
@@ -368,6 +406,59 @@ class MMSTTSService:
 
         return audio_bytes
 
+    def _batch_check_cache(
+        self,
+        texts: list[tuple[str, str]],
+        results: list[bytes | None],
+        use_cache: bool,
+    ) -> list[tuple[int, str, str]]:
+        """Check cache for batch items, return uncached (index, text, lang) tuples."""
+        uncached: list[tuple[int, str, str]] = []
+        for i, (text, language) in enumerate(texts):
+            lang = self._normalize_language(language)
+            if use_cache:
+                cached = _audio_cache.get(text, lang)
+                if cached is not None:
+                    results[i] = cached
+                    continue
+            uncached.append((i, text, lang))
+        return uncached
+
+    def _batch_synthesize_language_group(
+        self,
+        items: list[tuple[int, str]],
+        lang: str,
+        results: list[bytes | None],
+        use_cache: bool,
+        enc_pool,
+    ) -> None:
+        """Synthesize all items for one language, overlapping GPU and WAV encoding."""
+        self.load_model(lang)
+        pending_future = None
+        pending_idx = -1
+        pending_text = ""
+        pending_lang = ""
+
+        for idx, text in items:
+            waveform = self._infer_waveform(text, lang)
+
+            if pending_future is not None:
+                audio = pending_future.result()
+                results[pending_idx] = audio
+                if use_cache:
+                    _audio_cache.put(pending_text, pending_lang, audio)
+
+            pending_future = enc_pool.submit(self._encode_wav, waveform)
+            pending_idx = idx
+            pending_text = text
+            pending_lang = lang
+
+        if pending_future is not None:
+            audio = pending_future.result()
+            results[pending_idx] = audio
+            if use_cache:
+                _audio_cache.put(pending_text, pending_lang, audio)
+
     def synthesize_batch(
         self, texts: list[tuple[str, str]], use_cache: bool = True
     ) -> list[bytes]:
@@ -384,63 +475,25 @@ class MMSTTSService:
             List of audio bytes in same order as input
         """
         from collections import defaultdict
+        from concurrent.futures import ThreadPoolExecutor
 
-        # Results array
         results: list[bytes | None] = [None] * len(texts)
-
-        # First pass: check cache
-        uncached_items: list[tuple[int, str, str]] = []  # (index, text, lang)
-
-        for i, (text, language) in enumerate(texts):
-            lang = self._normalize_language(language)
-            if use_cache:
-                cached = _audio_cache.get(text, lang)
-                if cached is not None:
-                    results[i] = cached
-                    continue
-            uncached_items.append((i, text, lang))
+        uncached_items = self._batch_check_cache(texts, results, use_cache)
 
         # Group uncached by language for model reuse
         by_lang: dict[str, list[tuple[int, str]]] = defaultdict(list)
         for idx, text, lang in uncached_items:
             by_lang[lang].append((idx, text))
 
-        # Producer-consumer: overlap GPU inference[i+1] with WAV encode[i]
-        from concurrent.futures import ThreadPoolExecutor
+        # Use shared I/O pool for WAV encoding (avoids creating/destroying per batch)
+        from ...core.optimized.thread_pool_manager import get_io_executor
+        enc_pool = get_io_executor()
+        for lang, items in by_lang.items():
+            self._batch_synthesize_language_group(
+                items, lang, results, use_cache, enc_pool
+            )
 
-        with ThreadPoolExecutor(max_workers=1, thread_name_prefix="wav_enc") as enc_pool:
-            for lang, items in by_lang.items():
-                self.load_model(lang)  # Load once per language
-                pending_future = None
-                pending_idx = -1
-                pending_text = ""
-                pending_lang = ""
-
-                for idx, text in items:
-                    # GPU inference for current item
-                    waveform = self._infer_waveform(text, lang)
-
-                    # Collect previous encode result while GPU was busy
-                    if pending_future is not None:
-                        audio = pending_future.result()
-                        results[pending_idx] = audio
-                        if use_cache:
-                            _audio_cache.put(pending_text, pending_lang, audio)
-
-                    # Submit WAV encode to thread (overlaps with next GPU inference)
-                    pending_future = enc_pool.submit(self._encode_wav, waveform)
-                    pending_idx = idx
-                    pending_text = text
-                    pending_lang = lang
-
-                # Collect final encode result
-                if pending_future is not None:
-                    audio = pending_future.result()
-                    results[pending_idx] = audio
-                    if use_cache:
-                        _audio_cache.put(pending_text, pending_lang, audio)
-
-        return [r or b"" for r in results]  # type: list[bytes]
+        return [r or b"" for r in results]
 
     def warmup(self, languages: list[str] | None = None) -> None:
         """

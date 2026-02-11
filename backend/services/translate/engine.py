@@ -17,22 +17,20 @@ from backend.utils.hashing import fast_hash
 
 logger = logging.getLogger(__name__)
 
-# M4 Optimization: Dedicated thread pool for ML translation operations
+# M4 Optimization: Use unified ThreadPoolManager for ML translation operations
 # Prevents blocking the async event loop with model inference
 _translation_executor: ThreadPoolExecutor | None = None
 _executor_lock = threading.Lock()
 
 
 def _get_translation_executor() -> ThreadPoolExecutor:
-    """Get or create dedicated translation executor (thread-safe, lazy init)."""
+    """Get translation executor from unified ThreadPoolManager (thread-safe, lazy init)."""
     global _translation_executor
     if _translation_executor is None:
         with _executor_lock:
             if _translation_executor is None:
-                # 2 workers for M4: one translating, one prefetching
-                _translation_executor = ThreadPoolExecutor(
-                    max_workers=2, thread_name_prefix="trans_"
-                )
+                from backend.core.optimized.thread_pool_manager import get_ml_executor
+                _translation_executor = get_ml_executor()
     return _translation_executor
 
 
@@ -43,14 +41,13 @@ def shutdown_translation_executor(wait: bool = True) -> None:
         wait: If True, wait for pending tasks to complete.
               If False, cancel pending tasks immediately.
 
-    Call this during application shutdown to prevent resource leaks.
+    Note: No-op since executor is now shared via ThreadPoolManager.
     """
     global _translation_executor
     with _executor_lock:
-        if _translation_executor is not None:
-            _translation_executor.shutdown(wait=wait)
-            _translation_executor = None
-            logger.info("Translation executor shutdown complete")
+        # Don't shutdown — it's owned by ThreadPoolManager
+        _translation_executor = None
+        logger.info("Translation executor reference cleared (pool managed globally)")
 
 
 # Translation cache: key = hash(text + source + target), value = TranslatedText

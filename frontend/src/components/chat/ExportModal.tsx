@@ -92,7 +92,8 @@ export default function ExportModal({ isOpen, onClose, messages, conversationTit
       }
 
       const formatInfo = formatOptions.find((f) => f.id === selectedFormat)!;
-      const filename = `${conversationTitle || 'conversation'}-${new Date().toISOString().split('T')[0]}${formatInfo.extension}`;\n      const mimeType = selectedFormat === 'json' ? 'application/json' : 'text/plain';
+      const filename = `${conversationTitle || 'conversation'}-${new Date().toISOString().split('T')[0]}${formatInfo.extension}`;
+      const mimeType = selectedFormat === 'json' ? 'application/json' : 'text/plain';
       triggerFileDownload(content, filename, mimeType);
 
       setExportSuccess(true);

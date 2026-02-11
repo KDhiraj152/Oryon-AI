@@ -32,15 +32,23 @@ export const Skeleton = memo(function Skeleton({
     rectangular: 'rounded-xl',
   };
 
-  const style: React.CSSProperties = {
-    width: width ?? (variant === 'text' ? '100%' : undefined),
-    height: height ?? (variant === 'text' ? '1em' : undefined),
+  const computedWidth = width ?? (variant === 'text' ? '100%' : undefined);
+  const computedHeight = height ?? (variant === 'text' ? '1em' : undefined);
+
+  const toStyleValue = (val: string | number | undefined): string => {
+    if (val === undefined) return '';
+    return typeof val === 'number' ? `${val}px` : val;
   };
 
   return (
     <div
+      ref={el => {
+        if (el) {
+          el.style.width = toStyleValue(computedWidth);
+          el.style.height = toStyleValue(computedHeight);
+        }
+      }}
       className={`${baseClasses} ${animationClasses} ${variantClasses[variant]} ${className}`}
-      style={style}
       aria-hidden="true"
     />
   );
@@ -81,8 +89,8 @@ export const ConversationListSkeleton = memo(function ConversationListSkeleton({
 }) {
   return (
     <div className="space-y-2 p-2">
-      {Array.from({ length: count }).map((_, i) => (
-        <div key={`conv-skeleton-${i}`} className="flex items-center gap-3 p-3 rounded-xl">
+      {[...new Array(count).keys()].map((n) => (
+        <div key={`conv-skeleton-${n}`} className="flex items-center gap-3 p-3 rounded-xl">
           <Skeleton variant="circular" width={24} height={24} />
           <div className="flex-1 space-y-2">
             <Skeleton variant="text" width="70%" height={14} />
@@ -135,8 +143,8 @@ export const ContentCardSkeleton = memo(function ContentCardSkeleton() {
 export const SettingsSkeleton = memo(function SettingsSkeleton() {
   return (
     <div className="space-y-8 p-6">
-      {Array.from({ length: 3 }).map((_, i) => (
-        <div key={`settings-section-${i}`} className="space-y-4">
+      {[0, 1, 2].map((sectionNum) => (
+        <div key={`settings-section-${sectionNum}`} className="space-y-4">
           <Skeleton variant="text" width={120} height={20} />
           <div className="space-y-3">
             {Array.from({ length: 4 }).map((_, j) => (
@@ -168,8 +176,8 @@ export const StatsSkeleton = memo(function StatsSkeleton({
 }) {
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-      {Array.from({ length: count }).map((_, i) => (
-        <div key={`stat-skeleton-${i}`} className="p-4 rounded-xl border border-[var(--border-color)] text-center">
+      {[...new Array(count).keys()].map((n) => (
+        <div key={`stat-skeleton-${n}`} className="p-4 rounded-xl border border-[var(--border-color)] text-center">
           <Skeleton variant="text" width={60} height={12} className="mx-auto mb-2" />
           <Skeleton variant="text" width={80} height={32} className="mx-auto" />
         </div>
@@ -198,8 +206,8 @@ export const PageSkeleton = memo(function PageSkeleton() {
         <div className="max-w-4xl mx-auto space-y-6">
           <Skeleton variant="text" width="60%" height={32} />
           <div className="space-y-4">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton key={`page-line-${i}`} variant="text" width={`${90 - i * 10}%`} height={16} />
+            {[90, 80, 70, 60, 50].map((w) => (
+              <Skeleton key={`page-line-${w}`} variant="text" width={`${w}%`} height={16} />
             ))}
           </div>
         </div>

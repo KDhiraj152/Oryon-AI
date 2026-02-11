@@ -327,13 +327,13 @@ async def batch_process(request: BatchProcessRequest):
         successful = sum(1 for r in results if r.success)
 
         if "simplify" in operations:
-            models_used.add("qwen2.5-3b")
+            models_used.add("qwen3-8b")
         if "translate" in operations:
             models_used.add("indictrans2-1b")
         if "embed" in operations:
             models_used.add("bge-m3")
         if "validate" in operations:
-            models_used.add("gemma-2-2b")
+            models_used.add("qwen3-8b")
 
         return BatchProcessResponse(
             request_id=request_id,
@@ -453,7 +453,7 @@ async def batch_rerank(request: RerankRequest):
                 zip(request.passages, scores, strict=False)
             )
         ]
-        scored_results.sort(key=lambda x: float(x["score"]), reverse=True)
+        scored_results.sort(key=lambda x: float(str(x["score"])), reverse=True)
 
         for rank, result in enumerate(scored_results[: request.top_k]):
             result["rank"] = rank + 1
@@ -559,7 +559,7 @@ async def multimodel_process(request: MultiModelRequest):
     """
     Multi-model collaboration for maximum accuracy.
 
-    Orchestrates 8 specialized models with collaboration patterns:
+    Orchestrates 7 specialized models with collaboration patterns:
     - verify: Validate output with secondary model
     - chain: Sequential processing through models
     - ensemble: Multiple models vote on output

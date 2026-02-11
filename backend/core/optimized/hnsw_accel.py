@@ -55,11 +55,13 @@ except ImportError:
 
 @dataclass
 class HNSWConfig:
-    """HNSW index configuration."""
+    """HNSW index configuration.
 
-    # Graph parameters
-    M: int = 16  # Number of connections per layer
-    ef_construction: int = 200  # Construction-time search width
+    Note: Graph construction (M, ef_construction) is not yet implemented.
+    Current search is brute-force with GPU-accelerated distance computation.
+    """
+
+    # Search parameters
     ef_search: int = 40  # Search-time width (higher = more accurate)
 
     # Distance metric
@@ -310,79 +312,6 @@ class GPUDistanceComputer:
             return np.sqrt(np.maximum(q_sq + c_sq.T - 2 * cross, 0))
         else:
             return -np.dot(queries, candidates.T)
-
-
-# ============================================================================
-# FAST VISITED SET WITH BLOOM FILTER
-# ============================================================================
-
-
-class FastVisitedSet:
-    """
-    Lock-free visited set with bloom filter pre-check.
-
-    Uses bloom filter for O(1) negative lookups,
-    then confirms with actual set.
-    """
-
-    def __init__(self, expected_size: int = 10000):
-        # Bloom filter parameters
-        self._bloom_size = expected_size * 10  # 10 bits per element
-        self._bloom_bits = np.zeros(self._bloom_size // 8 + 1, dtype=np.uint8)
-        self._k = 3  # Number of hash functions
-
-        # Actual visited set
-        self._visited: set[int] = set()
-
-    def _hash_positions(self, item: int) -> list[int]:
-        """Generate k hash positions for bloom filter."""
-        h1 = item % self._bloom_size
-        h2 = (item * 31) % self._bloom_size
-        return [(h1 + i * h2) % self._bloom_size for i in range(self._k)]
-
-    def add(self, item: int) -> bool:
-        """
-        Add item to visited set.
-
-        Returns True if newly added, False if already present.
-        """
-        # Check bloom filter first
-        positions = self._hash_positions(item)
-
-        # Check if definitely not present (O(1))
-        for pos in positions:
-            byte_idx, bit_idx = divmod(pos, 8)
-            if not (self._bloom_bits[byte_idx] & (1 << bit_idx)):
-                # Not in bloom, definitely not visited
-                break
-        else:
-            # Might be present, check actual set
-            if item in self._visited:
-                return False
-
-        # Add to bloom filter
-        for pos in positions:
-            byte_idx, bit_idx = divmod(pos, 8)
-            self._bloom_bits[byte_idx] |= 1 << bit_idx
-
-        # Add to actual set
-        self._visited.add(item)
-        return True
-
-    def contains(self, item: int) -> bool:
-        """Check if item is visited."""
-        # Bloom filter check first
-        for pos in self._hash_positions(item):
-            byte_idx, bit_idx = divmod(pos, 8)
-            if not (self._bloom_bits[byte_idx] & (1 << bit_idx)):
-                return False
-
-        return item in self._visited
-
-    def clear(self):
-        """Clear the visited set."""
-        self._bloom_bits.fill(0)
-        self._visited.clear()
 
 
 # ============================================================================

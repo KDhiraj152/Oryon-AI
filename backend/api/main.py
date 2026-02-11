@@ -194,11 +194,28 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         app.state.warmup_task = asyncio.create_task(_background_warmup())
         logger.info("Background warmup scheduled (non-blocking)")
 
+    # ==================== AGENT SYSTEM ====================
+    _safe_init("Agent system", lambda: _init_agent_system(app))
+    if hasattr(app.state, "agent_registry"):
+        try:
+            await app.state.agent_registry.start_all()
+            logger.info("Multi-agent system started (6 agents)")
+        except Exception as e:
+            logger.warning(f"Agent system start failed: {e}")
+
     logger.info("V2 API startup complete - all systems operational")
 
     yield  # Application runs here
 
     # ==================== SHUTDOWN ====================
+    # Stop agents before other cleanup
+    if hasattr(app.state, "agent_registry"):
+        try:
+            await app.state.agent_registry.stop_all()
+            logger.info("Multi-agent system stopped")
+        except Exception as e:
+            logger.warning(f"Agent shutdown error: {e}")
+
     await _shutdown_cleanup()
 
 
@@ -300,6 +317,33 @@ async def metrics():
 
 
 # ==================== LIFECYCLE HELPERS ====================
+
+
+def _init_agent_system(app: FastAPI) -> None:
+    """Initialize the multi-agent self-optimization system."""
+    from ..agents import (
+        AgentRegistry,
+        EvaluationAgent,
+        HardwareOptimizerAgent,
+        ModelExecutionAgent,
+        OrchestratorAgent,
+        ResourceMonitorAgent,
+        SelfImprovementAgent,
+    )
+
+    registry = AgentRegistry()
+
+    # Register all agents
+    registry.register(ResourceMonitorAgent())
+    registry.register(HardwareOptimizerAgent())
+    registry.register(ModelExecutionAgent())
+    registry.register(EvaluationAgent())
+    registry.register(OrchestratorAgent())
+    registry.register(SelfImprovementAgent())
+
+    app.state.agent_registry = registry
+    app.state.orchestrator_agent = registry._agents.get("orchestrator")
+    logger.info(f"Agent system initialized: {list(registry._agents.keys())}")
 
 
 def _init_memory_coordinator():

@@ -2,7 +2,7 @@
 Model Accessors Mixin
 =====================
 
-Provides lazy-loading accessors for all 8 models.
+Provides lazy-loading accessors for all 7 models.
 Uses dependency injection pattern to avoid circular imports.
 """
 
@@ -14,17 +14,16 @@ logger = logging.getLogger(__name__)
 
 class ModelAccessorsMixin:
     """
-    Mixin providing lazy-loaded accessors for all 8 AI models.
+    Mixin providing lazy-loaded accessors for all 7 AI models.
 
     Models:
-    - Qwen2.5-3B: Main LLM for simplification/generation
+    - Qwen3-8B: Main LLM for simplification/generation/validation
     - IndicTrans2-1B: Translation between 11 Indic languages
     - BGE-M3: Multi-lingual embeddings
     - BGE-Reranker: Candidate reranking
     - Whisper-V3: Speech-to-text
     - MMS-TTS: Text-to-speech for Indic languages
     - GOT-OCR2: Document/image OCR
-    - Gemma-2-2B: Validation and quality checking
     """
 
     def __init__(self) -> None:
@@ -32,7 +31,7 @@ class ModelAccessorsMixin:
         self._model_cache: dict = {}
 
     def _get_llm(self) -> Any | None:
-        """Get Qwen2.5-3B LLM instance (lazy load)."""
+        """Get Qwen3-8B LLM instance (lazy load)."""
         if "llm" not in self._model_cache:
             try:
                 from backend.services.simplifier.engine import get_simplifier
@@ -50,7 +49,7 @@ class ModelAccessorsMixin:
         """Get IndicTrans2 translator instance (lazy load)."""
         if "translator" not in self._model_cache:
             try:
-                from backend.services.translate.engine import get_translator
+                from backend.services.translate.model import get_translator
 
                 self._model_cache["translator"] = get_translator()
             except ImportError:
@@ -77,7 +76,7 @@ class ModelAccessorsMixin:
         return self._model_cache["embedder"]
 
     def _get_validator(self) -> Any | None:
-        """Get Gemma-2-2B validator instance (lazy load)."""
+        """Get Qwen3-8B validator instance (lazy load, shared with main LLM)."""
         if "validator" not in self._model_cache:
             try:
                 from backend.services.validation.engine import get_validator

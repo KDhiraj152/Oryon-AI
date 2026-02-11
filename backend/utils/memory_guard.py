@@ -42,7 +42,9 @@ try:
     _COORDINATOR_AVAILABLE = True
 except ImportError:
     # Fallback: no memory coordination
-    class MemoryPressure:
+    _COORDINATOR_AVAILABLE = False
+
+    class MemoryPressure:  # type: ignore[no-redef]
         NORMAL = "normal"
         WARNING = "warning"
         CRITICAL = "critical"
@@ -73,7 +75,7 @@ def get_memory_pressure() -> str:
 
     try:
         pressure = coordinator.get_memory_pressure()
-        return pressure.value
+        return str(pressure.value)
     except Exception:
         return "normal"
 
@@ -105,6 +107,61 @@ def check_memory_pressure(
     return True
 
 
+def _handle_pressure_reject(pressure: str, error_code: int, error_message: str) -> None:
+    """Handle rejection action for memory pressure."""
+    logger.warning(f"Rejecting request due to memory pressure: {pressure}")
+    raise HTTPException(status_code=error_code, detail=error_message)
+
+
+def _handle_pressure_warn(pressure: str) -> None:
+    """Handle warning action for memory pressure."""
+    logger.warning(f"Memory pressure {pressure}, proceeding with caution")
+
+
+async def _handle_pressure_queue(
+    pressure: str,
+    reject_on: tuple,
+    error_code: int,
+    max_wait: int = 30,
+) -> None:
+    """Handle queue action for memory pressure."""
+    waited = 0
+    current = pressure
+    while current in reject_on and waited < max_wait:
+        await asyncio.sleep(1)
+        waited += 1
+        current = get_memory_pressure()
+
+    if current in reject_on:
+        raise HTTPException(
+            status_code=error_code,
+            detail=f"Memory pressure persisted after {max_wait}s",
+        )
+
+
+def _dispatch_pressure_action(
+    action: str, pressure: str, error_code: int, error_message: str
+) -> None:
+    """Dispatch synchronous pressure handling based on configured action."""
+    handlers = {
+        "reject": lambda: _handle_pressure_reject(pressure, error_code, error_message),
+        "warn": lambda: _handle_pressure_warn(pressure),
+    }
+    handler = handlers.get(action)
+    if handler:
+        handler()
+
+
+async def _dispatch_pressure_action_async(
+    action: str, pressure: str, reject_on: tuple, error_code: int, error_message: str
+) -> None:
+    """Dispatch async pressure handling with queue support."""
+    if action == "queue":
+        await _handle_pressure_queue(pressure, reject_on, error_code)
+    else:
+        _dispatch_pressure_action(action, pressure, error_code, error_message)
+
+
 def require_memory(
     action: Literal["reject", "warn", "queue"] = "reject",
     reject_on: tuple = ("critical", "emergency"),
@@ -131,46 +188,17 @@ def require_memory(
         @functools.wraps(func)
         async def async_wrapper(*args, **kwargs):
             pressure = get_memory_pressure()
-
             if pressure in reject_on:
-                if action == "reject":
-                    logger.warning(
-                        f"Rejecting request due to memory pressure: {pressure}"
-                    )
-                    raise HTTPException(status_code=error_code, detail=error_message)
-                elif action == "warn":
-                    logger.warning(
-                        f"Memory pressure {pressure}, proceeding with caution"
-                    )
-                elif action == "queue":
-                    # Wait for memory pressure to reduce
-                    max_wait = 30  # seconds
-                    waited = 0
-                    while pressure in reject_on and waited < max_wait:
-                        await asyncio.sleep(1)
-                        waited += 1
-                        pressure = get_memory_pressure()
-
-                    if pressure in reject_on:
-                        raise HTTPException(
-                            status_code=error_code,
-                            detail=f"Memory pressure persisted after {max_wait}s",
-                        )
-
+                await _dispatch_pressure_action_async(
+                    action, pressure, reject_on, error_code, error_message
+                )
             return await func(*args, **kwargs)
 
         @functools.wraps(func)
         def sync_wrapper(*args, **kwargs):
             pressure = get_memory_pressure()
-
             if pressure in reject_on:
-                if action == "reject":
-                    raise HTTPException(status_code=error_code, detail=error_message)
-                elif action == "warn":
-                    logger.warning(
-                        f"Memory pressure {pressure}, proceeding with caution"
-                    )
-
+                _dispatch_pressure_action(action, pressure, error_code, error_message)
             return func(*args, **kwargs)
 
         # Return appropriate wrapper based on function type
@@ -182,7 +210,7 @@ def require_memory(
 
 
 async def wait_for_memory(
-    timeout: float = 30.0,
+    timeout: float = 30.0,  # NOSONAR
     check_interval: float = 1.0,
     target_pressure: tuple = ("normal", "warning"),
 ) -> bool:

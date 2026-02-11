@@ -24,36 +24,11 @@ from ...database import get_async_db
 from ...models.chat import Conversation, Message, MessageRole
 from ...utils.auth import TokenData, get_current_user
 from ...utils.memory_guard import require_memory
-
-# Use orjson for faster JSON in SSE (falls back to json if not available)
-try:
-    import orjson
-
-    def _json_dumps(data: dict[str, Any]) -> str:
-        return orjson.dumps(data).decode("utf-8")
-except ImportError:
-    import json
-
-    def _json_dumps(data: dict[str, Any]) -> str:
-        return json.dumps(data)
-
+from ..deps import get_ai_engine as _get_ai_engine, json_dumps as _json_dumps
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["chat"])
-
-# OPTIMIZATION: Lazy-loaded AI engine singleton
-_ai_engine = None
-
-
-def _get_ai_engine():
-    """Get AI engine singleton (lazy-loaded)."""
-    global _ai_engine
-    if _ai_engine is None:
-        from ...services.ai_core.engine import get_ai_engine
-
-        _ai_engine = get_ai_engine()
-    return _ai_engine
 
 
 # Error constants
@@ -204,7 +179,7 @@ async def chat(
                     db.add(assistant_msg)
 
                     # Update conversation timestamp
-                    conv.updated_at = datetime.utcnow()
+                    conv.updated_at = datetime.now(timezone.utc)
 
                     await db.commit()
             except Exception as db_error:
@@ -424,10 +399,10 @@ async def list_conversations(
                 else "en",
                 created_at=conv.created_at.isoformat()
                 if conv.created_at
-                else datetime.utcnow().isoformat(),
+                else datetime.now(timezone.utc).isoformat(),
                 updated_at=conv.updated_at.isoformat()
                 if conv.updated_at
-                else datetime.utcnow().isoformat(),
+                else datetime.now(timezone.utc).isoformat(),
                 message_count=msg_count or 0,
             )
             for conv, msg_count in rows
@@ -446,7 +421,7 @@ async def create_conversation(
     """Create a new conversation in database."""
     try:
         user_uuid = UUID(current_user.user_id)
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         conversation = Conversation(
             user_id=user_uuid,
@@ -515,10 +490,10 @@ async def get_conversation(
             language=conv.extra_data.get("language", "en") if conv.extra_data else "en",
             created_at=conv.created_at.isoformat()
             if conv.created_at
-            else datetime.utcnow().isoformat(),
+            else datetime.now(timezone.utc).isoformat(),
             updated_at=conv.updated_at.isoformat()
             if conv.updated_at
-            else datetime.utcnow().isoformat(),
+            else datetime.now(timezone.utc).isoformat(),
             message_count=msg_count or 0,
         )
     except HTTPException:
@@ -570,7 +545,7 @@ async def get_conversation_messages(
                 content=msg.content,
                 timestamp=msg.created_at.isoformat()
                 if msg.created_at
-                else datetime.utcnow().isoformat(),
+                else datetime.now(timezone.utc).isoformat(),
             )
             for msg in messages
         ]
@@ -615,7 +590,7 @@ async def update_conversation(
         # Update fields
         if request.title is not None:
             conv.title = request.title
-        conv.updated_at = datetime.utcnow()
+        conv.updated_at = datetime.now(timezone.utc)
 
         await db.commit()
         await db.refresh(conv)
@@ -636,10 +611,10 @@ async def update_conversation(
             language=conv.extra_data.get("language", "en") if conv.extra_data else "en",
             created_at=conv.created_at.isoformat()
             if conv.created_at
-            else datetime.utcnow().isoformat(),
+            else datetime.now(timezone.utc).isoformat(),
             updated_at=conv.updated_at.isoformat()
             if conv.updated_at
-            else datetime.utcnow().isoformat(),
+            else datetime.now(timezone.utc).isoformat(),
             message_count=msg_count,
         )
     except HTTPException:

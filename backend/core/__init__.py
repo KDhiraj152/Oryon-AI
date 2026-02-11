@@ -53,9 +53,10 @@ from .exceptions import (
 from .optimized import (
     ComputeBackend,
     DeviceRouter,
+    DeviceTaskType,
+    HardwareModelConfig,
     LoadedModel,
     ModelConfig,
-    ModelType,
     PerformanceConfig,
     PerformanceOptimizer,
     TaskType,
@@ -68,6 +69,8 @@ from .optimized import (
 from .optimized import (
     get_model_manager as get_model_registry,
 )
+# Canonical types
+from .types import ModelTier, ModelType
 from .storage import (
     HybridStorage,
     get_conversation_storage,
@@ -87,11 +90,14 @@ __all__ = [
     "CorrelatedLogger",
     "CorrelationIdMiddleware",
     "DeviceRouter",
+    "DeviceTaskType",
+    "HardwareModelConfig",
     "HybridStorage",
     "LoadedModel",
     "ModelConfig",
     "ModelLoadError",
     "ModelRegistry",
+    "ModelTier",
     "ModelTimeoutError",
     "ModelType",
     "PerformanceConfig",

@@ -163,14 +163,14 @@ class BaseAsyncModelClient(ABC):
 
 
 class QwenAsyncClient(BaseAsyncModelClient):
-    """Async client for Qwen2.5-3B-Instruct text simplification."""
+    """Async client for Qwen3-8B text simplification."""
 
     def __init__(self, model_id: str | None = None, api_key: str | None = None):
         # Use Qwen as default simplification model
         from ...core.config import settings
 
         model_id = model_id or getattr(
-            settings, "SIMPLIFICATION_MODEL_ID", "Qwen/Qwen2.5-3B-Instruct"
+            settings, "SIMPLIFICATION_MODEL_ID", "Qwen/Qwen3-8B"
         )
         super().__init__(model_id, api_key)
 

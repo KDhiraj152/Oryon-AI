@@ -1,11 +1,11 @@
-# Section 9: Code Quality
+# Code Quality
 
 ---
 
 **Author:** K Dhiraj
 **Email:** k.dhiraj.srihari@gmail.com
-**Version:** 4.0.0 (Universal Mode)
-**Last Updated:** December 5, 2025
+**Version:** 4.1.0
+**Last Updated:** February 11, 2026
 
 ---
 
@@ -191,10 +191,9 @@ module.exports = {
 
 ### pytest Configuration
 
-```ini
-# pytest.ini
-[pytest]
-testpaths = tests
+```toml
+# pyproject.toml — [tool.pytest.ini_options]
+testpaths = ["tests"]
 python_files = test_*.py
 python_classes = Test*
 python_functions = test_*
@@ -401,7 +400,7 @@ pre-commit run --all-files
 
 ```bash
 #!/bin/bash
-# run_quality_checks.sh
+# Example: scripts/testing/quality_checks.sh
 
 set -e
 
@@ -506,10 +505,9 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          pip install -r requirements-dev.txt
 
       - name: Run quality checks
-        run: ./run_quality_checks.sh
+        run: scripts/testing/quality_checks.sh
 
       - name: Upload coverage
         uses: codecov/codecov-action@v3

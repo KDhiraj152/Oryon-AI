@@ -325,7 +325,7 @@ def track_inference(model: str, task: str):
     Context manager to track inference latency.
 
     Usage:
-        with track_inference("qwen2.5-3b", "simplify"):
+        with track_inference("qwen3-8b", "simplify"):
             result = await model.generate(...)
     """
     start_time = time.time()
@@ -354,7 +354,7 @@ def track_latency(model: str, task: str):
     Decorator to track function latency.
 
     Usage:
-        @track_latency("qwen2.5-3b", "simplify")
+        @track_latency("qwen3-8b", "simplify")
         async def simplify_text(text):
             ...
     """

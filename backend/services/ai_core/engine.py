@@ -812,7 +812,7 @@ class AIEngine:
     def _get_chunk_text(self, chunk) -> str:
         """Extract text from a retrieval chunk, handling missing attributes."""
         if hasattr(chunk, "text"):
-            return chunk.text
+            return str(chunk.text)
         return str(chunk)
 
     def _build_loop_source_reference(
@@ -852,6 +852,7 @@ class AIEngine:
         Returns: (sources, augmented_context, retrieval_iterations, rag_empty)
         """
         def search_fn(query: str, top_k: int = 5):
+            assert self._rag_service is not None
             return self._rag_service.search(query, top_k=top_k, rerank=True)
 
         loop_result = await retrieval_loop.retrieve_with_refinement(
@@ -878,15 +879,25 @@ class AIEngine:
         )
         return sources, augmented_context, retrieval_iterations, False
 
-    def _perform_standard_rag_search(
+    async def _perform_standard_rag_search(
         self, message: str
     ) -> tuple[list, str, bool]:
-        """Perform standard RAG search as fallback.
+        """Perform standard RAG search as fallback (async, non-blocking).
+
+        OPTIMIZATION: Wraps sync search() in run_in_executor to avoid
+        blocking the event loop during embedding + pgvector + reranking.
 
         Returns: (sources, augmented_context, rag_empty)
         """
+        import asyncio
+
         try:
-            rag_result = self._rag_service.search(message, top_k=5, rerank=True)
+            assert self._rag_service is not None
+            loop = asyncio.get_running_loop()
+            rag_result = await loop.run_in_executor(
+                None,
+                lambda: self._rag_service.search(message, top_k=5, rerank=True),
+            )
         except Exception as e:
             logger.warning(f"RAG search failed: {e}")
             return [], "", True
@@ -939,7 +950,7 @@ class AIEngine:
         needs_fallback = not retrieval_loop or (not sources and not rag_empty)
         if needs_fallback:
             sources, augmented_context, rag_empty = (
-                self._perform_standard_rag_search(message)
+                await self._perform_standard_rag_search(message)
             )
 
         return sources, augmented_context, rag_empty, retrieval_iterations
@@ -1125,7 +1136,7 @@ class AIEngine:
         # Check if RAG is needed
         use_rag = self._determine_rag_usage(config, message, intent)
 
-        sources: list[dict[str, Any]] = []
+        sources: list[SourceReference] = []
         augmented_context = ""
         rag_attempted = False
         rag_empty = False
@@ -1237,6 +1248,38 @@ class AIEngine:
             logger.warning(f"RAG search failed in streaming: {e}")
             return "", True
 
+    async def _stream_with_timeout(
+        self, llm: Any, prompt: str, config: GenerationConfig, model_key: str,
+    ) -> AsyncGenerator[str, None]:
+        """Stream tokens from LLM with per-token timeout protection."""
+        from ..inference.unified_engine import GenerationConfig as InferenceGenConfig
+
+        stream_config = InferenceGenConfig(
+            max_tokens=config.max_tokens,
+            temperature=config.temperature,
+        )
+        timeout = config.timeout_seconds
+        last_token_time = time.perf_counter()
+        async for token in llm.generate_stream(
+            prompt, config=stream_config, model_id=model_key,
+        ):
+            now = time.perf_counter()
+            if now - last_token_time > timeout:
+                logger.warning(f"Stream generation timed out after {timeout}s between tokens")
+                break
+            last_token_time = now
+            yield token
+
+    async def _stream_fallback(
+        self, llm: Any, prompt: str, config: GenerationConfig, model_key: str,
+    ) -> AsyncGenerator[str, None]:
+        """Generate full response and simulate streaming by chunking."""
+        response = await self._run_generation(llm, prompt, config, model_key=model_key)
+        chunk_size = 4
+        for i in range(0, len(response), chunk_size):
+            yield response[i : i + chunk_size]
+            await asyncio.sleep(0.01)
+
     async def _stream_generate(
         self,
         message: str,
@@ -1247,78 +1290,32 @@ class AIEngine:
         budget: ComputeBudget | None = None,
     ) -> AsyncGenerator[str, None]:
         """Stream tokens from the LLM with RAG support."""
-        # Get dynamic token allocation for streaming too
         task_type = self._intent_to_task_type(intent)
-        routing = self.router.route(
-            message,
-            task_type,
-            max_latency_ms=budget.max_latency_ms if budget else None,
-            model_tier_ceiling=budget.model_tier_ceiling if budget else None,
-        )
+        routing = self._get_model_routing(message, task_type, budget)
 
         # Token ceiling: router estimate capped by budget
-        dynamic_max_tokens = routing.estimated_max_tokens
-        if budget:
-            config.max_tokens = min(budget.max_tokens, dynamic_max_tokens)
-        elif config.max_tokens < dynamic_max_tokens:
-            config.max_tokens = dynamic_max_tokens
+        self._resolve_max_tokens(config, budget, routing.estimated_max_tokens)
 
-        # Check if RAG is needed - respect config.use_rag if explicitly set
-        use_rag = config.use_rag if config.use_rag is not None else self._should_use_rag(message, intent)
-
+        # Check if RAG is needed
+        use_rag = self._determine_rag_usage(config, message, intent)
         augmented_context, rag_empty = self._fetch_stream_rag_context(message, use_rag)
 
         # Build system prompt with RAG awareness
         is_simple = budget.compute_class == ComputeClass.TRIVIAL if budget else False
-        system_prompt = self._build_system_prompt(
-            intent, context_data, is_simple_query=is_simple
+        system_prompt = self._build_system_prompt(intent, context_data, is_simple_query=is_simple)
+        system_prompt = self._augment_system_prompt_with_rag(
+            system_prompt, augmented_context, use_rag, rag_empty, False,
         )
 
-        if augmented_context:
-            system_prompt += (
-                "\n\nVERIFIED REFERENCE DOCUMENTS PROVIDED:\n"
-                "Base your answer on the provided context. Cite specific information.\n"
-            )
-        elif use_rag and rag_empty:
-            system_prompt += (
-                "\n\nNo verified sources available. Be cautious with specific facts.\n"
-            )
-
         prompt = self._build_prompt(message, history, augmented_context, system_prompt)
-
         llm = self._get_llm_client()
 
-        # Check if LLM supports streaming
         if hasattr(llm, "generate_stream"):
-            # Build config for the streaming backend
-            from ..inference.unified_engine import GenerationConfig as InferenceGenConfig
-
-            stream_config = InferenceGenConfig(
-                max_tokens=config.max_tokens,
-                temperature=config.temperature,
-            )
-            # Streaming with per-token timeout protection
-            timeout = config.timeout_seconds
-            last_token_time = time.perf_counter()
-            async for token in llm.generate_stream(
-                prompt,
-                config=stream_config,
-                model_id=routing.model_key,
-            ):
-                now = time.perf_counter()
-                if now - last_token_time > timeout:
-                    logger.warning(f"Stream generation timed out after {timeout}s between tokens")
-                    break
-                last_token_time = now
+            async for token in self._stream_with_timeout(llm, prompt, config, routing.model_key):
                 yield token
         else:
-            # Fallback: generate full response and simulate streaming
-            response = await self._run_generation(llm, prompt, config, model_key=routing.model_key)
-            # Chunk the response for pseudo-streaming
-            chunk_size = 4
-            for i in range(0, len(response), chunk_size):
-                yield response[i : i + chunk_size]
-                await asyncio.sleep(0.01)  # Small delay for UX
+            async for token in self._stream_fallback(llm, prompt, config, routing.model_key):
+                yield token
 
     async def _run_generation(
         self,
@@ -1335,7 +1332,7 @@ class AIEngine:
             prompt: The prompt to generate from
             config: Generation configuration
             use_speculative: Whether to try speculative decoding (Metal/ANE)
-            model_key: Short model name for multi-model routing (e.g. 'qwen2.5-3b')
+            model_key: Short model name for multi-model routing (e.g. 'qwen3-8b')
         """
         # Try speculative decoding for Metal/ANE acceleration
         speculative_decoder = (
@@ -1510,7 +1507,7 @@ class AIEngine:
     ) -> str:
         """Build the full prompt for the LLM using ChatML format.
 
-        Uses <|im_start|>/<|im_end|> tokens expected by Qwen2.5-Instruct.
+        Uses <|im_start|>/<|im_end|> tokens expected by Qwen3/ChatML format.
         This format is passed through as pre-formatted by the inference backends.
         """
         parts = []

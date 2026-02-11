@@ -1,9 +1,9 @@
-"""Text Simplifier using Qwen2.5-3B-Instruct for grade-level content adaptation.
+"""Text Simplifier using Qwen3-8B for grade-level content adaptation.
 
-Optimal 2025 Model Stack: Qwen2.5-3B-Instruct
+Optimal 2026 Model Stack: Qwen3-8B (MLX 4-bit)
 - Best instruction-following for educational prompts
-- 3GB with INT4 quantization
-- Supports vLLM serving for production
+- 4.6GB with 4-bit MLX quantization
+- Native Apple Silicon acceleration
 
 v1.4.0: M4-optimized semantic accuracy refinement (target 9.0+)
 - 5-Phase hardware optimization (async, cache, GPU, cores, memory)
@@ -49,9 +49,9 @@ try:
 except ImportError:
     REFINEMENT_AVAILABLE = False
     # Placeholder classes for test patching
-    RefinementConfig = None
-    RefinementTask = None
-    SemanticRefinementPipeline = None
+    RefinementConfig = None  # type: ignore[assignment, misc]
+    RefinementTask = None  # type: ignore[assignment, misc]
+    SemanticRefinementPipeline = None  # type: ignore[assignment, misc]
     logger_temp = logging.getLogger(__name__)
     logger_temp.warning(
         "Refinement pipeline not available, using single-pass generation"
@@ -98,8 +98,8 @@ class VLLMClient(BaseLLMClient):
         self.model = model or settings.SIMPLIFICATION_MODEL_ID
         self.api_key = api_key or settings.VLLM_API_KEY
         self.client = httpx.AsyncClient(
-            timeout=120.0
-        )  # Increased for longer generations
+            timeout=settings.SIMPLIFIER_TIMEOUT
+        )  # Config-driven timeout
 
     async def generate(
         self,
@@ -132,7 +132,7 @@ class VLLMClient(BaseLLMClient):
             )
             response.raise_for_status()
             data = response.json()
-            return data["choices"][0]["message"]["content"]
+            return str(data["choices"][0]["message"]["content"])
         except Exception as e:
             logger.error(f"vLLM generation failed: {e}")
             raise
@@ -294,7 +294,7 @@ class TransformersClient(BaseLLMClient):
         ]
 
         # Apply chat template
-        if hasattr(self._tokenizer, "apply_chat_template"):
+        if self._tokenizer is not None and hasattr(self._tokenizer, "apply_chat_template"):
             formatted_prompt = self._tokenizer.apply_chat_template(
                 messages, tokenize=False, add_generation_prompt=True
             )
@@ -302,11 +302,13 @@ class TransformersClient(BaseLLMClient):
             formatted_prompt = f"System: You are an expert educational content simplifier.\n\nUser: {prompt}\n\nAssistant:"
 
         # Tokenize with truncation for memory safety
+        if self._tokenizer is None or self._model is None:
+            raise RuntimeError("Model or tokenizer not loaded")
         inputs = self._tokenizer(
             formatted_prompt,
             return_tensors="pt",
             truncation=True,
-            max_length=8192,  # Increased for longer prompts (Qwen2.5 supports this)
+            max_length=8192,  # Increased for longer prompts (Qwen3 supports 32K context)
         )
         inputs = {k: v.to(self._model.device) for k, v in inputs.items()}
 
@@ -391,7 +393,7 @@ class TransformersClient(BaseLLMClient):
         #    Improves quality when max_tokens cuts mid-sentence
         generated_text = self._clean_incomplete_ending(generated_text)
 
-        return generated_text.strip()
+        return str(generated_text.strip())
 
     def _clean_incomplete_ending(self, text: str) -> str:
         """Remove incomplete trailing sentence for cleaner output."""
@@ -413,7 +415,7 @@ class TransformersClient(BaseLLMClient):
 
 class TextSimplifier:
     """
-    Text simplification using Qwen2.5-3B-Instruct.
+    Text simplification using Qwen3-8B.
 
     Adapts educational content complexity based on grade level (5-12)
     using state-of-the-art instruction-following model.
@@ -470,7 +472,7 @@ class TextSimplifier:
 
     def __init__(
         self,
-        client: BaseLLMClient = None,
+        client: BaseLLMClient | None = None,
         enable_refinement: bool = True,
         target_semantic_score: float = 9.0,  # M4-optimized target
     ):
@@ -492,7 +494,7 @@ class TextSimplifier:
         # Refinement configuration (v1.3.4)
         self.enable_refinement = enable_refinement and REFINEMENT_AVAILABLE
         self.target_semantic_score = target_semantic_score
-        self._refinement_pipeline = None
+        self._refinement_pipeline: "SemanticRefinementPipeline | None" = None
 
         if self.enable_refinement:
             logger.info(
@@ -501,7 +503,7 @@ class TextSimplifier:
         else:
             logger.info(f"TextSimplifier initialized with {type(self.client).__name__}")
 
-    def _get_refinement_pipeline(self) -> "SemanticRefinementPipeline":
+    def _get_refinement_pipeline(self) -> "SemanticRefinementPipeline | None":
         """Lazy-load refinement pipeline to avoid circular imports."""
         if self._refinement_pipeline is None and REFINEMENT_AVAILABLE:
             config = RefinementConfig(
@@ -572,7 +574,7 @@ class TextSimplifier:
                 max_tokens=settings.SIMPLIFICATION_MAX_LENGTH,
                 temperature=settings.SIMPLIFICATION_TEMPERATURE,
             )
-            method = "qwen2.5-3b"
+            method = "qwen3-8b"
         except Exception as e:
             logger.warning(f"LLM generation failed: {e}, using rule-based fallback")
             simplified_content = self._rule_based_simplification(content, grade_level)
@@ -620,7 +622,7 @@ class TextSimplifier:
                 max_tokens=settings.SIMPLIFICATION_MAX_LENGTH,
                 temperature=settings.SIMPLIFICATION_TEMPERATURE,
             )
-            method = "qwen2.5-3b"
+            method = "qwen3-8b"
         except Exception as e:
             logger.warning(f"Initial generation failed: {e}, using rule-based")
             initial_output = self._rule_based_simplification(content, grade_level)
@@ -629,6 +631,8 @@ class TextSimplifier:
         # Run refinement pipeline
         try:
             pipeline = self._get_refinement_pipeline()
+            if pipeline is None:
+                raise RuntimeError("Refinement pipeline not available")
             result = await pipeline.refine(
                 original_text=content,
                 initial_output=initial_output,
@@ -685,7 +689,7 @@ class TextSimplifier:
             )
 
     def _create_qwen_prompt(self, content: str, grade_level: int, subject: str) -> str:
-        """Create optimized prompt for Qwen2.5-3B-Instruct."""
+        """Create optimized prompt for Qwen3-8B."""
 
         # Grade-specific instructions
         if grade_level in self.ELEMENTARY_GRADES:
@@ -861,7 +865,7 @@ def simplify_text_sync(
     content: str,
     grade_level: int,
     subject: str,
-    simplifier: TextSimplifier = None,
+    simplifier: TextSimplifier | None = None,
     use_refinement: bool = True,
 ) -> SimplifiedText:
     """Synchronous wrapper for text simplification with refinement."""

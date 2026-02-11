@@ -1,11 +1,11 @@
-# Section 4: Frontend Architecture
+# Frontend Architecture
 
 ---
 
 **Author:** K Dhiraj
 **Email:** k.dhiraj.srihari@gmail.com
-**Version:** 4.0.0 (Universal Mode)
-**Last Updated:** December 5, 2025
+**Version:** 4.1.0
+**Last Updated:** February 11, 2026
 
 ---
 
@@ -35,57 +35,72 @@ React 18 with TypeScript provides the foundation: static typing catches errors b
 
 ```
 frontend/src/
+├── main.tsx                # App entry point (ReactDOM.createRoot)
+├── App.tsx                 # Root component with routing & providers
+├── index.css               # Global styles (TailwindCSS)
+├── vite-env.d.ts           # Vite type declarations
+│
 ├── api/                    # Backend communication layer
-│   ├── client.ts           # Axios instance with interceptors
+│   ├── client.ts           # HTTP client with interceptors
+│   ├── index.ts            # API barrel exports
+│   ├── types.ts            # Shared API types
 │   ├── auth.ts             # Authentication endpoints
 │   ├── chat.ts             # Chat & streaming endpoints
 │   ├── content.ts          # Content processing endpoints
-│   └── system.ts           # Health & status endpoints
+│   ├── aiCore.ts           # AI engine endpoints
+│   ├── audio.ts            # Audio endpoints
+│   ├── conversations.ts    # Conversation management
+│   ├── progress.ts         # Student progress
+│   ├── qa.ts               # Q&A endpoints
+│   ├── system.ts           # Health & status endpoints
+│   ├── profileReview.ts    # Profile & review endpoints
+│   └── v2.ts               # V2 API helpers
 │
 ├── components/             # Reusable UI components
-│   ├── ui/                 # Atomic components (shadcn/ui based)
-│   │   ├── button.tsx
-│   │   ├── input.tsx
-│   │   ├── card.tsx
-│   │   └── ...
+│   ├── ErrorBoundary.tsx   # Error boundary wrapper
+│   ├── LightRays.tsx       # Animated light rays effect
+│   ├── LogoLoop.tsx        # Animated logo component
 │   ├── chat/               # Chat-specific components
-│   │   ├── ChatMessage.tsx
-│   │   ├── ChatInput.tsx
-│   │   ├── MessageList.tsx
-│   │   └── AudioPlayer.tsx
+│   │   ├── ChatMessage.tsx     # Message bubble rendering
+│   │   ├── ChatInput.tsx       # Message input with controls
+│   │   ├── ChatIndicators.tsx  # Typing/loading indicators
+│   │   ├── EmptyState.tsx      # Empty chat placeholder
+│   │   ├── ExportModal.tsx     # Chat export dialog
+│   │   ├── Header.tsx          # Chat header bar
+│   │   └── Sidebar.tsx         # Conversation list sidebar
 │   ├── landing/            # Landing page components
-│   │   ├── LightRays.tsx
-│   │   ├── LogoLoop.tsx
-│   │   └── OmLogo.tsx
+│   │   └── OmLogo.tsx      # Om/Shiksha Setu logo
 │   ├── layout/             # Layout components
-│   └── system/             # System status components
+│   │   └── AppLayout.tsx   # Main app layout with outlet
+│   ├── system/             # System status components
+│   │   └── SystemStatusCard.tsx
+│   └── ui/                 # Base UI primitives
+│       ├── Skeleton.tsx    # Loading skeleton
+│       ├── Toast.tsx       # Toast notifications
+│       └── index.tsx       # UI barrel exports
 │
 ├── context/                # React Context providers
-│   ├── SystemStatusContext.tsx
-│   └── ThemeContext.tsx
+│   ├── SystemStatusContext.tsx  # System health monitoring
+│   └── ThemeContext.tsx         # Dark/light theme
 │
 ├── hooks/                  # Custom React hooks
-│   ├── useSSE.ts           # Server-Sent Events handler
-│   ├── useAudioRecorder.ts # Microphone recording
-│   ├── useDebounce.ts      # Input debouncing
-│   └── useLocalStorage.ts  # Persistent state
+│   └── useChat.ts          # Chat interaction hook
 │
 ├── pages/                  # Top-level route components
-│   ├── LandingPage.tsx
-│   ├── ChatInterface.tsx
-│   ├── Auth.tsx
-│   └── Settings.tsx
+│   ├── index.ts            # Page barrel exports
+│   ├── LandingPage.tsx     # Landing/home page
+│   ├── Auth.tsx            # Authentication page
+│   ├── Chat.tsx            # Chat interface
+│   └── Settings.tsx        # Settings page
 │
 ├── store/                  # Zustand state stores
 │   └── index.ts            # Auth, chat, and settings stores
 │
-├── lib/                    # Utility functions
-│   └── utils.ts
+├── lib/                    # Utility libraries
+│   └── accessibility.tsx   # Accessibility helpers (SkipLink)
 │
-├── utils/                  # Additional utilities
-│   └── secureTokens.ts     # XSS-safe token management
-│
-└── App.tsx                 # Root component with providers
+└── utils/                  # Utility functions
+    └── secureTokens.ts     # XSS-safe token management
 ```
 
 ---

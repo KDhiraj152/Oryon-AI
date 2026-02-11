@@ -349,7 +349,7 @@ class PredictiveResourceScheduler:
         self,
         queue_name: str,
         current_queue_length: int,
-        base_batch_size: int = 32,
+        base_batch_size: int = 32,  # noqa: S107
     ) -> dict[str, Any]:
         """
         Get scheduling decision based on predictions and current state.
@@ -365,7 +365,7 @@ class PredictiveResourceScheduler:
 
         if memory_pressure == "high":
             # Scale down aggressively
-            batch_size = max(4, prediction.recommended_batch_size // 4)
+            batch_size = max(4, min(base_batch_size, prediction.recommended_batch_size) // 4)
             should_throttle = True
         elif memory_pressure == "medium":
             # Scale down moderately
@@ -455,7 +455,7 @@ class GPUCommandQueue:
         self.max_batch_size = max_batch_size
         self.max_wait_ms = max_wait_ms
 
-        self._queue: asyncio.PriorityQueue[tuple[int, float, GPUTask]] = None
+        self._queue: asyncio.PriorityQueue[tuple[int, float, GPUTask]] | None = None
         self._running = False
         self._worker_task: asyncio.Task | None = None
         self._stats = GPUQueueStats()
@@ -496,6 +496,8 @@ class GPUCommandQueue:
         task.future = asyncio.get_running_loop().create_future()
 
         # Add to priority queue (priority, timestamp, task)
+        if self._queue is None:
+            raise RuntimeError("Queue not initialized, call start() first")
         await self._queue.put((task.priority.value, task.created_at, task))
 
         async with self._lock:
@@ -517,6 +519,8 @@ class GPUCommandQueue:
 
         try:
             # Wait for first task
+            if self._queue is None:
+                return batch
             _, _, task = await asyncio.wait_for(self._queue.get(), timeout=1.0)
             batch.append(task)
 
@@ -539,6 +543,8 @@ class GPUCommandQueue:
             if remaining <= 0:
                 break
             try:
+                if self._queue is None:
+                    break
                 _, _, task = await asyncio.wait_for(
                     self._queue.get(), timeout=remaining
                 )
@@ -712,7 +718,10 @@ class GPUPipelineScheduler:
         futures = []
         for task in tasks:
             task.future = asyncio.get_running_loop().create_future()
-            await self._queues[queue_name]._queue.put(
+            queue = self._queues[queue_name]
+            if queue._queue is None:
+                raise RuntimeError(f"Queue {queue_name} not initialized")
+            await queue._queue.put(
                 (task.priority.value, task.created_at, task)
             )
             futures.append(task.future)
@@ -808,7 +817,7 @@ class InferencePipeline:
         if not self._started:
             await self.start()
 
-        return await self.scheduler.submit("llm", prompt, priority)
+        return str(await self.scheduler.submit("llm", prompt, priority))
 
     async def translate(
         self,

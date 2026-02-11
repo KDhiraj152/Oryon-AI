@@ -3,7 +3,7 @@
 Principle N: Each Celery worker loads (at most) one heavyweight model.
 
 Worker Types:
-- simplify: Qwen2.5-3B-Instruct for text simplification
+- simplify: Qwen3-8B for text simplification
 - translate: IndicTrans2-1B for translation
 - ocr: GOT-OCR2 for document OCR
 - embedding: BGE-M3 for embeddings

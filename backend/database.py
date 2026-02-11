@@ -229,7 +229,7 @@ def get_db() -> Generator[Session, None, None]:
             return db.query(Item).all()
     """
     max_retries = 3
-    retry_delay = 1  # seconds
+    retry_delay: float = 1  # seconds
 
     for attempt in range(max_retries):
         db = None

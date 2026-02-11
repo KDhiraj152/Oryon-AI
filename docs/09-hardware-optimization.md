@@ -1,11 +1,11 @@
-# Hardware Optimization Guide
+# Hardware Optimization
 
 ---
 
 **Author:** K Dhiraj
 **Email:** k.dhiraj.srihari@gmail.com
-**Version:** 4.0.0 (Universal Mode)
-**Last Updated:** December 5, 2025
+**Version:** 4.1.0
+**Last Updated:** February 11, 2026
 
 ---
 
@@ -20,7 +20,7 @@ Shiksha Setu v4.0 is optimized for multiple hardware configurations, with specia
 The system automatically detects and configures for the optimal backend:
 
 ```python
-# backend/core/device.py
+# backend/core/optimized/device_router.py
 import torch
 import platform
 
@@ -69,7 +69,7 @@ def get_device_info() -> dict:
 Apple Silicon M4 provides excellent performance for ML inference with unified memory architecture:
 
 ```python
-# backend/core/apple_silicon.py
+# backend/core/optimized/apple_silicon.py
 import os
 import torch
 
@@ -121,7 +121,7 @@ class AppleSiliconConfig:
 ### Memory Management for M4
 
 ```python
-# backend/services/memory_coordinator.py
+# backend/core/optimized/memory_coordinator.py
 import gc
 import torch
 from dataclasses import dataclass
@@ -200,7 +200,7 @@ class MemoryCoordinator:
 
 | Model | Operation | M4 Pro (16GB) | M4 Max (32GB) |
 |-------|-----------|---------------|---------------|
-| Qwen2.5-3B (INT4) | Token generation | 45 tok/s | 52 tok/s |
+| Qwen3-8B (MLX 4-bit) | Token generation | 45 tok/s | 52 tok/s |
 | BGE-M3 | Embedding (batch=32) | 280ms | 210ms |
 | IndicTrans2-1B | Translation | 95ms | 72ms |
 | Whisper Turbo | 30s audio | 1.8s | 1.4s |
@@ -213,6 +213,7 @@ class MemoryCoordinator:
 ### NVIDIA GPU Configuration
 
 ```python
+# Reference: CUDA configuration (not yet implemented)
 # backend/core/cuda_config.py
 import torch
 
@@ -262,6 +263,7 @@ class CUDAConfig:
 ### Multi-GPU Configuration
 
 ```python
+# Reference: Multi-GPU configuration (not yet implemented)
 # backend/core/multi_gpu.py
 import torch
 from torch.nn.parallel import DataParallel
@@ -313,7 +315,7 @@ class MultiGPUManager:
 
 | Model | Operation | RTX 3090 | RTX 4090 | A100 |
 |-------|-----------|----------|----------|------|
-| Qwen2.5-3B (INT4) | Token generation | 85 tok/s | 120 tok/s | 150 tok/s |
+| Qwen3-8B (INT4) | Token generation | 85 tok/s | 120 tok/s | 150 tok/s |
 | BGE-M3 | Embedding (batch=64) | 120ms | 75ms | 55ms |
 | IndicTrans2-1B | Translation | 45ms | 28ms | 18ms |
 | Whisper Turbo | 30s audio | 0.9s | 0.6s | 0.4s |
@@ -326,6 +328,7 @@ class MultiGPUManager:
 ### CPU-Only Configuration
 
 ```python
+# Reference: CPU configuration (not yet implemented)
 # backend/core/cpu_config.py
 import os
 import torch
@@ -374,6 +377,7 @@ class CPUConfig:
 ### ONNX Runtime Optimization
 
 ```python
+# Reference: ONNX optimization (not yet implemented)
 # backend/core/onnx_runtime.py
 import onnxruntime as ort
 
@@ -411,7 +415,7 @@ class ONNXOptimizer:
 ### Lazy Loading
 
 ```python
-# backend/services/model_manager.py
+# backend/core/optimized/model_manager.py
 from functools import lru_cache
 
 class ModelManager:
@@ -448,7 +452,7 @@ class ModelManager:
 ### Warmup Strategy
 
 ```python
-# backend/services/warmup.py
+# backend/services/inference/warmup.py
 class ModelWarmupService:
     """Warm up models during application startup."""
 
@@ -504,7 +508,7 @@ class ModelWarmupService:
 ### INT4 Quantization for LLMs
 
 ```python
-# backend/core/quantization.py
+# backend/core/optimized/quantization.py
 from transformers import AutoModelForCausalLM, BitsAndBytesConfig
 import torch
 
@@ -536,9 +540,9 @@ def load_quantized_llm(
 
 | Model | Precision | Size | Quality Impact | Speed Impact |
 |-------|-----------|------|----------------|--------------|
-| Qwen2.5-3B | FP16 | 6.2GB | Baseline | Baseline |
-| Qwen2.5-3B | INT8 | 3.2GB | -0.5% | +25% |
-| Qwen2.5-3B | INT4 | 1.8GB | -2% | +40% |
+| Qwen3-8B | FP16 | 16.0GB | Baseline | Baseline |
+| Qwen3-8B | INT8 | 8.0GB | -0.5% | +25% |
+| Qwen3-8B | 4-bit (MLX) | 4.6GB | -2% | +40% |
 | BGE-M3 | FP16 | 1.1GB | Baseline | Baseline |
 | BGE-M3 | INT8 | 0.6GB | -1% | +30% |
 
@@ -549,6 +553,7 @@ def load_quantized_llm(
 ### Profiling Tools
 
 ```python
+# Reference: Memory profiling script (not yet created)
 # scripts/profile_memory.py
 import torch
 import tracemalloc

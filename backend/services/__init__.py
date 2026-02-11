@@ -77,30 +77,9 @@ def get_review_queue():
     return _get()
 
 
-# Alias for backwards compatibility
-ReviewQueue = None
-
-
-def _get_review_queue_class():
-    """Get the ReviewQueue class (ResponseReviewQueue)."""
-    global ReviewQueue
-    if ReviewQueue is None:
-        from .review_queue import ResponseReviewQueue
-
-        ReviewQueue = ResponseReviewQueue
-    return ReviewQueue
-
-
 __all__ = [
-    "GOTOCR2",
-    "ExtractionResult",
-    # OCR
-    "OCRService",
-    "PDFProcessor",
-    # Review Queue
-    "ReviewQueue",
+    # Factory functions (lazy imports — no circular dependencies)
     "get_cultural_context",
-    # Factory functions
     "get_inference_engine",
     "get_ocr_service",
     "get_pipeline_service",

@@ -73,7 +73,7 @@ class TestLogicalCoherence:
             assert lo.max_reasoning_depth <= hi.max_reasoning_depth
             assert lo.model_count_ceiling <= hi.model_count_ceiling
             assert lo.acceptable_approximation_error >= hi.acceptable_approximation_error, \
-                f"Higher class should have LOWER acceptable error"
+                "Higher class should have LOWER acceptable error"
 
     def test_tier_ceilings_escalate(self):
         order = [ComputeClass.TRIVIAL, ComputeClass.STANDARD,

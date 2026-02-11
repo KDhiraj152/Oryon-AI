@@ -7,12 +7,11 @@ v2.1.0 - Refactored into modular package (December 2025)
 This module provides backward compatibility for imports.
 The actual implementations are now in separate modules within this package.
 
-MODELS PARTICIPATING (ALL 8):
-- Qwen2.5-3B (Orchestrator): Main LLM, coordinates and generates
+MODELS PARTICIPATING (ALL 7):
+- Qwen3-8B (Orchestrator + Validator): Main LLM, coordinates, generates, and validates
 - IndicTrans2 (Translator): Translation with back-translation verification
 - BGE-M3 (Semantic Judge): Embedding similarity for semantic preservation
 - BGE-Reranker (Quality Ranker): Ranks multiple outputs to select best
-- Gemma-2-2B (Validator): Quality scoring and curriculum alignment
 - MMS-TTS (Audio Generator): Text-to-Speech for audio content
 - Whisper (Audio Verifier): STT to verify TTS output accuracy
 - GOT-OCR2 (Document Reader): OCR for images and documents
@@ -32,6 +31,7 @@ from .types import (
     MODEL_INDICTRANS2,
     MODEL_MMS_TTS,
     MODEL_QWEN25,
+    MODEL_QWEN3,
     MODEL_WHISPER,
     CollaborationConfig,
     CollaborationPattern,
@@ -69,6 +69,7 @@ __all__ = [
     "MODEL_INDICTRANS2",
     "MODEL_MMS_TTS",
     "MODEL_QWEN25",
+    "MODEL_QWEN3",
     "MODEL_WHISPER",
     "CollaborationConfig",
     "CollaborationPattern",

@@ -5,13 +5,7 @@
  * hardware monitoring and AI model status.
  */
 
-const API_BASE = '/api/v2';
-
-// Helper to get auth header
-function getAuthHeader(): Record<string, string> {
-  const token = localStorage.getItem('access_token');
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
+import { API_BASE, getAuthHeader } from './client';
 
 // ==================== Types (matching actual backend responses) ====================
 
@@ -100,11 +94,13 @@ export interface ModelsSummary {
   available_memory_gb: number;
 }
 
+export type HealthStatus = 'healthy' | 'degraded' | 'error';
+
 export interface ModelsStatus {
   models: Record<string, ModelInfoFromBackend>;
   summary: ModelsSummary;
   // Computed fields for convenience
-  status?: 'healthy' | 'degraded' | 'error';
+  status?: HealthStatus;
   total_loaded?: number;
   total_available?: number;
 }
@@ -170,7 +166,7 @@ export interface PolicySwitchResult {
 }
 
 export interface SystemHealth {
-  status: 'healthy' | 'degraded' | 'error';
+  status: HealthStatus;
   version: string;
   device?: string;
   backends?: {
@@ -219,7 +215,7 @@ export interface ModelInfo {
 }
 
 export interface CacheStatus {
-  status: 'healthy' | 'degraded' | 'error';
+  status: HealthStatus;
   tiers: {
     l1_memory: {
       size: number;
