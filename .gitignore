@@ -14,7 +14,7 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+/lib/
 lib64/
 parts/
 sdist/
@@ -118,6 +118,18 @@ docker-compose.override.yml
 
 # Alembic
 alembic/versions/*.pyc
+
+# Duplicate config files (canonical copies live at project root)
+config/alembic.ini
+config/pyproject.toml
+config/pyrightconfig.json
+config/.pre-commit-config.yaml
+
+# Generated reports
+reports/
+
+# Package lock (frontend)
+frontend/package-lock.json
 
 # Supabase
 .supabase/
