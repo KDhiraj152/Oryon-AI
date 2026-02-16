@@ -22,7 +22,7 @@ def custom_openapi_schema(app: FastAPI) -> dict[str, Any]:
         OpenAPI schema dictionary
     """
     # Return cached schema if already generated
-    cached = getattr(app, "openapi_schema", None)
+    cached: dict[str, Any] | None = getattr(app, "openapi_schema", None)
     if cached:
         return cached
 
