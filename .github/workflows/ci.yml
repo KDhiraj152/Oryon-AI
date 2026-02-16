@@ -159,6 +159,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: [preflight]
+    env:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
     services:
       postgres:
@@ -255,9 +257,7 @@ jobs:
           file: ./coverage.xml
           flags: backend
           fail_ci_if_error: false
-          token: ${{ secrets.CODECOV_TOKEN }}
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          token: ${{ env.CODECOV_TOKEN }}
 
   # ===========================================================================
   # Frontend Build & Tests
