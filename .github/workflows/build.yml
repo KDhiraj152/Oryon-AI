@@ -21,6 +21,7 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}/oryon
 
 jobs:
   preflight:
@@ -29,14 +30,12 @@ jobs:
     outputs:
       should_push: ${{ steps.check.outputs.should_push }}
       short_sha: ${{ steps.check.outputs.short_sha }}
-      image_prefix: ${{ steps.check.outputs.image_prefix }}
     steps:
       - name: Determine build parameters
         id: check
         run: |
           echo "should_push=${{ github.event_name != 'pull_request' || github.event.inputs.force_push == 'true' }}" >> "$GITHUB_OUTPUT"
           echo "short_sha=$(echo ${{ github.sha }} | cut -c1-7)" >> "$GITHUB_OUTPUT"
-          echo "image_prefix=$(echo '${{ github.repository_owner }}/oryon' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
 
   build-backend:
     needs: preflight
@@ -74,7 +73,7 @@ jobs:
       id: meta
       uses: docker/metadata-action@v5
       with:
-        images: ${{ env.REGISTRY }}/${{ needs.preflight.outputs.image_prefix }}/backend
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/backend
         tags: |
           type=ref,event=branch
           type=ref,event=pr
@@ -105,7 +104,7 @@ jobs:
     - name: Run Trivy vulnerability scanner (inline)
       uses: aquasecurity/trivy-action@master
       with:
-        image-ref: ${{ env.REGISTRY }}/${{ needs.preflight.outputs.image_prefix }}/backend:${{ needs.preflight.outputs.short_sha }}
+        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/backend:${{ needs.preflight.outputs.short_sha }}
         format: 'sarif'
         output: 'trivy-backend-results.sarif'
         severity: 'CRITICAL,HIGH'
@@ -154,7 +153,7 @@ jobs:
       id: meta
       uses: docker/metadata-action@v5
       with:
-        images: ${{ env.REGISTRY }}/${{ needs.preflight.outputs.image_prefix }}/frontend
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/frontend
         tags: |
           type=ref,event=branch
           type=ref,event=pr
@@ -185,7 +184,7 @@ jobs:
     - name: Run Trivy vulnerability scanner (inline)
       uses: aquasecurity/trivy-action@master
       with:
-        image-ref: ${{ env.REGISTRY }}/${{ needs.preflight.outputs.image_prefix }}/frontend:${{ needs.preflight.outputs.short_sha }}
+        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/frontend:${{ needs.preflight.outputs.short_sha }}
         format: 'sarif'
         output: 'trivy-frontend-results.sarif'
         severity: 'CRITICAL,HIGH'
@@ -215,20 +214,20 @@ jobs:
 
     - name: Verify backend image exists
       run: |
-        docker pull ${{ env.REGISTRY }}/${{ needs.preflight.outputs.image_prefix }}/backend:${{ needs.preflight.outputs.short_sha }}
-        docker inspect ${{ env.REGISTRY }}/${{ needs.preflight.outputs.image_prefix }}/backend:${{ needs.preflight.outputs.short_sha }}
+        docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/backend:${{ needs.preflight.outputs.short_sha }}
+        docker inspect ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/backend:${{ needs.preflight.outputs.short_sha }}
 
     - name: Verify frontend image exists
       run: |
-        docker pull ${{ env.REGISTRY }}/${{ needs.preflight.outputs.image_prefix }}/frontend:${{ needs.preflight.outputs.short_sha }}
-        docker inspect ${{ env.REGISTRY }}/${{ needs.preflight.outputs.image_prefix }}/frontend:${{ needs.preflight.outputs.short_sha }}
+        docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/frontend:${{ needs.preflight.outputs.short_sha }}
+        docker inspect ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/frontend:${{ needs.preflight.outputs.short_sha }}
 
     - name: Smoke test backend image
       run: |
         docker run --rm -d --name backend-test \
           -e DATABASE_URL=postgresql://test:test@localhost/test \
           -e REDIS_URL=redis://localhost:6379 \
-          ${{ env.REGISTRY }}/${{ needs.preflight.outputs.image_prefix }}/backend:${{ needs.preflight.outputs.short_sha }} \
+          ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/backend:${{ needs.preflight.outputs.short_sha }} \
           sleep 10 || true
         docker logs backend-test 2>&1 | head -50 || true
         docker stop backend-test 2>/dev/null || true
@@ -247,5 +246,5 @@ jobs:
         echo "**Version:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### Images:" >> $GITHUB_STEP_SUMMARY
-        echo "- \`${{ env.REGISTRY }}/${{ needs.preflight.outputs.image_prefix }}/backend:${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
-        echo "- \`${{ env.REGISTRY }}/${{ needs.preflight.outputs.image_prefix }}/frontend:${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- \`${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/backend:${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+        echo "- \`${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/frontend:${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
