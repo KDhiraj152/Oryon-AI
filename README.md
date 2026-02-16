@@ -30,7 +30,7 @@ Oryon AI is a domain-agnostic ML-driven orchestration and decision automation fr
 ### Core AI Pipeline
 
 | Capability | Model | What It Does |
-|:-----------|:------|:-------------|
+| :----------- | :------ | :------------- |
 | **Chat & Reasoning** | Qwen3-8B (MLX 4-bit) | RAG-enhanced conversational AI with streaming responses |
 | **Translation** | IndicTrans2-1B | Real-time translation across 10+ supported languages |
 | **Voice Input** | Whisper V3 Turbo | Speech-to-text in any supported language — 8x faster than Whisper V3 |
@@ -51,7 +51,7 @@ Oryon AI is a domain-agnostic ML-driven orchestration and decision automation fr
 
 Supported input formats:
 
-```
+```text
 Audio  (mp3, wav, m4a, flac, ogg)     → Whisper V3 transcription
 Video  (mp4, webm, mov, avi, mkv)     → Audio extraction + STT
 Docs   (pdf, docx)                     → OCR + text extraction
@@ -66,7 +66,7 @@ Data   (csv, xlsx, json, xml, yaml)   → Direct parsing + analysis
 Benchmarked on Apple Silicon M4 Pro (16GB unified memory):
 
 | Metric | Result |
-|:-------|:-------|
+| :------- | :------- |
 | LLM Inference | **50 tokens/sec** (Qwen3-8B, INT4) |
 | Embedding Throughput | **348 texts/sec** (BGE-M3) |
 | Text-to-Speech | **31x realtime** (MMS-TTS) |
@@ -82,7 +82,7 @@ Benchmarked on Apple Silicon M4 Pro (16GB unified memory):
 
 ## Architecture
 
-```
+```text
 ┌──────────────────────────────────────────────────────────────────────────┐
 │                         ORYON AI v4.1                                │
 ├──────────────────────────────────────────────────────────────────────────┤
@@ -118,7 +118,7 @@ Benchmarked on Apple Silicon M4 Pro (16GB unified memory):
 ### Tech Stack
 
 | Layer | Technologies |
-|:------|:-------------|
+| :------ | :------------- |
 | **Frontend** | React 18, TypeScript 5, Vite 5, Tailwind CSS, shadcn/ui, Zustand |
 | **Backend** | FastAPI, SQLAlchemy 2.0, Pydantic v2, Celery, Alembic |
 | **Database** | PostgreSQL 17 + pgvector (HNSW indexes) |
@@ -164,11 +164,11 @@ cd Oryon-AI
 ```
 
 | Service | URL |
-|:--------|:----|
-| Frontend | http://localhost:3000 |
-| API | http://localhost:8000/api/v2 |
-| API Docs (Swagger) | http://localhost:8000/docs |
-| Health Check | http://localhost:8000/api/v2/health |
+| :-------- | :---- |
+| Frontend | <http://localhost:3000> |
+| API | <http://localhost:8000/api/v2> |
+| API Docs (Swagger) | <http://localhost:8000/docs> |
+| Health Check | <http://localhost:8000/api/v2/health> |
 
 ### Try It
 
@@ -207,7 +207,7 @@ curl -X POST http://localhost:8000/api/v2/content/translate \
 All endpoints under `/api/v2/`. Full reference in [docs/05-api-reference.md](docs/05-api-reference.md).
 
 | Category | Key Endpoints |
-|:---------|:-------------|
+| :--------- | :------------- |
 | **Auth** | `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh` |
 | **Chat** | `POST /chat`, `POST /chat/stream` (SSE), `POST /chat/guest` |
 | **Content** | `POST /content/process` (full pipeline), `/simplify`, `/translate`, `/tts` |
@@ -220,7 +220,7 @@ All endpoints under `/api/v2/`. Full reference in [docs/05-api-reference.md](doc
 
 ## Project Structure
 
-```
+```text
 Oryon-AI/
 ├── backend/                 # FastAPI application
 │   ├── api/                 #   Routes, middleware, metrics
@@ -334,7 +334,7 @@ brew install python@3.11    # macOS (minimum supported)
 Detailed documentation in [`docs/`](docs/):
 
 | Doc | Content |
-|:----|:--------|
+| :---- | :-------- |
 | [Executive Summary](docs/01-executive-summary.md) | Project vision, market gap, strategic positioning |
 | [Architecture](docs/02-architecture.md) | System diagrams, data flow traces, component responsibilities |
 | [Backend](docs/03-backend.md) | FastAPI services, directory structure, middleware chain |
@@ -352,7 +352,7 @@ Detailed documentation in [`docs/`](docs/):
 ## Troubleshooting
 
 | Issue | Fix |
-|:------|:----|
+| :------ | :---- |
 | Redis connection failed | `redis-server` or `brew services start redis` |
 | Database connection error | Check `DATABASE_URL` in `.env`, ensure PostgreSQL is running |
 | Models loading slowly | First run downloads ~10GB — subsequent starts are instant |

@@ -1,8 +1,8 @@
 """
-Enhanced API Documentation
+Enhanced API Documentation for Oryon AI
 
-Issue: CODE-REVIEW-GPT #21 (LOW)
-Purpose: Comprehensive OpenAPI/Swagger documentation
+Generates a custom OpenAPI schema and Swagger UI configuration
+that accurately reflects the platform's capabilities.
 """
 
 from typing import Any
@@ -21,48 +21,62 @@ def custom_openapi_schema(app: FastAPI) -> dict[str, Any]:
     Returns:
         OpenAPI schema dictionary
     """
-    if app.openapi_schema:
-        return app.openapi_schema
+    # Return cached schema if already generated
+    cached = getattr(app, "openapi_schema", None)
+    if cached:
+        return cached
 
     openapi_schema = get_openapi(
         title="Oryon AI Platform API",
-        version="2.1.0",
+        version="3.0.0",
         description="""
-# Oryon - Multilingual AI Education Platform
+# Oryon AI — Self-Hosted ML Orchestration Engine
 
 ## Overview
 
-Oryon provides AI-powered content processing with:
-- **Multilingual Support**: Content in 22 Indian languages
-- **Grade-Level Adaptation**: Automatic complexity adjustment for grades 1-12
-- **Curriculum Alignment**: content_domain standard validation
-- **Cultural Context**: Region-specific content adaptation
-- **Quality Assurance**: Comprehensive validation pipeline
+Oryon AI is a domain-agnostic, self-hosted ML orchestration platform that runs
+LLM chat, RAG, voice I/O, document analysis, semantic search, and multilingual
+translation entirely on your own hardware.
+
+All processing is **local-first** — no external API calls or telemetry.
+
+## Capabilities
+
+| Capability | Model | Endpoint Prefix |
+|:--|:--|:--|
+| Chat & Reasoning | Qwen3-8B (MLX 4-bit) | `/api/v2/chat` |
+| Translation | IndicTrans2-1B | `/api/v2/content/translate` |
+| Voice Input (STT) | Whisper V3 Turbo | `/api/v2/content/stt` |
+| Voice Output (TTS) | MMS-TTS + Edge-TTS | `/api/v2/content/tts` |
+| Semantic Search | BGE-M3 + BGE-Reranker-v2-M3 | `/api/v2/content/embeddings` |
+| Document Intelligence | GOT-OCR2 + PyMuPDF | `/api/v2/content/ocr` |
+| Batch Processing | Multi-model pipeline | `/api/v2/batch` |
+| Agent System | 7 specialized agents | `/api/v2/agents` |
 
 ## Authentication
 
-Most endpoints require authentication via JWT tokens:
+Most endpoints work without authentication for quick prototyping.
+Protected endpoints require a JWT token:
 
 ```
 Authorization: Bearer <your_jwt_token>
 ```
 
-Get tokens from `/api/auth/login` endpoint.
+Obtain tokens via `POST /api/v2/auth/login`.
 
 ## Rate Limiting
 
-API requests are rate-limited based on user role:
-- **Users**: 60 requests/minute, 600/hour
-- **Teachers**: 200 requests/minute, 2000/hour
-- **Admins**: 1000 requests/minute, 10000/hour
+Requests are rate-limited by role:
+- **Guests / Users**: 60 req/min, 600/hr
+- **Admins**: 1000 req/min, 10,000/hr
 
-Rate limit headers included in responses:
+Rate limit headers are included in all responses:
 - `X-RateLimit-Limit-Minute`
 - `X-RateLimit-Remaining-Minute`
 
-## Error Handling
+## Error Format
 
-Standard error response format:
+All errors follow a consistent structure:
 
 ```json
 {
@@ -74,77 +88,146 @@ Standard error response format:
 }
 ```
 
-## Content Pipeline
-
-Content processing flow:
-1. **Upload** → 2. **Simplification** → 3. **Translation** →
-4. **Validation** → 5. **TTS Generation** → 6. **Quality Check**
-
 ## Support
 
-- **Documentation**: https://docs.oryon-ai.com
-- **Email**: support@oryon-ai.com
-- **GitHub**: https://github.com/KDhiraj152/Oryon-AI
+- **GitHub**: https://github.com/KDhiraj152/Shiksha-setu
         """,
         routes=app.routes,
         tags=[
+            # Auth
             {
-                "name": "Authentication",
-                "description": "User authentication and authorization",
+                "name": "auth",
+                "description": "User registration, login, token refresh, and profile management.",
+            },
+            # Chat
+            {
+                "name": "chat",
+                "description": (
+                    "Conversational AI with RAG-enhanced responses, SSE streaming, "
+                    "guest mode, conversation management, and TTS playback."
+                ),
+            },
+            # Content pipeline
+            {
+                "name": "content",
+                "description": (
+                    "Full content processing pipeline — simplify, translate, "
+                    "and generate audio from text in a single call."
+                ),
             },
             {
-                "name": "Content",
-                "description": "Content creation, processing, and management",
-            },
-            {"name": "Translation", "description": "Multilingual translation services"},
-            {"name": "Q&A", "description": "Question-answering and semantic search"},
-            {
-                "name": "Progress",
-                "description": "User progress tracking and analytics",
+                "name": "qa",
+                "description": (
+                    "Document Q&A — ingest PDFs/docs into a vector index, "
+                    "then ask questions with context-aware retrieval."
+                ),
             },
             {
-                "name": "Content Review",
-                "description": "Reviewer performance evaluation and metrics",
+                "name": "stt",
+                "description": "Speech-to-text transcription via Whisper V3 Turbo.",
             },
             {
-                "name": "Validation",
-                "description": "Content validation and quality checks",
+                "name": "ocr",
+                "description": "Document text extraction via GOT-OCR2 and PyMuPDF.",
             },
-            {"name": "Health", "description": "System health and monitoring"},
+            {
+                "name": "embeddings",
+                "description": (
+                    "Embedding generation (BGE-M3) and document reranking "
+                    "(BGE-Reranker-v2-M3) for semantic search."
+                ),
+            },
+            {
+                "name": "ai",
+                "description": "AI explanation, prompt templates, and content safety checks.",
+            },
+            # Batch & multi-model
+            {
+                "name": "batch",
+                "description": "Hardware-optimized batch processing for bulk text and embeddings.",
+            },
+            {
+                "name": "multimodel",
+                "description": (
+                    "Multi-model collaboration modes: verify, chain, ensemble, "
+                    "and back-translation."
+                ),
+            },
+            # Agents
+            {
+                "name": "agents",
+                "description": (
+                    "Multi-agent system — status, metrics, SLA compliance, "
+                    "regressions, and optimization triggers."
+                ),
+            },
+            # Middleware
+            {
+                "name": "middleware",
+                "description": (
+                    "Middleware pipeline observability — request classification, "
+                    "heuristic tuning, memory and latency stats."
+                ),
+            },
+            # System & monitoring
+            {
+                "name": "health",
+                "description": "Basic and detailed health checks for the API.",
+            },
+            {
+                "name": "policy",
+                "description": "Runtime policy configuration and mode switching.",
+            },
+            {
+                "name": "monitoring",
+                "description": "API statistics, device info, and uptime.",
+            },
+            {
+                "name": "system",
+                "description": (
+                    "Hardware status, ML model status, cache status, "
+                    "batch metrics, and performance benchmarks."
+                ),
+            },
+            {
+                "name": "progress",
+                "description": "User learning progress, quiz generation, and quiz submission.",
+            },
+            {
+                "name": "admin",
+                "description": "Admin-only operations — database backups.",
+            },
+            {
+                "name": "review",
+                "description": "Content review queue for flagged AI responses (teacher/admin).",
+            },
+            {
+                "name": "profile",
+                "description": "User profile retrieval and updates.",
+            },
         ],
     )
 
-    # Add security schemes
+    # Security schemes
     openapi_schema["components"]["securitySchemes"] = {
         "BearerAuth": {
             "type": "http",
             "scheme": "bearer",
             "bearerFormat": "JWT",
-            "description": "JWT token from /api/auth/login",
-        },
-        "APIKeyAuth": {
-            "type": "apiKey",
-            "in": "header",
-            "name": "X-API-Key",
-            "description": "API key for service-to-service authentication",
+            "description": "JWT token obtained from POST /api/v2/auth/login",
         },
     }
 
-    # Add servers
+    # Server list
     openapi_schema["servers"] = [
-        {"url": "https://api.oryon-ai.com", "description": "Production server"},
-        {
-            "url": "https://staging-api.oryon-ai.com",
-            "description": "Staging server",
-        },
-        {"url": "http://localhost:8000", "description": "Development server"},
+        {"url": "http://localhost:8000", "description": "Local development"},
     ]
 
-    # Add contact info
+    # Contact info
     openapi_schema["info"]["contact"] = {
-        "name": "Oryon Support",
-        "email": "support@oryon-ai.com",
-        "url": "https://oryon-ai.com/support",
+        "name": "K Dhiraj",
+        "email": "k.dhiraj.srihari@gmail.com",
+        "url": "https://github.com/KDhiraj152",
     }
 
     openapi_schema["info"]["license"] = {
@@ -152,27 +235,33 @@ Content processing flow:
         "url": "https://opensource.org/licenses/MIT",
     }
 
-    # Add external docs
     openapi_schema["externalDocs"] = {
-        "description": "Complete Documentation",
-        "url": "https://docs.oryon-ai.com",
+        "description": "Full Documentation",
+        "url": "https://github.com/KDhiraj152/Shiksha-setu/tree/main/docs",
     }
 
-    app.openapi_schema = openapi_schema
-    return app.openapi_schema
+    # Cache the schema on the app instance so FastAPI.openapi() returns it
+    setattr(app, "openapi_schema", openapi_schema)
+    return openapi_schema
 
-def configure_api_docs(app: FastAPI):
+
+def configure_api_docs(app: FastAPI) -> None:
     """
-    Configure enhanced API documentation.
+    Wire the custom OpenAPI schema and Swagger UI settings into the app.
+
+    Call this during application startup (e.g. in a lifespan handler)
+    to override FastAPI's default schema with the enriched version.
 
     Args:
-        app: FastAPI application
+        app: FastAPI application instance.
     """
-    # Set custom OpenAPI schema
-    app.openapi = lambda: custom_openapi_schema(app)
+    # Pre-generate and cache the schema so FastAPI's openapi() returns it
+    # directly without regenerating.  This avoids assigning to the bound
+    # method (which Pyright flags) while achieving the same result.
+    custom_openapi_schema(app)  # populates app.openapi_schema internally
 
-    # Configure Swagger UI
-    app.swagger_ui_parameters = {
+    # Swagger UI preferences
+    setattr(app, "swagger_ui_parameters", {
         "deepLinking": True,
         "persistAuthorization": True,
         "displayRequestDuration": True,
@@ -180,10 +269,17 @@ def configure_api_docs(app: FastAPI):
         "showExtensions": True,
         "showCommonExtensions": True,
         "tryItOutEnabled": True,
-    }
+    })
 
-# Example schemas for common responses
-COMMON_RESPONSES = {
+
+# ---------------------------------------------------------------------------
+# Reusable response schemas for route decorators
+# ---------------------------------------------------------------------------
+# Usage in routes:
+#   from backend.api.documentation import COMMON_RESPONSES
+#   @router.post("/endpoint", responses={**COMMON_RESPONSES})
+
+COMMON_RESPONSES: dict[str, Any] = {
     "400": {
         "description": "Bad Request",
         "content": {
