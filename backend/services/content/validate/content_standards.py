@@ -1,5 +1,7 @@
 """content standards database loader and indexer using BGE-M3 embeddings."""
 
+from __future__ import annotations
+
 import json
 import logging
 import os

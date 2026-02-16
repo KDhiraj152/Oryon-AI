@@ -132,9 +132,6 @@ config/.pre-commit-config.yaml
 # Generated reports
 reports/
 
-# Package lock (frontend)
-frontend/package-lock.json
-
 # Supabase
 .supabase/
 .projectx/
