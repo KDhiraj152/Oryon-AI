@@ -2,21 +2,12 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
-  // Production mode by default
-  mode: 'production',
   plugins: [
     react({
       // Use automatic JSX runtime (smaller bundles)
       jsxRuntime: 'automatic',
       // Fast Refresh for hot updates
       fastRefresh: true,
-      // OPTIMIZATION: Babel plugins for production optimization
-      babel: {
-        plugins: [
-          // Remove prop-types in production for smaller bundle
-          process.env.NODE_ENV === 'production' && ['transform-react-remove-prop-types', { removeImport: true }],
-        ].filter(Boolean),
-      },
     }),
   ],
   server: {
@@ -32,9 +23,29 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
-    // Pre-bundle for faster startup
+    // Pre-transform files for faster page loads in dev
     warmup: {
-      clientFiles: ['./src/App.tsx', './src/main.tsx'],
+      clientFiles: [
+        './src/main.tsx',
+        './src/App.tsx',
+        './src/store/index.ts',
+        // Chat page and its full component tree
+        './src/pages/Chat.tsx',
+        './src/components/chat/ChatMessage.tsx',
+        './src/components/chat/ChatInput.tsx',
+        './src/components/chat/ChatIndicators.tsx',
+        './src/components/chat/EmptyState.tsx',
+        './src/components/chat/MarkdownRenderer.tsx',
+        './src/components/chat/Sidebar.tsx',
+        './src/components/chat/Header.tsx',
+        './src/components/layout/AppLayout.tsx',
+        './src/lib/chatUtils.ts',
+        './src/hooks/useChat.ts',
+        './src/components/landing/OmLogo.tsx',
+        './src/components/ui/Toast.tsx',
+        './src/api/index.ts',
+        './src/utils/secureTokens.ts',
+      ],
     },
   },
   build: {
@@ -95,27 +106,25 @@ export default defineConfig({
       'zustand',
       'zustand/shallow',
       'zustand/middleware',
-      'lucide-react',
+      'zustand/react/shallow',
       'clsx',
       'tailwind-merge',
+      // Pre-bundle markdown stack so it's ready when Chat loads
+      'react-markdown',
+      'remark-gfm',
+      'remark-math',
+      'rehype-katex',
+      'katex',
     ],
-    // Exclude heavy deps from pre-bundling (loaded lazily)
-    exclude: ['react-syntax-highlighter', 'ogl'],
-    // OPTIMIZATION: Faster dependency discovery
+    // Exclude heavy deps not used on initial load
+    exclude: ['react-syntax-highlighter', 'ogl', 'lucide-react'],
     esbuildOptions: {
       target: 'es2020',
     },
   },
-  // Reduce bundle by excluding unused exports
   esbuild: {
-    // Drop console in production
+    // Drop console/debugger only in production builds
     drop: process.env.NODE_ENV === 'production' ? ['console', 'debugger'] : [],
-    // Minimize identifiers
-    minifyIdentifiers: true,
-    minifySyntax: true,
-    // OPTIMIZATION: Better tree shaking
-    treeShaking: true,
-    // Faster builds
     legalComments: 'none',
   },
   // OPTIMIZATION: Preview server caching
@@ -129,5 +138,11 @@ export default defineConfig({
     alias: {
       '@': '/src',
     },
+  },
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: ['./src/__tests__/setup.ts'],
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
   },
 })

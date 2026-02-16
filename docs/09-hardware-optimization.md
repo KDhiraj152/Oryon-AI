@@ -11,7 +11,7 @@
 
 ## Overview
 
-Shiksha Setu v4.0 is optimized for multiple hardware configurations, with specialized support for Apple Silicon (M-series), NVIDIA CUDA GPUs, and CPU-only deployments. This guide covers configuration, optimization strategies, and performance benchmarks across different hardware profiles.
+Oryon AI v4.0 is optimized for multiple hardware configurations, with specialized support for Apple Silicon (M-series), NVIDIA CUDA GPUs, and CPU-only deployments. This guide covers configuration, optimization strategies, and performance benchmarks across different hardware profiles.
 
 ---
 
@@ -452,7 +452,7 @@ class ModelManager:
 ### Warmup Strategy
 
 ```python
-# backend/services/inference/warmup.py
+# backend/ml/inference/warmup.py
 class ModelWarmupService:
     """Warm up models during application startup."""
 

@@ -2,7 +2,7 @@ import { useState, useEffect, memo, useMemo, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Sun, Moon, Mic, Languages, Brain, Zap, Camera, Sparkles, Globe } from 'lucide-react';
 import { OmLogo } from '../components/landing/OmLogo';
-import { useTheme } from '../context/ThemeContext';
+import { useUIStore } from '../store/uiStore';
 import LogoLoop from '../components/LogoLoop';
 
 // Lazy load heavy WebGL component
@@ -17,7 +17,8 @@ const cardClass = (isDark: boolean) =>
 
 function LandingHeader({ isDark }: Readonly<SectionProps>) {
   const navigate = useNavigate();
-  const { toggleTheme } = useTheme();
+  const setTheme = useUIStore((s) => s.setTheme);
+  const toggleTheme = () => setTheme(isDark ? 'light' : 'dark');
   return (
     <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500
       ${isDark ? 'bg-[#0a0a0a]/50 border-b border-white/[0.03]' : 'bg-[#FAFAFA]/70 border-b border-black/[0.03]'} backdrop-blur-xl`}>
@@ -28,7 +29,7 @@ function LandingHeader({ isDark }: Readonly<SectionProps>) {
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
         >
           <OmLogo variant="minimal" size={32} color={isDark ? 'dark' : 'light'} animated={false} />
-          <span className={`font-bold text-lg tracking-tight ${isDark ? 'text-white' : 'text-black'}`}>Shiksha Setu</span>
+          <span className={`font-bold text-lg tracking-tight ${isDark ? 'text-white' : 'text-black'}`}>Oryon AI</span>
         </button>
         <div className="flex items-center gap-4">
           <button
@@ -161,7 +162,7 @@ function LandingFooter({ isDark }: Readonly<SectionProps>) {
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-8">
         <div className="flex items-center gap-3 opacity-50 hover:opacity-100 transition-opacity">
           <OmLogo variant="minimal" size={24} color={isDark ? 'dark' : 'light'} animated={false} />
-          <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-black'}`}>© 2025 Shiksha Setu</span>
+          <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-black'}`}>© 2025 Oryon AI</span>
         </div>
         <div className="flex gap-8">
           {['Privacy', 'Terms', 'Contact'].map((link) => (
@@ -181,9 +182,9 @@ function LandingFooter({ isDark }: Readonly<SectionProps>) {
 
 export const LandingPage = memo(function LandingPage() {
   const navigate = useNavigate();
-  const { theme } = useTheme();
+  const resolvedTheme = useUIStore((s) => s.resolvedTheme);
   const [mounted, setMounted] = useState(false);
-  const isDark = theme === 'dark';
+  const isDark = resolvedTheme === 'dark';
 
   // Memoize static language logos data
   const languageLogos = useMemo(() => [

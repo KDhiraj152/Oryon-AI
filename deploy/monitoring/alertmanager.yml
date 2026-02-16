@@ -1,0 +1,233 @@
+# =============================================================================
+# ORYON AI - ALERTMANAGER CONFIGURATION
+# =============================================================================
+# Production alerting with:
+# - Multi-channel routing (Slack, PagerDuty)
+# - Severity-based escalation
+# - Team-specific routing
+# - Inhibition rules
+# - Maintenance windows
+# =============================================================================
+
+global:
+  resolve_timeout: 5m
+  slack_api_url: '${SLACK_WEBHOOK_URL}'
+  pagerduty_url: 'https://events.pagerduty.com/v2/enqueue'
+  # SMTP for email alerts (configure if needed)
+  # smtp_smarthost: 'smtp.gmail.com:587'
+  # smtp_from: 'alerts@oryon.ai'
+  # smtp_auth_username: 'alerts@oryon.ai'
+  # smtp_auth_password: '${SMTP_PASSWORD}'
+
+# Templates for consistent formatting
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+# Route tree - determines how alerts are handled
+route:
+  receiver: 'default'
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 12h
+
+  routes:
+    # Critical alerts - immediate escalation
+    - match:
+        severity: critical
+      receiver: 'pagerduty-critical'
+      group_wait: 0s
+      repeat_interval: 5m
+      continue: true
+
+    # Critical also goes to Slack
+    - match:
+        severity: critical
+      receiver: 'slack-critical'
+      group_wait: 0s
+      repeat_interval: 5m
+
+    # Warning alerts - Slack only
+    - match:
+        severity: warning
+      receiver: 'slack-warnings'
+      repeat_interval: 4h
+
+    # Database alerts - DBA team
+    - match_re:
+        alertname: (Database.*|Postgres.*|Slow.*Query)
+      receiver: 'slack-dba'
+      repeat_interval: 2h
+
+    # ML/GPU alerts - ML team
+    - match_re:
+        alertname: (GPU.*|ML.*|TTS.*|Translation.*|vLLM.*|Inference.*)
+      receiver: 'slack-ml-team'
+      repeat_interval: 2h
+
+    # Infrastructure alerts - DevOps team
+    - match_re:
+        alertname: (Node.*|Disk.*|Memory.*|CPU.*)
+      receiver: 'slack-infra'
+      repeat_interval: 4h
+
+# Inhibition rules - prevent alert storms
+inhibit_rules:
+  # Suppress warning if critical is already firing
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'instance']
+
+  # If API is down, suppress related alerts
+  - source_match:
+      alertname: 'APIInstanceDown'
+    target_match_re:
+      alertname: '(HighErrorRate|HighResponseTime|SlowMLInference)'
+    equal: ['instance']
+
+  # If database is down, suppress query alerts
+  - source_match:
+      alertname: 'DatabaseDown'
+    target_match_re:
+      alertname: '(SlowDatabaseQueries|DatabasePoolExhausted)'
+
+  # If Redis is down, suppress cache alerts
+  - source_match:
+      alertname: 'RedisDown'
+    target_match_re:
+      alertname: '(LowCacheHitRate|HighTaskQueueDepth)'
+
+  # If node is down, suppress all pod alerts on that node
+  - source_match:
+      alertname: 'NodeDown'
+    target_match_re:
+      alertname: '.*'
+    equal: ['node']
+
+# Receivers - where alerts go
+receivers:
+  - name: 'default'
+    slack_configs:
+      - channel: '#alerts'
+        title: '{{ .Status | toUpper }} | {{ .CommonLabels.alertname }}'
+        text: |
+          {{ range .Alerts }}
+          *Summary:* {{ .Annotations.summary }}
+          *Severity:* {{ .Labels.severity }}
+          *Instance:* {{ .Labels.instance }}
+          {{ end }}
+        send_resolved: true
+        actions:
+          - type: button
+            text: 'View Runbook'
+            url: '{{ (index .Alerts 0).Annotations.runbook_url }}'
+
+  - name: 'pagerduty-critical'
+    pagerduty_configs:
+      - service_key: '${PAGERDUTY_SERVICE_KEY}'
+        description: '{{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+        severity: '{{ .CommonLabels.severity }}'
+        component: '{{ .CommonLabels.component }}'
+        group: '{{ .CommonLabels.cluster }}'
+        class: '{{ .CommonLabels.alertname }}'
+        details:
+          firing: '{{ .Alerts.Firing | len }}'
+          resolved: '{{ .Alerts.Resolved | len }}'
+          runbook: '{{ (index .Alerts 0).Annotations.runbook_url }}'
+        client: 'Oryon Prometheus'
+        client_url: '{{ .ExternalURL }}'
+
+  - name: 'slack-critical'
+    slack_configs:
+      - channel: '#alerts-critical'
+        color: 'danger'
+        title: '🚨 CRITICAL: {{ .CommonLabels.alertname }}'
+        text: |
+          *Summary:* {{ range .Alerts }}{{ .Annotations.summary }}{{ end }}
+          *Description:* {{ range .Alerts }}{{ .Annotations.description }}{{ end }}
+          *Severity:* {{ .CommonLabels.severity }}
+          *Environment:* {{ .CommonLabels.environment }}
+          *Runbook:* {{ (index .Alerts 0).Annotations.runbook_url }}
+        actions:
+          - type: button
+            text: '📖 Runbook'
+            url: '{{ (index .Alerts 0).Annotations.runbook_url }}'
+          - type: button
+            text: '📊 Grafana'
+            url: 'https://monitoring.oryon.ai/d/oryon'
+          - type: button
+            text: '🔍 Prometheus'
+            url: '{{ .ExternalURL }}'
+        send_resolved: true
+  - name: 'slack-warnings'
+    slack_configs:
+      - channel: '#alerts-warnings'
+        color: 'warning'
+        title: '⚠️ Warning: {{ .CommonLabels.alertname }}'
+        text: |
+          *Summary:* {{ range .Alerts }}{{ .Annotations.summary }}{{ end }}
+          *Description:* {{ range .Alerts }}{{ .Annotations.description }}{{ end }}
+          *Runbook:* {{ (index .Alerts 0).Annotations.runbook_url }}
+        send_resolved: true
+
+  - name: 'slack-dba'
+    slack_configs:
+      - channel: '#dba-alerts'
+        color: '{{ if eq .CommonLabels.severity "critical" }}danger{{ else }}warning{{ end }}'
+        title: '🗄️ Database Alert: {{ .CommonLabels.alertname }}'
+        text: |
+          *Summary:* {{ range .Alerts }}{{ .Annotations.summary }}{{ end }}
+          *Description:* {{ range .Alerts }}{{ .Annotations.description }}{{ end }}
+          *Runbook:* {{ (index .Alerts 0).Annotations.runbook_url }}
+        actions:
+          - type: button
+            text: '📖 DB Runbook'
+            url: '{{ (index .Alerts 0).Annotations.runbook_url }}'
+        send_resolved: true
+
+  - name: 'slack-ml-team'
+    slack_configs:
+      - channel: '#ml-alerts'
+        color: '{{ if eq .CommonLabels.severity "critical" }}danger{{ else }}warning{{ end }}'
+        title: '🤖 ML Pipeline Alert: {{ .CommonLabels.alertname }}'
+        text: |
+          *Summary:* {{ range .Alerts }}{{ .Annotations.summary }}{{ end }}
+          *Description:* {{ range .Alerts }}{{ .Annotations.description }}{{ end }}
+          *Runbook:* {{ (index .Alerts 0).Annotations.runbook_url }}
+        send_resolved: true
+
+  - name: 'slack-infra'
+    slack_configs:
+      - channel: '#infra-alerts'
+        color: '{{ if eq .CommonLabels.severity "critical" }}danger{{ else }}warning{{ end }}'
+        title: '🖥️ Infrastructure Alert: {{ .CommonLabels.alertname }}'
+        text: |
+          *Summary:* {{ range .Alerts }}{{ .Annotations.summary }}{{ end }}
+          *Description:* {{ range .Alerts }}{{ .Annotations.description }}{{ end }}
+          *Node:* {{ .CommonLabels.node }}
+        send_resolved: true
+
+# Time intervals for muting during maintenance
+time_intervals:
+  - name: 'weekday-business-hours'
+    time_intervals:
+      - times:
+          - start_time: '09:00'
+            end_time: '18:00'
+        weekdays: ['monday:friday']
+        location: 'Asia/Kolkata'
+
+  - name: 'maintenance-window'
+    time_intervals:
+      - times:
+          - start_time: '02:00'
+            end_time: '04:00'
+        weekdays: ['sunday']
+        location: 'Asia/Kolkata'
+
+  - name: 'weekends'
+    time_intervals:
+      - weekdays: ['saturday', 'sunday']
+        location: 'Asia/Kolkata'

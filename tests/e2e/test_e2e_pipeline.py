@@ -1,5 +1,5 @@
 """
-End-to-End Tests for ShikshaSetu Pipeline
+End-to-End Tests for Oryon Pipeline
 
 Tests the complete flow: upload → OCR → simplify → translate → validate → TTS → fetch
 Designed for local M4 development environment.
@@ -52,7 +52,7 @@ def test_user_token(api_client):
     """Get or create test user and return auth token."""
     # Try to register test user
     register_data = {
-        "email": "e2e_test@shikshasetu.local",
+        "email": "e2e_test@oryon.local",
         "password": "E2eTest@2025Secure!",
         "name": "E2E Test User",
     }

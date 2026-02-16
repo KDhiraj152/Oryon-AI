@@ -13,12 +13,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from backend.database import get_db_session
-from backend.models import User, ProcessedContent
+from backend.models import ProcessedContent, User
 from backend.services.rag import get_rag_service
 from backend.utils.auth import get_password_hash
 
 print("=" * 60)
-print("ShikshaSetu RAG Q&A Demo Test")
+print("Oryon RAG Q&A Demo Test")
 print("=" * 60)
 
 # 1. Setup test user
@@ -29,7 +29,7 @@ with get_db_session() as db:
         test_user = User(
             id=uuid.uuid4(),
             username='demo',
-            email='demo@shiksha.edu',
+            email='demo@oryon.edu',
             hashed_password=get_password_hash('demo123'),
             full_name='Demo User',
             is_active=True

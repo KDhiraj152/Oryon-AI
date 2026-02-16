@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================================
-# SHIKSHA SETU - FAST SETUP SCRIPT (v4.0 - Universal AI for India)
+# ORYON AI - FAST SETUP SCRIPT (v4.0 - Universal AI for India)
 # ============================================================================
 # Optimized setup with parallel installations and smart caching.
 #
@@ -91,7 +91,7 @@ REQUIRED_NODE_MAJOR=18
 
 export POSTGRES_USER="${POSTGRES_USER:-postgres}"
 export POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-postgres}"
-export POSTGRES_DB="${POSTGRES_DB:-shiksha_setu}"
+export POSTGRES_DB="${POSTGRES_DB:-oryon}"
 export POSTGRES_PORT="${POSTGRES_PORT:-5432}"
 export REDIS_PORT="${REDIS_PORT:-6379}"
 
@@ -136,7 +136,7 @@ if ! $QUIET; then
     clear
     echo ""
     echo -e "${MAGENTA}   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${CYAN}   ॐ  ${WHITE}${BOLD}SHIKSHA SETU - SETUP${NC}${CYAN}  ॐ${NC}"
+    echo -e "${CYAN}   ॐ  ${WHITE}${BOLD}ORYON AI - SETUP${NC}${CYAN}  ॐ${NC}"
     echo -e "${DIM}   Local-First Multilingual AI Platform${NC}"
     $MINIMAL_MODE && echo -e "${YELLOW}   ⚡ MINIMAL MODE${NC}"
     $FORCE_REINSTALL && echo -e "${YELLOW}   🔄 FORCE REINSTALL${NC}"
@@ -298,39 +298,39 @@ if ! $SKIP_DOCKER; then
     step "Setting up Docker containers..."
 
     # Start both containers in parallel via docker-compose
-    if [[ -f docker-compose.yml ]]; then
-        docker compose up -d postgres redis >/dev/null 2>&1 &
+    if [[ -f deploy/docker-compose.yml ]]; then
+        docker compose -f deploy/docker-compose.yml up -d postgres redis >/dev/null 2>&1 &
         DOCKER_JOB=$!
         setup_progress $DOCKER_JOB "Starting containers..."
         wait $DOCKER_JOB
     else
         # Manual fallback - use consistent naming with docker-compose
         (
-            docker ps -a --format '{{.Names}}' | grep -qE 'shikshasetu_postgres|shiksha_postgres' || \
-            docker run -d --name shikshasetu_postgres \
+            docker ps -a --format '{{.Names}}' | grep -qE 'oryon_postgres|oryon_postgres' || \
+            docker run -d --name oryon_postgres \
                 -e POSTGRES_USER=$POSTGRES_USER \
                 -e POSTGRES_PASSWORD=$POSTGRES_PASSWORD \
                 -e POSTGRES_DB=$POSTGRES_DB \
                 -p $POSTGRES_PORT:5432 \
                 -v postgres_data:/var/lib/postgresql/data \
                 pgvector/pgvector:pg17 >/dev/null 2>&1
-            docker start shikshasetu_postgres 2>/dev/null || docker start shiksha_postgres 2>/dev/null || true
+            docker start oryon_postgres 2>/dev/null || docker start oryon_postgres 2>/dev/null || true
         ) &
         (
-            docker ps -a --format '{{.Names}}' | grep -qE 'shikshasetu_redis|shiksha_redis' || \
-            docker run -d --name shikshasetu_redis \
+            docker ps -a --format '{{.Names}}' | grep -qE 'oryon_redis|oryon_redis' || \
+            docker run -d --name oryon_redis \
                 -p $REDIS_PORT:6379 \
                 -v redis_data:/data \
                 redis:7-alpine >/dev/null 2>&1
-            docker start shikshasetu_redis 2>/dev/null || docker start shiksha_redis 2>/dev/null || true
+            docker start oryon_redis 2>/dev/null || docker start oryon_redis 2>/dev/null || true
         ) &
         wait
     fi
 
     # Wait for containers to be ready with progress
     echo -e "  ${WHITE}Database Services:${NC}"
-    PG_NAME=$(docker ps --format '{{.Names}}' | grep -E 'shikshasetu_postgres|shiksha_postgres' | head -1 || echo "")
-    REDIS_NAME=$(docker ps --format '{{.Names}}' | grep -E 'shikshasetu_redis|shiksha_redis' | head -1 || echo "")
+    PG_NAME=$(docker ps --format '{{.Names}}' | grep -E 'oryon_postgres|oryon_postgres' | head -1 || echo "")
+    REDIS_NAME=$(docker ps --format '{{.Names}}' | grep -E 'oryon_redis|oryon_redis' | head -1 || echo "")
 
     if [[ -n "$PG_NAME" ]]; then
         printf "     PostgreSQL  │ "
@@ -386,7 +386,7 @@ if [[ ! -f .env ]] || $FORCE_REINSTALL; then
     SECRET_KEY=$(openssl rand -hex 32 2>/dev/null || python3 -c "import secrets; print(secrets.token_hex(32))")
 
     cat > .env << EOF
-# ShikshaSetu Configuration - Generated $(date +%Y-%m-%d)
+# Oryon Configuration - Generated $(date +%Y-%m-%d)
 ENVIRONMENT=development
 DEBUG=true
 
@@ -425,7 +425,7 @@ fi
 # ============================================================================
 # DATABASE MIGRATIONS
 # ============================================================================
-if ! $SKIP_MIGRATIONS && ! $SKIP_DOCKER && [[ -d alembic ]]; then
+if ! $SKIP_MIGRATIONS && ! $SKIP_DOCKER && [[ -d config/alembic ]]; then
     step "Running migrations..."
     export DATABASE_URL="postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@localhost:$POSTGRES_PORT/$POSTGRES_DB"
     migration_output=$(alembic upgrade head 2>&1)
@@ -675,7 +675,7 @@ else
 fi
 
 # Verify monitoring config exists
-if [[ -f "$PROJECT_ROOT/infrastructure/monitoring/prometheus-local.yml" ]]; then
+if [[ -f "$PROJECT_ROOT/deploy/monitoring/prometheus-local.yml" ]]; then
     ok "Monitoring config found (use --monitoring with start.sh)"
 else
     info "Monitoring config not found - will be created on first use"

@@ -1,5 +1,5 @@
 # =============================================================================
-# SHIKSHA SETU - CI PIPELINE
+# ORYON AI - CI PIPELINE
 # =============================================================================
 # Optimized CI/CD pipeline with:
 # - Parallel job execution
@@ -324,7 +324,7 @@ jobs:
           context: .
           file: ./infrastructure/docker/Dockerfile.backend
           push: false
-          tags: shikshasetu/backend:test
+          tags: oryon/backend:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
@@ -336,7 +336,7 @@ jobs:
           context: .
           file: ./infrastructure/docker/Dockerfile.frontend
           push: false
-          tags: shikshasetu/frontend:test
+          tags: oryon/frontend:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |

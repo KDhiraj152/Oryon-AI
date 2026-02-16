@@ -7,29 +7,39 @@ OPTIMIZED: Uses orjson for faster SSE serialization.
 """
 
 import asyncio
+import contextlib
 import logging
 import os
 import tempfile
 import time
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastapi import APIRouter, Body, File, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from ...cache import get_unified_cache
-from ...utils.memory_guard import require_memory
-from ..deps import get_ai_engine as _get_ai_engine, get_pipeline as _get_pipeline, json_dumps as _json_dumps
+from backend.infra.cache import get_unified_cache
 
+from ...utils.memory_guard import require_memory
+from ..deps import (
+    get_ai_engine as _get_ai_engine,
+)
+from ..deps import (
+    get_middleware as _get_middleware,
+)
+from ..deps import (
+    get_pipeline as _get_pipeline,
+)
+from ..deps import (
+    json_dumps as _json_dumps,
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-
 # ==================== Models ====================
-
 
 class ContentProcessRequest(BaseModel):
     """Content processing request."""
@@ -43,7 +53,6 @@ class ContentProcessRequest(BaseModel):
     quality_mode: str = Field(default="balanced")
     enable_collaboration: bool = Field(default=False)
     collaboration_pattern: str = Field(default="verify")
-
 
 class ContentProcessResponse(BaseModel):
     """Content processing response."""
@@ -61,14 +70,12 @@ class ContentProcessResponse(BaseModel):
     collaboration_consensus: bool | None = None
     models_used: list[str] | None = None
 
-
 class TTSRequest(BaseModel):
     """TTS request model."""
 
     text: str = Field(..., min_length=1, max_length=5000)
     language: str = Field(default="hi")
     voice: str | None = None
-
 
 class TTSResponse(BaseModel):
     """TTS response model."""
@@ -78,20 +85,17 @@ class TTSResponse(BaseModel):
     duration_ms: int
     processing_time_ms: float
 
-
 class QAProcessRequest(BaseModel):
     """Q&A document processing request."""
 
     content: str = Field(..., min_length=10)
     title: str | None = None
 
-
 class QAQueryRequest(BaseModel):
     """Q&A query request."""
 
     document_id: str
     question: str = Field(..., min_length=3)
-
 
 class QAResponse(BaseModel):
     """Q&A response model."""
@@ -101,21 +105,17 @@ class QAResponse(BaseModel):
     sources: list[dict[str, Any]]
     processing_time_ms: float
 
-
 # ==================== Helper Functions ====================
-
 
 def sse_event(event: str, data: dict[str, Any]) -> str:
     """Format SSE event using fast JSON serialization."""
     return f"event: {event}\ndata: {_json_dumps(data)}\n\n"
-
 
 def _save_upload_to_temp(content: bytes, suffix: str) -> str:
     """Save upload content to temp file (sync operation)."""
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         tmp.write(content)
         return tmp.name
-
 
 def _extract_docx_content(content: bytes, start_time: float) -> dict[str, Any] | None:
     """Extract content from DOCX file."""
@@ -152,17 +152,23 @@ def _extract_docx_content(content: bytes, start_time: float) -> dict[str, Any] |
     except ImportError:
         return None
 
-
 # ==================== Content Processing Endpoints ====================
 
-
 @router.post(
-    "/content/process", response_model=ContentProcessResponse, tags=["content"]
+    "/process", response_model=ContentProcessResponse, tags=["content"]
 )
 @require_memory(action="reject", reject_on=("critical", "emergency"))
 async def process_content(request: ContentProcessRequest):
     """Process content through the unified pipeline (simplify, translate, audio)."""
     request_id = str(uuid.uuid4())[:8]
+    start_time = time.perf_counter()
+
+    # ── Middleware: classify for telemetry ──────────────────────────
+    middleware = _get_middleware()
+    mw_classification = None
+    if middleware:
+        with contextlib.suppress(RuntimeError, ValueError, OSError):
+            mw_classification = middleware.classifier.classify(request.text, request_id)
 
     try:
         from ...services.pipeline import ProcessingRequest
@@ -186,6 +192,25 @@ async def process_content(request: ContentProcessRequest):
 
         result = await pipeline.process(proc_request)
 
+        # ── Middleware: record telemetry ──────────────────────────
+        if middleware and mw_classification:
+            try:
+                elapsed = (time.perf_counter() - start_time) * 1000
+                middleware.evaluator.evaluate(
+                    request_id=request_id,
+                    intent=mw_classification.intent.value,
+                    model_target=mw_classification.model_target.value,
+                    model_used=mw_classification.model_target.value,
+                    complexity_score=mw_classification.complexity_score,
+                    total_latency_ms=elapsed,
+                    confidence=0.8,
+                    output_tokens=0,
+                    has_error=not result.success,
+                )
+                middleware.latency.record_latency("content_process", elapsed)
+            except (RuntimeError, ValueError, OSError):  # service call
+                pass
+
         return ContentProcessResponse(
             request_id=result.request_id,
             success=result.success,
@@ -204,11 +229,10 @@ async def process_content(request: ContentProcessRequest):
         )
 
     except Exception as e:
-        logger.error(f"Content processing error: {e}")
+        logger.error("Content processing error: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.post("/content/process/stream", tags=["content"])
+@router.post("/process/stream", tags=["content"])
 @require_memory(action="reject", reject_on=("critical", "emergency"))
 async def process_content_stream(request: ContentProcessRequest):
     """Process content with streaming progress updates."""
@@ -243,7 +267,7 @@ async def process_content_stream(request: ContentProcessRequest):
 
             yield "data: [DONE]\n\n"
 
-        except Exception as e:
+        except (RuntimeError, ValueError, OSError) as e:  # service call
             yield sse_event("error", {"error": str(e)})
 
     return StreamingResponse(
@@ -252,10 +276,10 @@ async def process_content_stream(request: ContentProcessRequest):
         headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
     )
 
-
-@router.post("/content/simplify", tags=["content"])
+@router.post("/simplify", tags=["content"])
 async def simplify_content(text: str = Body(..., embed=True)):
     """Simplify text."""
+    start_time = time.perf_counter()
     try:
         from ...services.pipeline import ProcessingRequest
 
@@ -271,6 +295,27 @@ async def simplify_content(text: str = Body(..., embed=True)):
             )
         )
 
+        elapsed = (time.perf_counter() - start_time) * 1000
+
+        # Middleware telemetry
+        middleware = _get_middleware()
+        if middleware:
+            try:
+                middleware.evaluator.evaluate(
+                    request_id="simplify",
+                    intent="simplification",
+                    model_target="standard",
+                    model_used="standard",
+                    complexity_score=0.4,
+                    total_latency_ms=elapsed,
+                    confidence=0.8,
+                    output_tokens=0,
+                    has_error=False,
+                )
+                middleware.latency.record_latency("simplify", elapsed)
+            except (RuntimeError, ValueError, OSError):  # service call
+                pass
+
         return {
             "original": text,
             "simplified": result.simplified_text,
@@ -280,8 +325,7 @@ async def simplify_content(text: str = Body(..., embed=True)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.post("/content/translate", tags=["content"])
+@router.post("/translate", tags=["content"])
 @require_memory(action="reject", reject_on=("critical", "emergency"))
 async def translate_content(
     text: str = Body(..., embed=True),
@@ -289,6 +333,7 @@ async def translate_content(
     source_language: str = Body(default="English"),
 ):
     """Translate text to target language."""
+    start_time = time.perf_counter()
     try:
         from ...services.pipeline import ProcessingRequest
 
@@ -304,6 +349,27 @@ async def translate_content(
             )
         )
 
+        elapsed = (time.perf_counter() - start_time) * 1000
+
+        # Middleware telemetry
+        middleware = _get_middleware()
+        if middleware:
+            try:
+                middleware.evaluator.evaluate(
+                    request_id="translate",
+                    intent="translation",
+                    model_target="specialized",
+                    model_used="specialized",
+                    complexity_score=0.3,
+                    total_latency_ms=elapsed,
+                    confidence=0.85,
+                    output_tokens=0,
+                    has_error=False,
+                )
+                middleware.latency.record_latency("translate", elapsed)
+            except (RuntimeError, ValueError, OSError):  # service call
+                pass
+
         return {
             "original": text,
             "translated": result.translated_text,
@@ -315,11 +381,9 @@ async def translate_content(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
 # ==================== TTS Endpoints ====================
 
-
-@router.post("/content/tts", response_model=TTSResponse, tags=["content"])
+@router.post("/tts", response_model=TTSResponse, tags=["content"])
 async def text_to_speech(request: TTSRequest):
     """Convert text to speech."""
     start_time = time.perf_counter()
@@ -353,11 +417,10 @@ async def text_to_speech(request: TTSRequest):
         )
 
     except Exception as e:
-        logger.error(f"TTS error: {e}")
+        logger.error("TTS error: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.get("/content/tts/voices", tags=["content"])
+@router.get("/tts/voices", tags=["content"])
 async def list_tts_voices():
     """List available TTS voices."""
     return {
@@ -372,9 +435,7 @@ async def list_tts_voices():
         ]
     }
 
-
 # ==================== Q&A Endpoints ====================
-
 
 @router.post("/qa/process", tags=["qa"])
 async def process_document_for_qa(request: QAProcessRequest):
@@ -406,9 +467,8 @@ async def process_document_for_qa(request: QAProcessRequest):
         }
 
     except Exception as e:
-        logger.error(f"QA processing error: {e}")
+        logger.error("QA processing error: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.post("/qa/ask", response_model=QAResponse, tags=["qa"])
 async def ask_question(request: QAQueryRequest):
@@ -416,7 +476,7 @@ async def ask_question(request: QAQueryRequest):
     start_time = time.perf_counter()
 
     try:
-        from ...services.ai_core.engine import GenerationConfig
+        from ...services.chat.engine import GenerationConfig
 
         cache = get_unified_cache()
         doc_data = await cache.get(f"qa:doc:{request.document_id}")
@@ -463,12 +523,10 @@ Provide a clear, accurate answer based ONLY on the document content above. If th
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"QA query error: {e}")
+        logger.error("QA query error: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 # ==================== STT Endpoints ====================
-
 
 @router.post("/stt/transcribe", tags=["stt"])
 @require_memory(action="reject", reject_on=("critical", "emergency"))
@@ -505,9 +563,8 @@ async def transcribe_audio(
                 os.unlink(tmp_path)
 
     except Exception as e:
-        logger.error(f"STT transcription error: {e}")
+        logger.error("STT transcription error: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/stt/languages", tags=["stt"])
 async def list_stt_languages():
@@ -529,7 +586,6 @@ async def list_stt_languages():
         ],
         "model": "whisper-large-v3-turbo",
     }
-
 
 @router.post("/stt/guest", tags=["stt"])
 async def transcribe_audio_guest(
@@ -564,12 +620,10 @@ async def transcribe_audio_guest(
                 os.unlink(tmp_path)
 
     except Exception as e:
-        logger.error(f"Guest STT error: {e}")
+        logger.error("Guest STT error: %s", e)
         return {"success": False, "text": "", "error": str(e)}
 
-
 # ==================== OCR Endpoints ====================
-
 
 @router.post("/ocr/extract", tags=["ocr"])
 async def extract_text_from_document(
@@ -599,7 +653,7 @@ async def extract_text_from_document(
         tmp_path = _save_upload_to_temp(content, suffix)
 
         try:
-            result = await ocr_service.extract_text_async(
+            ocr_result = await ocr_service.extract_text_async(
                 tmp_path,
                 extract_formulas=extract_formulas,
                 extract_tables=extract_tables,
@@ -608,20 +662,20 @@ async def extract_text_from_document(
             elapsed = (time.perf_counter() - start_time) * 1000
 
             return {
-                "text": result.text,
+                "text": ocr_result.text,
                 "format": suffix.replace(".", ""),
-                "pages": result.num_pages,
-                "has_formulas": result.has_formulas,
-                "has_tables": result.has_tables,
+                "pages": ocr_result.num_pages,
+                "has_formulas": ocr_result.has_formulas,
+                "has_tables": ocr_result.has_tables,
                 "formulas": [
-                    f.get("latex", f.get("original", "")) for f in result.formula_blocks
+                    f.get("latex", f.get("original", "")) for f in ocr_result.formula_blocks
                 ]
-                if result.formula_blocks
+                if ocr_result.formula_blocks
                 else [],
-                "tables": result.table_blocks,
-                "confidence": result.confidence,
-                "metadata": result.metadata,
-                "model": result.metadata.get("ocr_model", "GOT-OCR2"),
+                "tables": ocr_result.table_blocks,
+                "confidence": ocr_result.confidence,
+                "metadata": ocr_result.metadata,
+                "model": ocr_result.metadata.get("ocr_model", "GOT-OCR2"),
                 "processing_time_ms": elapsed,
             }
 
@@ -630,9 +684,8 @@ async def extract_text_from_document(
                 os.unlink(tmp_path)
 
     except Exception as e:
-        logger.error(f"Document extraction error: {e}")
+        logger.error("Document extraction error: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/ocr/capabilities", tags=["ocr"])
 async def get_ocr_capabilities():
@@ -642,7 +695,7 @@ async def get_ocr_capabilities():
 
         ocr_service = get_ocr_service()
         backend_info = ocr_service.get_backend_info()
-    except Exception:
+    except (ImportError, RuntimeError):  # import/service call
         backend_info = {"backend": "tesseract", "got_available": False}
 
     return {
@@ -695,9 +748,7 @@ async def get_ocr_capabilities():
         ],
     }
 
-
 # ==================== Embedding Endpoints ====================
-
 
 @router.post("/embed", tags=["embeddings"])
 @require_memory(action="reject", reject_on=("critical", "emergency"))
@@ -708,7 +759,7 @@ async def generate_embeddings(
     start_time = time.perf_counter()
 
     try:
-        from ...services.inference import get_inference_engine
+        from backend.ml.inference import get_inference_engine
 
         engine = get_inference_engine()
 
@@ -724,9 +775,8 @@ async def generate_embeddings(
         }
 
     except Exception as e:
-        logger.error(f"Embedding error: {e}")
+        logger.error("Embedding error: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.post("/embeddings/generate", tags=["embeddings"])
 @require_memory(action="reject", reject_on=("critical", "emergency"))
@@ -754,9 +804,8 @@ async def generate_embeddings_v2(
         }
 
     except Exception as e:
-        logger.error(f"Embedding generation error: {e}")
+        logger.error("Embedding generation error: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.post("/embeddings/rerank", tags=["embeddings"])
 async def rerank_documents(
@@ -783,9 +832,8 @@ async def rerank_documents(
         }
 
     except Exception as e:
-        logger.error(f"Reranking error: {e}")
+        logger.error("Reranking error: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 # ==================== AI Endpoints ====================
 
@@ -800,14 +848,13 @@ _STYLE_GUIDES = {
 # OPTIMIZATION: Pre-compute unsafe patterns as frozenset for O(1) lookup
 _UNSAFE_PATTERNS = frozenset({"violence", "hate", "explicit"})
 
-
 @router.post("/ai/explain", tags=["ai"])
 async def explain_content(
     text: str = Body(..., embed=True), style: str = Body(default="simple")
 ):
     """Get AI explanation of content."""
     try:
-        from ...services.ai_core.engine import GenerationConfig
+        from ...services.chat.engine import GenerationConfig
 
         # OPTIMIZATION: Use cached engine singleton
         engine = _get_ai_engine()
@@ -836,7 +883,6 @@ Provide a clear, accurate, and explanation. If the content contains any inaccura
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get("/ai/prompts", tags=["ai"])
 async def list_prompts():
     """List available prompt templates."""
@@ -848,7 +894,6 @@ async def list_prompts():
             {"name": "explain", "description": "Explain concepts"},
         ]
     }
-
 
 @router.post("/ai/safety/check", tags=["ai"])
 async def check_content_safety(text: str = Body(..., embed=True)):

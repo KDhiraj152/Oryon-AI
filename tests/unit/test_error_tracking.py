@@ -7,7 +7,8 @@ Tests Issue #9 implementation
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
-import sentry_sdk
+
+sentry_sdk = pytest.importorskip("sentry_sdk")
 
 from backend.services.error_tracking import (
     PerformanceMonitor,

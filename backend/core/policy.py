@@ -29,14 +29,15 @@ import re
 import threading
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timezone
-from enum import Enum
+from enum import Enum, StrEnum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
+
+from backend.utils.lock_factory import create_lock
 
 logger = logging.getLogger(__name__)
 
-
-class PolicyMode(str, Enum):
+class PolicyMode(StrEnum):
     """Operating mode for the policy engine."""
 
     RESTRICTED = "restricted"  # Full policy enforcement
@@ -46,8 +47,7 @@ class PolicyMode(str, Enum):
     MODERATED = "moderated"  # Moderated with content_domain
     RESEARCH = "research"  # Maximum freedom for academic work
 
-
-class RiskLevel(str, Enum):
+class RiskLevel(StrEnum):
     """Risk levels for detected content."""
 
     LOW = "low"
@@ -55,6 +55,33 @@ class RiskLevel(str, Enum):
     HIGH = "high"
     CRITICAL = "critical"
 
+    @property
+    def severity(self) -> int:
+        """Numeric severity for correct ordering (low=0 < medium=1 < high=2 < critical=3)."""
+        return {"low": 0, "medium": 1, "high": 2, "critical": 3}[self.value]
+
+    # Override str comparison operators to use severity-based ordering.
+    # Without these, str.__lt__ compares lexicographically:
+    #   "critical" < "high" → True (WRONG: critical is more severe)
+    def __lt__(self, other: object) -> bool:
+        if isinstance(other, RiskLevel):
+            return self.severity < other.severity
+        return NotImplemented
+
+    def __le__(self, other: object) -> bool:
+        if isinstance(other, RiskLevel):
+            return self.severity <= other.severity
+        return NotImplemented
+
+    def __gt__(self, other: object) -> bool:
+        if isinstance(other, RiskLevel):
+            return self.severity > other.severity
+        return NotImplemented
+
+    def __ge__(self, other: object) -> bool:
+        if isinstance(other, RiskLevel):
+            return self.severity >= other.severity
+        return NotImplemented
 
 @dataclass
 class PolicyCheckResult:
@@ -76,7 +103,6 @@ class PolicyCheckResult:
             "issues": self.issues,
             "policy_applied": self.policy_applied,
         }
-
 
 @dataclass
 class PolicyConfig:
@@ -125,7 +151,7 @@ class PolicyConfig:
             from ..core.config import get_settings
 
             universal_mode = get_settings().UNIVERSAL_MODE
-        except Exception:
+        except (ImportError, AttributeError):
             universal_mode = True  # Default to universal mode
 
         # Load from environment variables (highest priority)
@@ -250,12 +276,11 @@ class PolicyConfig:
                         "content_quality_threshold"
                     ]
 
-                logger.info(f"Loaded policy config from {config_path}")
-            except Exception as e:
-                logger.warning(f"Failed to load policy config from {config_path}: {e}")
+                logger.info("Loaded policy config from %s", config_path)
+            except (json.JSONDecodeError, KeyError, OSError, ValueError) as e:
+                logger.warning("Failed to load policy config from %s: %s", config_path, e)
 
         return config
-
 
 class PolicyEngine:
     """
@@ -282,6 +307,24 @@ class PolicyEngine:
         self._lock = threading.Lock()
         self._initialized = False
         self._external_call_log = None
+
+        # Pre-compiled output filter pattern
+        self._dangerous_code_pattern = re.compile(
+            r"(?i)(os\.system|subprocess|eval|exec)\s*\([^)]+\)"
+        )
+
+        # Pre-compiled redaction patterns (avoid per-call recompilation)
+        self._compiled_secret_patterns: list[tuple[re.Pattern, str]] = [
+            (re.compile(r"AKIA[0-9A-Z]{16}"), "AWS_KEY"),
+            (re.compile(r"sk-[A-Za-z0-9]{48}"), "OPENAI_KEY"),
+            (re.compile(r"ghp_[A-Za-z0-9]{36}"), "GITHUB_TOKEN"),
+            (re.compile(r'(?i)(password|passwd|pwd)["\']?\s*[:=]\s*["\']?([^\s"\']{8,})'), "PASSWORD"),
+            (re.compile(r"eyJ[A-Za-z0-9_-]*\.eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*"), "JWT"),
+        ]
+        self._compiled_pii_patterns: list[tuple[re.Pattern, str]] = [
+            (re.compile(r"\b\d{3}-\d{2}-\d{4}\b"), "SSN"),
+            (re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"), "EMAIL"),
+        ]
 
         # Statistics
         self._stats = {
@@ -365,7 +408,7 @@ class PolicyEngine:
 
             self._stats["mode_switches"] += 1
 
-        logger.info(f"Policy mode switched: {old_mode.value} -> {new_mode.value}")
+        logger.info("Policy mode switched: %s -> %s", old_mode.value, new_mode.value)
 
         return {
             "old_mode": old_mode.value,
@@ -420,8 +463,8 @@ class PolicyEngine:
                     pattern = re.compile(pattern_def["pattern"])
                     risk = RiskLevel(pattern_def.get("risk", "high"))
                     self._compiled_harmful_patterns.append((pattern, risk))
-                except Exception as e:
-                    logger.warning(f"Failed to compile harmful pattern: {e}")
+                except (re.error, ValueError, KeyError) as e:
+                    logger.warning("Failed to compile harmful pattern: %s", e)
 
             # Compile jailbreak patterns
             default_jailbreak = [
@@ -448,8 +491,8 @@ class PolicyEngine:
                     pattern = re.compile(pattern_def["pattern"])
                     risk = RiskLevel(pattern_def.get("risk", "high"))
                     self._compiled_jailbreak_patterns.append((pattern, risk))
-                except Exception as e:
-                    logger.warning(f"Failed to compile jailbreak pattern: {e}")
+                except (re.error, ValueError, KeyError) as e:
+                    logger.warning("Failed to compile jailbreak pattern: %s", e)
 
             # Compile educational context patterns
             default_educational = [
@@ -464,8 +507,8 @@ class PolicyEngine:
             ):
                 try:
                     self._compiled_content_patterns.append(re.compile(pattern_str))
-                except Exception as e:
-                    logger.warning(f"Failed to compile educational pattern: {e}")
+                except re.error as e:
+                    logger.warning("Failed to compile educational pattern: %s", e)
 
             # Initialize external call log if needed
             if self.config.external_call_audit:
@@ -473,7 +516,7 @@ class PolicyEngine:
                 log_path.parent.mkdir(parents=True, exist_ok=True)
 
             self._initialized = True
-            logger.info(f"PolicyEngine initialized in {self.mode.value} mode")
+            logger.info("PolicyEngine initialized in %s mode", self.mode.value)
 
     def apply_input_policy(
         self, text: str, context: dict[str, Any] | None = None
@@ -536,7 +579,7 @@ class PolicyEngine:
                     )
                     if not is_legitimate:
                         issues.append("Potentially harmful content detected")
-                        if risk.value > max_risk.value:
+                        if risk.severity > max_risk.severity:
                             max_risk = risk
                         policy_applied.append("harmful_content_filter")
 
@@ -545,7 +588,7 @@ class PolicyEngine:
             for pattern, risk in self._compiled_jailbreak_patterns:
                 if pattern.search(text):
                     issues.append("Jailbreak attempt detected")
-                    if risk.value > max_risk.value:
+                    if risk.severity > max_risk.severity:
                         max_risk = risk
                     policy_applied.append("jailbreak_detection")
 
@@ -604,8 +647,7 @@ class PolicyEngine:
 
         # Remove potentially dangerous code patterns (from safety.py filter_response)
         if self.config.sensitive_response_blocking:
-            filtered = re.sub(
-                r"(?i)(os\.system|subprocess|eval|exec)\s*\([^)]+\)",
+            filtered = self._dangerous_code_pattern.sub(
                 "[CODE_REMOVED_BY_POLICY]",
                 filtered,
             )
@@ -688,8 +730,8 @@ class PolicyEngine:
         try:
             with open(log_path, "a") as f:
                 f.write(json.dumps(log_entry) + "\n")
-        except Exception as e:
-            logger.warning(f"Failed to log external call: {e}")
+        except OSError as e:
+            logger.warning("Failed to log external call: %s", e)
 
     def can_make_external_call(self, endpoint: str) -> bool:
         """Check if external calls are allowed and log if enabled."""
@@ -708,20 +750,8 @@ class PolicyEngine:
         redaction_info = []
         result = text
 
-        # Secret patterns (extracted from safety.py SecretScanner)
-        secret_patterns = [
-            (r"AKIA[0-9A-Z]{16}", "AWS_KEY"),
-            (r"sk-[A-Za-z0-9]{48}", "OPENAI_KEY"),
-            (r"ghp_[A-Za-z0-9]{36}", "GITHUB_TOKEN"),
-            (
-                r'(?i)(password|passwd|pwd)["\']?\s*[:=]\s*["\']?([^\s"\']{8,})',
-                "PASSWORD",
-            ),
-            (r"eyJ[A-Za-z0-9_-]*\.eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*", "JWT"),
-        ]
-
-        for pattern_str, secret_type in secret_patterns:
-            pattern = re.compile(pattern_str)
+        # Secret patterns (pre-compiled in __init__)
+        for pattern, secret_type in self._compiled_secret_patterns:
             matches = list(pattern.finditer(result))
             for match in reversed(matches):
                 redaction_info.append(
@@ -737,14 +767,9 @@ class PolicyEngine:
                     + result[match.end() :]
                 )
 
-        # PII patterns
+        # PII patterns (pre-compiled in __init__)
         if self.config.redact_pii:
-            pii_patterns = [
-                (r"\b\d{3}-\d{2}-\d{4}\b", "SSN"),
-                (r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b", "EMAIL"),
-            ]
-            for pattern_str, pii_type in pii_patterns:
-                pattern = re.compile(pattern_str)
+            for pattern, pii_type in self._compiled_pii_patterns:
                 matches = list(pattern.finditer(result))
                 for match in reversed(matches):
                     redaction_info.append(
@@ -795,24 +820,19 @@ class PolicyEngine:
             },
         }
 
-
 # Singleton instance
 _policy_engine: PolicyEngine | None = None
-_policy_lock = threading.Lock()
-
+_policy_lock = create_lock()
 
 def get_policy_engine() -> PolicyEngine:
-    """Get or create the global policy engine instance."""
+    # Lock-free benign-race singleton.
+    # Avoids threading.Lock which blocks the event loop in async context.
     global _policy_engine
-
-    if _policy_engine is None:
-        with _policy_lock:
-            if _policy_engine is None:
-                _policy_engine = PolicyEngine()
+    if _policy_engine is not None:
+        return _policy_engine
+    _policy_engine = PolicyEngine()
 
     return _policy_engine
-
-
 def print_startup_banner():
     """Print startup banner showing current policy mode."""
     engine = get_policy_engine()
@@ -830,7 +850,7 @@ def print_startup_banner():
     banner_lines = [
         "",
         f"{BOLD}╔══════════════════════════════════════════════════════════════════╗{RESET}",
-        f"{BOLD}║                    SHIKSHA SETU POLICY ENGINE                     ║{RESET}",
+        f"{BOLD}║                    ORYON AI POLICY ENGINE                     ║{RESET}",
         f"{BOLD}╠══════════════════════════════════════════════════════════════════╣{RESET}",
     ]
 
@@ -866,12 +886,11 @@ def print_startup_banner():
         print(line)
 
     # Also log it
-    logger.info(f"Policy Engine Mode: {mode.value}")
-    logger.info(f"  - Unrestricted: {config.allow_unrestricted_mode}")
-    logger.info(f"  - Filters: {config.policy_filters_enabled}")
-    logger.info(f"  - Curriculum: {config.content_moderation}")
-    logger.info(f"  - External Calls: {config.allow_external_calls}")
-
+    logger.info("Policy Engine Mode: %s", mode.value)
+    logger.info("  - Unrestricted: %s", config.allow_unrestricted_mode)
+    logger.info("  - Filters: %s", config.policy_filters_enabled)
+    logger.info("  - Curriculum: %s", config.content_moderation)
+    logger.info("  - External Calls: %s", config.allow_external_calls)
 
 def reset_policy_engine():
     """Reset the global policy engine (for testing)."""

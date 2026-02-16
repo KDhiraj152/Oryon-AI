@@ -9,14 +9,15 @@ These tasks handle:
 
 import logging
 from datetime import UTC, datetime, timezone
-from typing import Any, Dict
+from typing import Any
 from uuid import UUID
 
 from celery import shared_task
 
-from ..database import SessionLocal
+from backend.db.database import SessionLocal
+
 from ..models import ChatHistory, ProcessedContent
-from ..services.rag import get_rag_service
+from ..services.chat.rag import get_rag_service
 from ..services.simplify.simplifier import TextSimplifier
 
 logger = logging.getLogger(__name__)
@@ -24,14 +25,12 @@ logger = logging.getLogger(__name__)
 # Global model instance
 _text_simplifier = None
 
-
 def get_text_simplifier():
     """Get or create global TextSimplifier instance."""
     global _text_simplifier
     if _text_simplifier is None:
         _text_simplifier = TextSimplifier()
     return _text_simplifier
-
 
 @shared_task(bind=True, name="pipeline.process_document_for_qa")
 def process_document_for_qa_task(
@@ -50,7 +49,7 @@ def process_document_for_qa_task(
         Dict with processing results
     """
     try:
-        logger.info(f"Processing document {content_id} for Q&A")
+        logger.info("Processing document %s for Q&A", content_id)
 
         # Get RAG service
         rag_service = get_rag_service()
@@ -83,7 +82,7 @@ def process_document_for_qa_task(
         finally:
             session.close()
 
-        logger.info(f"Document {content_id} processed: {num_chunks} chunks created")
+        logger.info("Document %s processed: %s chunks created", content_id, num_chunks)
 
         return {
             "status": "success",
@@ -93,9 +92,8 @@ def process_document_for_qa_task(
         }
 
     except Exception as e:
-        logger.error(f"Error processing document for Q&A: {e}", exc_info=True)
+        logger.error("Error processing document for Q&A: %s", e, exc_info=True)
         return {"status": "error", "content_id": content_id, "error": str(e)}
-
 
 @shared_task(bind=True, name="pipeline.answer_question")
 def answer_question_task(
@@ -120,7 +118,7 @@ def answer_question_task(
         Dict with answer and metadata
     """
     try:
-        logger.info(f"Answering question for content {content_id}: {question[:50]}...")
+        logger.info("Answering question for content %s: %s...", content_id, question[:50])
 
         # Get RAG service
         rag_service = get_rag_service()
@@ -158,7 +156,7 @@ def answer_question_task(
         if context_data["avg_score"] < 0.5:
             answer = f"Based on the document: {answer}"
 
-        logger.info(f"Generated answer (length: {len(answer)} chars)")
+        logger.info("Generated answer (length: %s chars)", len(answer))
 
         # Calculate confidence score based on context similarity
         confidence_score = context_data["avg_score"]
@@ -197,7 +195,7 @@ def answer_question_task(
         }
 
     except Exception as e:
-        logger.error(f"Error answering question: {e}", exc_info=True)
+        logger.error("Error answering question: %s", e, exc_info=True)
         return {
             "status": "error",
             "content_id": content_id,
@@ -205,7 +203,6 @@ def answer_question_task(
             "error": str(e),
             "answer": "An error occurred while processing your question.",
         }
-
 
 @shared_task(bind=True, name="pipeline.get_chat_history")
 def get_chat_history_task(
@@ -258,7 +255,7 @@ def get_chat_history_task(
             session.close()
 
     except Exception as e:
-        logger.error(f"Error retrieving chat history: {e}", exc_info=True)
+        logger.error("Error retrieving chat history: %s", e, exc_info=True)
         return {
             "status": "error",
             "content_id": content_id,

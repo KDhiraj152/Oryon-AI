@@ -29,7 +29,8 @@ import os
 import platform
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from typing import Optional
+
+from backend.utils.lock_factory import create_lock
 
 logger = logging.getLogger(__name__)
 
@@ -40,12 +41,14 @@ _IS_APPLE_SILICON = platform.machine() == "arm64" and platform.system() == "Darw
 _P_CORES = int(os.getenv("ML_THREAD_POOL_SIZE", "4"))
 _E_CORES = int(os.getenv("IO_THREAD_POOL_SIZE", "6"))
 
-
 class _ThreadPoolManager:
     """Singleton manager for all thread pools in the application."""
 
-    _instance: Optional["_ThreadPoolManager"] = None
-    _lock = threading.Lock()
+    _instance: "_ThreadPoolManager" | None = None
+    _lock = create_lock()
+    _ml_pool: ThreadPoolExecutor
+    _io_pool: ThreadPoolExecutor
+    _initialized: bool
 
     def __new__(cls):
         if cls._instance is None:
@@ -63,13 +66,13 @@ class _ThreadPoolManager:
         # GPU/ML inference pool — P-core affinity threads
         # Serialized GPU access means we don't need many threads;
         # but we need enough to overlap tokenization (CPU) with generation (GPU)
-        self._ml_pool = ThreadPoolExecutor(
+        self._ml_pool: ThreadPoolExecutor = ThreadPoolExecutor(
             max_workers=_P_CORES,
             thread_name_prefix="ml_pcore",
         )
 
         # I/O pool — E-core affinity threads for DB, Redis, filesystem, network
-        self._io_pool = ThreadPoolExecutor(
+        self._io_pool: ThreadPoolExecutor = ThreadPoolExecutor(
             max_workers=_E_CORES,
             thread_name_prefix="io_ecore",
         )
@@ -115,11 +118,9 @@ class _ThreadPoolManager:
                 cls._instance.shutdown(wait=False)
                 cls._instance = None
 
-
 def get_thread_pool_manager() -> _ThreadPoolManager:
     """Get the singleton thread pool manager."""
     return _ThreadPoolManager()
-
 
 def get_ml_executor() -> ThreadPoolExecutor:
     """Get the ML/GPU thread pool executor.
@@ -129,7 +130,6 @@ def get_ml_executor() -> ThreadPoolExecutor:
     """
     return get_thread_pool_manager().ml_pool
 
-
 def get_io_executor() -> ThreadPoolExecutor:
     """Get the I/O thread pool executor.
 
@@ -138,12 +138,10 @@ def get_io_executor() -> ThreadPoolExecutor:
     """
     return get_thread_pool_manager().io_pool
 
-
 # Legacy compatibility aliases
 def get_gpu_executor() -> ThreadPoolExecutor:
     """Legacy alias for get_ml_executor()."""
     return get_ml_executor()
-
 
 # Register atexit cleanup
 def _cleanup():
@@ -152,8 +150,7 @@ def _cleanup():
         manager = _ThreadPoolManager._instance
         if manager is not None:
             manager.shutdown(wait=False)
-    except Exception:
+    except Exception:  # top-level handler
         pass
-
 
 atexit.register(_cleanup)

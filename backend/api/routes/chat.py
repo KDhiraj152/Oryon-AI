@@ -7,11 +7,12 @@ Uses database storage for production reliability.
 OPTIMIZED: Uses orjson for faster SSE serialization.
 """
 
+import contextlib
 import logging
 import time
 import uuid as uuid_module
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime, timezone
+from typing import Any, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -20,24 +21,24 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ...database import get_async_db
+from backend.db.database import get_async_db
+
 from ...models.chat import Conversation, Message, MessageRole
 from ...utils.auth import TokenData, get_current_user
 from ...utils.memory_guard import require_memory
-from ..deps import get_ai_engine as _get_ai_engine, json_dumps as _json_dumps
+from ..deps import get_ai_engine as _get_ai_engine
+from ..deps import get_middleware as _get_middleware
+from ..deps import json_dumps as _json_dumps
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["chat"])
 
-
 # Error constants
 ERROR_CONVERSATION_NOT_FOUND = "Conversation not found"
 ERROR_ACCESS_DENIED = "Access denied"
 
-
 # ==================== Models ====================
-
 
 class ChatMessage(BaseModel):
     """Chat message request model - flexible like ChatGPT/Perplexity."""
@@ -46,7 +47,6 @@ class ChatMessage(BaseModel):
     conversation_id: str | None = None
     language: str = Field(default="en")
     subject: str | None = Field(default=None, description="Optional subject context")
-
 
 class ChatResponse(BaseModel):
     """Chat response model."""
@@ -59,14 +59,12 @@ class ChatResponse(BaseModel):
     sources: list[str] | None = None
     confidence: float = 1.0
 
-
 class ConversationCreate(BaseModel):
     """Conversation creation request."""
 
     title: str = Field(default="New Conversation", max_length=100)
     language: str = Field(default="en")
     subject: str = Field(default="General", max_length=50)
-
 
 class ConversationResponse(BaseModel):
     """Conversation response model."""
@@ -79,7 +77,6 @@ class ConversationResponse(BaseModel):
     updated_at: str
     message_count: int = 0
 
-
 class MessageResponse(BaseModel):
     """Message response model."""
 
@@ -87,7 +84,6 @@ class MessageResponse(BaseModel):
     role: str
     content: str
     timestamp: str
-
 
 class GuestTTSRequest(BaseModel):
     """Request model for guest TTS endpoint."""
@@ -99,19 +95,15 @@ class GuestTTSRequest(BaseModel):
     rate: str = Field(default="+0%")
     pitch: str = Field(default="+0Hz")
 
-
 # ==================== Helper Functions ====================
-
 
 def sse_event(event: str, data: dict[str, Any]) -> str:
     """Format SSE event using fast JSON serialization."""
     return f"event: {event}\ndata: {_json_dumps(data)}\n\n"
 
-
 # ==================== Chat Endpoints ====================
 
-
-@router.post("/chat", response_model=ChatResponse)
+@router.post("", response_model=ChatResponse)
 @require_memory(action="reject", reject_on=("critical", "emergency"))
 async def chat(
     request: ChatMessage,
@@ -122,16 +114,34 @@ async def chat(
     start_time = time.perf_counter()
 
     try:
-        from ...services.ai_core.engine import GenerationConfig
+        from ...services.chat.engine import GenerationConfig
 
         # OPTIMIZATION: Use cached engine singleton
         engine = _get_ai_engine()
+
+        # ── Middleware: classify + enrich context ──────────────────
+        middleware = _get_middleware()
+        mw_classification = None
+        if middleware:
+            try:
+                mw_classification = middleware.classifier.classify(request.message)
+                # Feed conversation memory from middleware
+                if request.conversation_id:
+                    await middleware.memory.get_context_text(
+                        request.conversation_id, last_n=10
+                    )
+            except (RuntimeError, ValueError, OSError) as mw_err:  # service call
+                logger.debug("Middleware classification skipped: %s", mw_err)
 
         # Prepare context data - minimal, no constraints
         context_data = {
             "language": request.language,
             "subject": request.subject,
         }
+        if mw_classification:
+            context_data["middleware_intent"] = mw_classification.intent.value
+            context_data["middleware_complexity"] = mw_classification.complexity.name
+            context_data["middleware_model_target"] = mw_classification.model_target.value
 
         # Use the full chat method with RAG
         formatted_response = await engine.chat(
@@ -147,6 +157,32 @@ async def chat(
 
         elapsed = (time.perf_counter() - start_time) * 1000
         message_id = str(uuid_module.uuid4())[:8]
+
+        # ── Middleware: record in memory + evaluate ────────────────
+        if middleware:
+            try:
+                if request.conversation_id:
+                    await middleware.memory.add_message(
+                        request.conversation_id, "user", request.message
+                    )
+                    await middleware.memory.add_message(
+                        request.conversation_id, "assistant", formatted_response.content
+                    )
+                # Record telemetry in self-evaluator
+                if mw_classification:
+                    middleware.evaluator.evaluate(
+                        request_id=message_id,
+                        intent=mw_classification.intent.value,
+                        model_target=mw_classification.model_target.value,
+                        model_used=mw_classification.model_target.value,
+                        complexity_score=mw_classification.complexity_score,
+                        total_latency_ms=elapsed,
+                        confidence=formatted_response.metadata.confidence if formatted_response.metadata else 0.7,
+                        output_tokens=0,
+                        has_error=False,
+                    )
+            except (RuntimeError, ValueError, OSError) as mw_err:  # service call
+                logger.debug("Middleware post-processing skipped: %s", mw_err)
 
         # Store messages in database if conversation exists
         if request.conversation_id and current_user:
@@ -179,11 +215,11 @@ async def chat(
                     db.add(assistant_msg)
 
                     # Update conversation timestamp
-                    conv.updated_at = datetime.now(timezone.utc)
+                    conv.updated_at = datetime.now(UTC)
 
                     await db.commit()
-            except Exception as db_error:
-                logger.warning(f"Failed to save messages to DB: {db_error}")
+            except (OSError, RuntimeError, ValueError) as db_error:  # DB query
+                logger.warning("Failed to save messages to DB: %s", db_error)
                 # Don't fail the request if DB save fails
 
         # Extract source titles and confidence from metadata
@@ -205,11 +241,25 @@ async def chat(
         )
 
     except Exception as e:
-        logger.error(f"Chat error: {e}")
+        logger.error("Chat error: %s", e)
+        # Record error in middleware evaluator
+        middleware = _get_middleware()
+        if middleware and mw_classification:
+            with contextlib.suppress(RuntimeError, ValueError, OSError):
+                middleware.evaluator.evaluate(
+                    request_id=str(uuid_module.uuid4())[:8],
+                    intent=mw_classification.intent.value,
+                    model_target=mw_classification.model_target.value,
+                    model_used="unknown",
+                    complexity_score=mw_classification.complexity_score,
+                    total_latency_ms=(time.perf_counter() - start_time) * 1000,
+                    confidence=0.0,
+                    output_tokens=0,
+                    has_error=True,
+                )
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.post("/chat/stream")
+@router.post("/stream")
 @require_memory(action="reject", reject_on=("critical", "emergency"))
 async def chat_stream(request: ChatMessage):
     """Stream chat response with SSE using AI Engine with RAG.
@@ -222,7 +272,7 @@ async def chat_stream(request: ChatMessage):
 
     async def generate():
         try:
-            from ...services.ai_core.engine import GenerationConfig
+            from ...services.chat.engine import GenerationConfig
 
             # OPTIMIZATION: Use cached engine singleton
             engine = _get_ai_engine()
@@ -270,7 +320,7 @@ async def chat_stream(request: ChatMessage):
 
             yield sse_event("complete", {"message_id": str(uuid_module.uuid4())[:8]})
 
-        except Exception as e:
+        except (RuntimeError, ValueError, OSError) as e:  # service call
             yield sse_event("error", {"error": str(e)})
 
     return StreamingResponse(
@@ -283,8 +333,7 @@ async def chat_stream(request: ChatMessage):
         },
     )
 
-
-@router.post("/chat/guest")
+@router.post("/guest")
 async def chat_guest(request: ChatMessage):
     """
     Guest chat endpoint - Uses FULL OPTIMIZED PIPELINE.
@@ -305,16 +354,27 @@ async def chat_guest(request: ChatMessage):
     start_time = time.perf_counter()
 
     try:
-        from ...services.ai_core.engine import GenerationConfig
+        from ...services.chat.engine import GenerationConfig
 
         # OPTIMIZATION: Use cached engine singleton
         engine = _get_ai_engine()
+
+        # ── Middleware: classify for routing hints ─────────────────
+        middleware = _get_middleware()
+        mw_classification = None
+        if middleware:
+            with contextlib.suppress(RuntimeError, ValueError, OSError):
+                mw_classification = middleware.classifier.classify(request.message)
 
         # Prepare context data
         context_data = {
             "subject": request.subject,
             "language": request.language,
         }
+        if mw_classification:
+            context_data["middleware_intent"] = mw_classification.intent.value
+            context_data["middleware_complexity"] = mw_classification.complexity.name
+            context_data["middleware_model_target"] = mw_classification.model_target.value
 
         # Use optimized config for guest chat
         config = GenerationConfig(
@@ -336,6 +396,21 @@ async def chat_guest(request: ChatMessage):
         )
 
         elapsed = (time.perf_counter() - start_time) * 1000
+
+        # ── Middleware: evaluate ───────────────────────────────────
+        if middleware and mw_classification:
+            with contextlib.suppress(RuntimeError, ValueError, OSError):
+                middleware.evaluator.evaluate(
+                    request_id=str(uuid_module.uuid4())[:8],
+                    intent=mw_classification.intent.value,
+                    model_target=mw_classification.model_target.value,
+                    model_used=mw_classification.model_target.value,
+                    complexity_score=mw_classification.complexity_score,
+                    total_latency_ms=elapsed,
+                    confidence=0.85,
+                    output_tokens=0,
+                    has_error=False,
+                )
 
         # Extract sources and confidence from response metadata
         sources = []
@@ -359,14 +434,12 @@ async def chat_guest(request: ChatMessage):
         }
 
     except Exception as e:
-        logger.error(f"Guest chat error: {e}")
+        logger.error("Guest chat error: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 # ==================== Conversation Endpoints ====================
 
-
-@router.get("/chat/conversations", response_model=list[ConversationResponse])
+@router.get("/conversations", response_model=list[ConversationResponse])
 async def list_conversations(
     current_user: TokenData = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_db),
@@ -399,20 +472,19 @@ async def list_conversations(
                 else "en",
                 created_at=conv.created_at.isoformat()
                 if conv.created_at
-                else datetime.now(timezone.utc).isoformat(),
+                else datetime.now(UTC).isoformat(),
                 updated_at=conv.updated_at.isoformat()
                 if conv.updated_at
-                else datetime.now(timezone.utc).isoformat(),
+                else datetime.now(UTC).isoformat(),
                 message_count=msg_count or 0,
             )
             for conv, msg_count in rows
         ]
     except Exception as e:
-        logger.error(f"Error listing conversations: {e}")
+        logger.error("Error listing conversations: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.post("/chat/conversations", response_model=ConversationResponse)
+@router.post("/conversations", response_model=ConversationResponse)
 async def create_conversation(
     request: ConversationCreate,
     current_user: TokenData = Depends(get_current_user),
@@ -421,7 +493,7 @@ async def create_conversation(
     """Create a new conversation in database."""
     try:
         user_uuid = UUID(current_user.user_id)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         conversation = Conversation(
             user_id=user_uuid,
@@ -437,7 +509,7 @@ async def create_conversation(
 
         return ConversationResponse(
             id=str(conversation.id),
-            title=conversation.title,
+            title=cast(str, conversation.title),  # SQLAlchemy Column[str]
             subject=request.subject,
             language=request.language,
             created_at=conversation.created_at.isoformat(),
@@ -445,13 +517,12 @@ async def create_conversation(
             message_count=0,
         )
     except Exception as e:
-        logger.error(f"Error creating conversation: {e}")
+        logger.error("Error creating conversation: %s", e)
         await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get(
-    "/chat/conversations/{conversation_id}", response_model=ConversationResponse
+    "/conversations/{conversation_id}", response_model=ConversationResponse
 )
 async def get_conversation(
     conversation_id: str,
@@ -483,28 +554,27 @@ async def get_conversation(
 
         return ConversationResponse(
             id=str(conv.id),
-            title=conv.title or "Conversation",
+            title=cast(str, conv.title) or "Conversation",
             subject=conv.extra_data.get("subject", "General")
             if conv.extra_data
             else "General",
             language=conv.extra_data.get("language", "en") if conv.extra_data else "en",
             created_at=conv.created_at.isoformat()
             if conv.created_at
-            else datetime.now(timezone.utc).isoformat(),
+            else datetime.now(UTC).isoformat(),
             updated_at=conv.updated_at.isoformat()
             if conv.updated_at
-            else datetime.now(timezone.utc).isoformat(),
+            else datetime.now(UTC).isoformat(),
             message_count=msg_count or 0,
         )
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error getting conversation: {e}")
+        logger.error("Error getting conversation: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get(
-    "/chat/conversations/{conversation_id}/messages",
+    "/conversations/{conversation_id}/messages",
     response_model=list[MessageResponse],
 )
 async def get_conversation_messages(
@@ -541,29 +611,27 @@ async def get_conversation_messages(
         return [
             MessageResponse(
                 id=str(msg.id),
-                role=msg.role,
-                content=msg.content,
+                role=cast(str, msg.role),  # SQLAlchemy Column[str]
+                content=cast(str, msg.content),  # SQLAlchemy Column[str]
                 timestamp=msg.created_at.isoformat()
                 if msg.created_at
-                else datetime.now(timezone.utc).isoformat(),
+                else datetime.now(UTC).isoformat(),
             )
             for msg in messages
         ]
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error getting messages: {e}")
+        logger.error("Error getting messages: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 class ConversationUpdate(BaseModel):
     """Conversation update request."""
 
     title: str | None = Field(None, max_length=100)
 
-
 @router.patch(
-    "/chat/conversations/{conversation_id}", response_model=ConversationResponse
+    "/conversations/{conversation_id}", response_model=ConversationResponse
 )
 async def update_conversation(
     conversation_id: str,
@@ -590,7 +658,7 @@ async def update_conversation(
         # Update fields
         if request.title is not None:
             conv.title = request.title
-        conv.updated_at = datetime.now(timezone.utc)
+        conv.updated_at = datetime.now(UTC)
 
         await db.commit()
         await db.refresh(conv)
@@ -604,28 +672,27 @@ async def update_conversation(
 
         return ConversationResponse(
             id=str(conv.id),
-            title=conv.title or "Conversation",
+            title=cast(str, conv.title) or "Conversation",
             subject=conv.extra_data.get("subject", "General")
             if conv.extra_data
             else "General",
             language=conv.extra_data.get("language", "en") if conv.extra_data else "en",
             created_at=conv.created_at.isoformat()
             if conv.created_at
-            else datetime.now(timezone.utc).isoformat(),
+            else datetime.now(UTC).isoformat(),
             updated_at=conv.updated_at.isoformat()
             if conv.updated_at
-            else datetime.now(timezone.utc).isoformat(),
+            else datetime.now(UTC).isoformat(),
             message_count=msg_count,
         )
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error updating conversation: {e}")
+        logger.error("Error updating conversation: %s", e)
         await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.delete("/chat/conversations/{conversation_id}")
+@router.delete("/conversations/{conversation_id}")
 async def delete_conversation(
     conversation_id: str,
     current_user: TokenData = Depends(get_current_user),
@@ -655,15 +722,13 @@ async def delete_conversation(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error deleting conversation: {e}")
+        logger.error("Error deleting conversation: %s", e)
         await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-
 # ==================== Chat TTS Endpoints ====================
 
-
-@router.post("/chat/tts")
+@router.post("/tts")
 async def guest_text_to_speech(request: GuestTTSRequest):
     """
     Guest TTS endpoint (no auth required) - returns base64 audio.
@@ -676,7 +741,7 @@ async def guest_text_to_speech(request: GuestTTSRequest):
     try:
         # Try Edge TTS first (high quality, requires internet)
         try:
-            from ...services.tts.edge_tts_service import get_edge_tts_service
+            from backend.ml.speech.tts import get_edge_tts_service
 
             edge_tts = get_edge_tts_service()
 
@@ -699,12 +764,12 @@ async def guest_text_to_speech(request: GuestTTSRequest):
                 "use_browser_tts": False,
             }
 
-        except Exception as edge_error:
-            logger.warning(f"Edge TTS failed, trying MMS-TTS: {edge_error}")
+        except (RuntimeError, ValueError, OSError) as edge_error:  # service call
+            logger.warning("Edge TTS failed, trying MMS-TTS: %s", edge_error)
 
             # Fallback to MMS-TTS (offline, but lower quality)
             try:
-                from ...services.tts.mms_tts_service import get_mms_tts_service
+                from backend.ml.speech.tts import get_mms_tts_service
 
                 mms_tts = get_mms_tts_service()
 
@@ -721,8 +786,8 @@ async def guest_text_to_speech(request: GuestTTSRequest):
                     "use_browser_tts": False,
                 }
 
-            except Exception as mms_error:
-                logger.warning(f"MMS-TTS also failed: {mms_error}")
+            except (RuntimeError, ValueError, OSError) as mms_error:  # service call
+                logger.warning("MMS-TTS also failed: %s", mms_error)
                 # Signal frontend to use browser TTS
                 return {
                     "success": False,
@@ -731,15 +796,14 @@ async def guest_text_to_speech(request: GuestTTSRequest):
                 }
 
     except Exception as e:
-        logger.error(f"Guest TTS error: {e}")
+        logger.error("Guest TTS error: %s", e)
         return {"success": False, "use_browser_tts": True, "error": str(e)}
 
-
-@router.get("/chat/tts/voices")
+@router.get("/tts/voices")
 async def get_chat_tts_voices():
     """Get available TTS voices for chat (guest endpoint)."""
     try:
-        from ...services.tts.edge_tts_service import get_edge_tts_service
+        from backend.ml.speech.tts import get_edge_tts_service
 
         edge_tts = get_edge_tts_service()
         voices = edge_tts.get_available_voices()
@@ -762,7 +826,7 @@ async def get_chat_tts_voices():
         return {"voices": voice_list}
 
     except Exception as e:
-        logger.warning(f"Failed to get voices: {e}")
+        logger.warning("Failed to get voices: %s", e)
         return {
             "voices": [
                 {

@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { audio as audioApi } from '../api';
 import type { ToastType } from '../components/ui/Toast';
 
@@ -130,71 +130,4 @@ export function useAudioPlayback({ selectedLanguage, showToast }: UseAudioPlayba
   }, [playingAudioMessageId, selectedLanguage, showToast, stopAudio]);
 
   return { playingAudioMessageId, handleAudio, stopAudio };
-}
-
-interface UseChatScrollOptions {
-  messagesLength: number;
-  streamingMessage: string;
-}
-
-interface UseChatScrollReturn {
-  messagesEndRef: React.RefObject<HTMLDivElement>;
-  messagesContainerRef: React.RefObject<HTMLDivElement>;
-  showScrollButton: boolean;
-  scrollToBottom: () => void;
-}
-
-/**
- * Custom hook for chat scroll behavior with debouncing
- */
-export function useChatScroll({ messagesLength, streamingMessage }: UseChatScrollOptions): UseChatScrollReturn {
-  const [showScrollButton, setShowScrollButton] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const messagesContainerRef = useRef<HTMLDivElement>(null);
-
-  // Handle scroll button visibility with debouncing
-  useEffect(() => {
-    const container = messagesContainerRef.current;
-    if (!container) return;
-
-    let timeoutId: ReturnType<typeof setTimeout>;
-    const handleScroll = () => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => {
-        const { scrollTop, scrollHeight, clientHeight } = container;
-        const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
-        setShowScrollButton(!isNearBottom && messagesLength > 0);
-      }, 50);
-    };
-
-    container.addEventListener('scroll', handleScroll, { passive: true });
-    return () => {
-      container.removeEventListener('scroll', handleScroll);
-      clearTimeout(timeoutId);
-    };
-  }, [messagesLength]);
-
-  // Auto-scroll on new messages (only when near bottom)
-  useEffect(() => {
-    const container = messagesContainerRef.current;
-    if (!container) return;
-
-    const { scrollTop, scrollHeight, clientHeight } = container;
-    const isNearBottom = scrollHeight - scrollTop - clientHeight < 200;
-
-    if (isNearBottom) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messagesLength, streamingMessage]);
-
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, []);
-
-  return {
-    messagesEndRef,
-    messagesContainerRef,
-    showScrollButton,
-    scrollToBottom
-  };
 }

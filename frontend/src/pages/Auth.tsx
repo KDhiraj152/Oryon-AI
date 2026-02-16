@@ -10,7 +10,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { OmLogo } from '../components/landing/OmLogo';
-import { useTheme } from '../context/ThemeContext';
+import { useUIStore } from '../store/uiStore';
 
 // Password strength calculator
 const calculatePasswordStrength = (password: string): { score: number; label: string; color: string } => {
@@ -161,8 +161,8 @@ function AuthFooter({ isDark, isLogin, setIsLogin, setError, navigate }: Readonl
 export default function Auth() {
   const navigate = useNavigate();
   const { login } = useAuthStore();
-  const { theme } = useTheme();
-  const isDark = theme === 'dark';
+  const resolvedTheme = useUIStore((s) => s.resolvedTheme);
+  const isDark = resolvedTheme === 'dark';
 
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');

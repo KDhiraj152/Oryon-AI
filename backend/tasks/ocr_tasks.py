@@ -6,7 +6,7 @@ Tasks for document OCR using GOT-OCR2.
 
 import base64
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 from .celery_config import celery_app
 
@@ -15,16 +15,14 @@ logger = logging.getLogger(__name__)
 # Lazy-loaded model
 _ocr_service = None
 
-
 def get_ocr_service():
     """Get or initialize OCR service (lazy loading)."""
     global _ocr_service
     if _ocr_service is None:
-        from backend.services.ocr import GOTOCR2Service
+        from backend.ml.ocr.ocr import GOTOCR2Service
 
         _ocr_service = GOTOCR2Service()
     return _ocr_service
-
 
 @celery_app.task(
     name="ocr.process_image",
@@ -85,8 +83,8 @@ def process_image(
             "metadata": result.get("metadata", {}),
         }
 
-    except Exception as e:
-        logger.error(f"OCR processing failed: {e}")
+    except Exception as e:  # task handler — intentionally broad
+        logger.error("OCR processing failed: %s", e)
 
         if self.request.retries < self.max_retries:
             raise self.retry(exc=e)
@@ -95,7 +93,6 @@ def process_image(
             "success": False,
             "error": str(e),
         }
-
 
 @celery_app.task(
     name="ocr.process_pdf",
@@ -181,14 +178,13 @@ def process_pdf(
             "processed_pages": len(pages),
         }
 
-    except Exception as e:
-        logger.error(f"PDF OCR failed: {e}")
+    except Exception as e:  # task handler — intentionally broad
+        logger.error("PDF OCR failed: %s", e)
         return {
             "success": False,
             "error": str(e),
             "pdf_path": pdf_path,
         }
-
 
 @celery_app.task(
     name="ocr.process_batch",
@@ -235,7 +231,7 @@ def process_batch(
                         "success": True,
                     }
                 )
-        except Exception as e:
+        except (RuntimeError, ValueError, OSError) as e:
             results.append(
                 {
                     "path": path,
@@ -253,13 +249,12 @@ def process_batch(
             "processed": len([r for r in results if r.get("success")]),
         }
 
-    except Exception as e:
-        logger.error(f"Batch OCR failed: {e}")
+    except Exception as e:  # task handler — intentionally broad
+        logger.error("Batch OCR failed: %s", e)
         return {
             "success": False,
             "error": str(e),
         }
-
 
 @celery_app.task(
     name="ocr.detect_document_type",
@@ -290,8 +285,8 @@ def detect_document_type(self, image_data: str) -> dict[str, Any]:
             "language_hint": "hi",
         }
 
-    except Exception as e:
-        logger.error(f"Document type detection failed: {e}")
+    except Exception as e:  # task handler — intentionally broad
+        logger.error("Document type detection failed: %s", e)
         return {
             "success": False,
             "error": str(e),

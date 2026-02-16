@@ -69,7 +69,7 @@ frontend/src/
 │   │   ├── Header.tsx          # Chat header bar
 │   │   └── Sidebar.tsx         # Conversation list sidebar
 │   ├── landing/            # Landing page components
-│   │   └── OmLogo.tsx      # Om/Shiksha Setu logo
+│   │   └── OmLogo.tsx      # Om/Oryon AI logo
 │   ├── layout/             # Layout components
 │   │   └── AppLayout.tsx   # Main app layout with outlet
 │   ├── system/             # System status components

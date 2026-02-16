@@ -111,7 +111,7 @@ export default function Header({ onMenuClick, onNewChat, sidebarOpen = false }: 
               title={statusInfo.label}
             />
           </span>
-          <span className="text-[15px] font-medium">ShikshaSetu</span>
+          <span className="text-[15px] font-medium">Oryon</span>
           <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium tracking-wider uppercase
             ${policyDisplay.bg} ${policyDisplay.color}`}>
             {policyDisplay.label}

@@ -4,28 +4,26 @@ Maps to existing user_profiles table for personalization.
 """
 
 from datetime import datetime
-from enum import Enum
-from typing import Any, Dict, Optional
+from enum import Enum, StrEnum
+from typing import Any
 
 from sqlalchemy import TIMESTAMP, Column, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 
-from ..database import Base
+from backend.db.database import Base
 
 
 def utcnow():
     """Get current UTC time as naive datetime (for TIMESTAMP WITHOUT TIME ZONE)."""
     return datetime.utcnow()
 
-
-class UserPreference(str, Enum):
+class UserPreference(StrEnum):
     """User learning style preferences."""
 
     VISUAL = "visual"  # Prefers diagrams, charts, images
     AUDITORY = "auditory"  # Prefers audio explanations
     READING = "reading"  # Prefers text-based content
     KINESTHETIC = "kinesthetic"  # Prefers hands-on examples
-
 
 class UserProfile(Base):
     """
@@ -53,7 +51,7 @@ class UserProfile(Base):
     # Core preferences (from original schema)
     language_preference = Column(String(50), nullable=False, default="en")
     complexity_level = Column(Integer, nullable=False, default=8)
-    subjects_of_interest = Column(ARRAY(Text), default=[])
+    subjects_of_interest: Any = Column(ARRAY(Text), default=[])
 
     # Extended personalization (stored in JSONB for flexibility)
     offline_content_cache = Column(JSONB, default={})
@@ -62,13 +60,20 @@ class UserProfile(Base):
     created_at = Column(TIMESTAMP, default=utcnow)
     updated_at = Column(TIMESTAMP, default=utcnow, onupdate=utcnow)
 
+    def _get_cache(self) -> dict[str, Any]:
+        """Get offline_content_cache as a typed dict."""
+        cache = self.offline_content_cache
+        if isinstance(cache, dict):
+            return cache
+        return {}
+
     def __repr__(self):
         return f"<UserProfile(id={self.id}, grade={self.complexity_level}, lang={self.language_preference})>"
 
     @property
     def user_preference(self) -> UserPreference:
         """Get learning style from cache or default to reading."""
-        style = (self.offline_content_cache or {}).get("user_preference", "reading")
+        style = self._get_cache().get("user_preference", "reading")
         try:
             return UserPreference(style)
         except ValueError:
@@ -84,7 +89,7 @@ class UserProfile(Base):
     @property
     def difficulty_preference(self) -> str:
         """Get difficulty preference: 'easy', 'medium', 'challenging'."""
-        return (self.offline_content_cache or {}).get("difficulty", "medium")
+        return str(self._get_cache().get("difficulty", "medium"))
 
     @difficulty_preference.setter
     def difficulty_preference(self, value: str):
@@ -96,13 +101,13 @@ class UserProfile(Base):
     @property
     def interaction_count(self) -> int:
         """Get total AI interaction count."""
-        return (self.offline_content_cache or {}).get("interaction_count", 0)
+        return int(self._get_cache().get("interaction_count", 0))
 
     def increment_interactions(self) -> int:
         """Increment and return interaction count."""
         if self.offline_content_cache is None:
             self.offline_content_cache = {}
-        count = self.offline_content_cache.get("interaction_count", 0) + 1
+        count = int(self._get_cache().get("interaction_count", 0)) + 1
         self.offline_content_cache["interaction_count"] = count
         return count
 

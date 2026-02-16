@@ -36,15 +36,16 @@ from collections import deque
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, TypeVar
+from typing import Any, ClassVar, TypeVar
 
 import numpy as np
+
+from backend.utils.lock_factory import create_lock
 
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 R = TypeVar("R")
-
 
 class QueuePriority(Enum):
     """GPU command queue priorities."""
@@ -52,7 +53,6 @@ class QueuePriority(Enum):
     HIGH = 0  # User-facing inference (LLM generation)
     NORMAL = 1  # Batch processing (embeddings)
     LOW = 2  # Background (precomputation)
-
 
 @dataclass
 class GPUTask:
@@ -67,7 +67,6 @@ class GPUTask:
     # Callback for result
     future: asyncio.Future | None = None
 
-
 @dataclass
 class PipelineStage:
     """Stage in the processing pipeline."""
@@ -75,7 +74,6 @@ class PipelineStage:
     name: str
     executor: str  # "cpu", "gpu", "ane"
     is_async: bool = True
-
 
 @dataclass
 class GPUQueueStats:
@@ -101,11 +99,9 @@ class GPUQueueStats:
             "avg_gpu_time_ms": self.total_gpu_time_ms / max(1, self.tasks_completed),
         }
 
-
 # ============================================================================
 # PREDICTIVE RESOURCE SCHEDULER
 # ============================================================================
-
 
 @dataclass
 class ResourcePrediction:
@@ -118,7 +114,6 @@ class ResourcePrediction:
     should_scale_up: bool
     should_warmup_model: bool
     confidence: float
-
 
 class QueueForecaster:
     """
@@ -295,7 +290,6 @@ class QueueForecaster:
         }
         return memory_estimates.get(queue_name, 5.0)
 
-
 class PredictiveResourceScheduler:
     """
     ANE/GPU-aware predictive scheduler.
@@ -308,7 +302,7 @@ class PredictiveResourceScheduler:
     """
 
     # Memory thresholds for M4 (16GB unified)
-    MEMORY_THRESHOLDS = {
+    MEMORY_THRESHOLDS: ClassVar[dict] = {
         "low": 8000,  # 8GB - comfortable
         "medium": 12000,  # 12GB - caution
         "high": 14000,  # 14GB - scale down
@@ -349,7 +343,7 @@ class PredictiveResourceScheduler:
         self,
         queue_name: str,
         current_queue_length: int,
-        base_batch_size: int = 32,  # noqa: S107
+        base_batch_size: int = 32,
     ) -> dict[str, Any]:
         """
         Get scheduling decision based on predictions and current state.
@@ -422,15 +416,14 @@ class PredictiveResourceScheduler:
 
         if callback:
             try:
-                logger.info(f"[PredictiveScheduler] Warming up {model_name}")
+                logger.info("[PredictiveScheduler] Warming up %s", model_name)
                 await callback()
 
                 with self._lock:
                     self._models_loaded[model_name] = True
 
-            except Exception as e:
-                logger.error(f"Failed to warmup {model_name}: {e}")
-
+            except (RuntimeError, OSError) as e:
+                logger.error("Failed to warmup %s: %s", model_name, e)
 
 class GPUCommandQueue:
     """
@@ -481,7 +474,7 @@ class GPUCommandQueue:
             self._worker_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await self._worker_task
-        logger.info(f"[GPUQueue:{self.name}] Stopped")
+        logger.info("[GPUQueue:%s] Stopped", self.name)
 
     async def submit(self, task: GPUTask) -> Any:
         """
@@ -529,8 +522,8 @@ class GPUCommandQueue:
 
         except TimeoutError:
             pass  # No tasks available, return empty batch
-        except Exception as e:
-            logger.error(f"[GPUQueue:{self.name}] Worker error: {e}")
+        except (RuntimeError, OSError) as e:
+            logger.error("[GPUQueue:%s] Worker error: %s", self.name, e)
 
         return batch
 
@@ -593,8 +586,8 @@ class GPUCommandQueue:
                 f"[GPUQueue:{self.name}] Batch of {len(batch)} completed in {gpu_time:.1f}ms"
             )
 
-        except Exception as e:
-            logger.error(f"[GPUQueue:{self.name}] Batch execution failed: {e}")
+        except (RuntimeError, OSError) as e:
+            logger.error("[GPUQueue:%s] Batch execution failed: %s", self.name, e)
             # Fail all tasks in batch
             for task in batch:
                 if task.future and not task.future.done():
@@ -610,7 +603,6 @@ class GPUCommandQueue:
             **self._stats.to_dict(),
             "queue_size": self._queue.qsize() if self._queue else 0,
         }
-
 
 class GPUPipelineScheduler:
     """
@@ -667,7 +659,7 @@ class GPUPipelineScheduler:
             await queue.start()
 
         self._started = True
-        logger.info(f"[GPUScheduler] Started {len(self._queues)} queues")
+        logger.info("[GPUScheduler] Started %s queues", len(self._queues))
 
     async def stop_all(self):
         """Stop all queues."""
@@ -736,10 +728,9 @@ class GPUPipelineScheduler:
             "total_queues": len(self._queues),
         }
 
-
 class InferencePipeline:
     """
-    Concurrent inference pipeline for ShikshaSetu.
+    Concurrent inference pipeline for Oryon.
 
     Pipeline stages:
     1. Tokenize (CPU) - Prepare input
@@ -836,13 +827,11 @@ class InferencePipeline:
         """Get pipeline statistics."""
         return self.scheduler.get_stats()
 
-
 # ==================== SINGLETON INSTANCES ====================
 
 _gpu_scheduler: GPUPipelineScheduler | None = None
 _predictive_scheduler: PredictiveResourceScheduler | None = None
-_scheduler_lock = threading.Lock()
-
+_scheduler_lock = create_lock()
 
 def get_gpu_scheduler() -> GPUPipelineScheduler:
     """Get global GPU pipeline scheduler."""
@@ -853,7 +842,6 @@ def get_gpu_scheduler() -> GPUPipelineScheduler:
                 _gpu_scheduler = GPUPipelineScheduler()
     return _gpu_scheduler
 
-
 def get_predictive_scheduler() -> PredictiveResourceScheduler:
     """Get global predictive resource scheduler."""
     global _predictive_scheduler
@@ -863,7 +851,6 @@ def get_predictive_scheduler() -> PredictiveResourceScheduler:
                 _predictive_scheduler = PredictiveResourceScheduler()
                 logger.info("Created PredictiveResourceScheduler singleton")
     return _predictive_scheduler
-
 
 __all__ = [
     "GPUCommandQueue",

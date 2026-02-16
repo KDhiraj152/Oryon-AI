@@ -1,1 +1,1 @@
-"""Integration tests for ShikshaSetu services."""
+"""Integration tests for Oryon services."""

@@ -23,7 +23,6 @@ __all__ = [
     "TaskType",
 ]
 
-
 class ModelTier(StrEnum):
     """Model capability tiers for routing decisions.
 
@@ -35,7 +34,6 @@ class ModelTier(StrEnum):
     STANDARD = "standard"  # Balanced, for general chat
     STRONG = "strong"  # Powerful, for complex reasoning
     SPECIALIZED = "specialized"  # Domain-specific models
-
 
 class TaskType(StrEnum):
     """Task types for model routing and scheduling.
@@ -52,7 +50,6 @@ class TaskType(StrEnum):
     RERANKING = "reranking"
     VALIDATION = "validation"
     SYSTEM = "system"
-
 
 class ModelType(StrEnum):
     """Hardware-level model categories for the model manager.

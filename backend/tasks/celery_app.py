@@ -30,7 +30,6 @@ else:
     BROKER_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
     RESULT_BACKEND = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
 
-
 # Define retriable exceptions - these indicate transient failures
 RETRIABLE_EXCEPTIONS = (
     ConnectionError,
@@ -48,7 +47,6 @@ NON_RETRIABLE_EXCEPTIONS = (
     AttributeError,
     PermissionError,
 )
-
 
 class SmartRetryTask(Task):
     """
@@ -71,7 +69,7 @@ class SmartRetryTask(Task):
                 f"Task {self.name} [{task_id}] permanently failed (non-retriable): {exc}"
             )
         else:
-            logger.error(f"Task {self.name} [{task_id}] failed: {exc}")
+            logger.error("Task %s [%s] failed: %s", self.name, task_id, exc)
         super().on_failure(exc, task_id, args, kwargs, einfo)
 
     def on_retry(self, exc, task_id, args, kwargs, einfo):
@@ -81,10 +79,9 @@ class SmartRetryTask(Task):
         )
         super().on_retry(exc, task_id, args, kwargs, einfo)
 
-
 # Create Celery app with custom task base
 celery_app = Celery(
-    "shiksha_setu",
+    "oryon",
     broker=BROKER_URL,
     backend=RESULT_BACKEND,
     task_cls=SmartRetryTask,
@@ -173,15 +170,13 @@ celery_app.conf.update(
     },
 )
 
-
 # Task lifecycle signals
 @task_prerun.connect
 def task_prerun_handler(
     sender=None, task_id=None, task=None, args=None, kwargs=None, **extra
 ):
     """Log task start."""
-    logger.info(f"Task {task.name} [{task_id}] started")
-
+    logger.info("Task %s [%s] started", task.name, task_id)
 
 @task_postrun.connect
 def task_postrun_handler(
@@ -195,14 +190,12 @@ def task_postrun_handler(
     **extra,
 ):
     """Log task completion."""
-    logger.info(f"Task {task.name} [{task_id}] completed with state: {state}")
-
+    logger.info("Task %s [%s] completed with state: %s", task.name, task_id, state)
 
 @task_success.connect
 def task_success_handler(sender=None, result=None, **extra):
     """Handle successful task completion."""
-    logger.info(f"Task {sender.name} completed successfully")
-
+    logger.info("Task %s completed successfully", sender.name)
 
 @task_failure.connect
 def task_failure_handler(
@@ -222,18 +215,16 @@ def task_failure_handler(
     2. Importing and calling send_alert(f"Task {sender.name} failed: {exception}")
     3. Configure alert channels via environment variables (SLACK_WEBHOOK_URL, ALERT_EMAIL, etc.)
     """
-    logger.error(f"Task {sender.name} [{task_id}] failed: {exception}")
-    logger.error(f"Traceback: {traceback}")
+    logger.error("Task %s [%s] failed: %s", sender.name, task_id, exception)
+    logger.error("Traceback: %s", traceback)
 
     # Alerting mechanism can be added here when needed
     # send_alert(f"Task {sender.name} failed: {exception}")
 
-
 @task_retry.connect
 def task_retry_handler(sender=None, task_id=None, reason=None, einfo=None, **extra):
     """Handle task retry."""
-    logger.warning(f"Task {sender.name} [{task_id}] is being retried: {reason}")
-
+    logger.warning("Task %s [%s] is being retried: %s", sender.name, task_id, reason)
 
 # Utility functions
 def get_task_info(task_id: str) -> dict:
@@ -263,27 +254,24 @@ def get_task_info(task_id: str) -> dict:
 
     return info
 
-
 def revoke_task(task_id: str, terminate: bool = False) -> bool:
     """Cancel a running task."""
     try:
         celery_app.control.revoke(task_id, terminate=terminate, signal="SIGKILL")
-        logger.info(f"Task {task_id} revoked (terminate={terminate})")
+        logger.info("Task %s revoked (terminate=%s)", task_id, terminate)
         return True
-    except Exception as e:
-        logger.error(f"Failed to revoke task {task_id}: {e}")
+    except (OSError, ConnectionError, TimeoutError) as e:
+        logger.error("Failed to revoke task %s: %s", task_id, e)
         return False
-
 
 # Export
 __all__ = ["celery_app", "get_task_info", "revoke_task"]
-
 
 def _is_task_expired(result_data: bytes, current_time, expiry_threshold) -> bool:
     """Check if a task result is expired and should be deleted."""
     import json
 
-    from dateutil import parser
+    from dateutil import parser  # type: ignore[import-untyped]
 
     try:
         result = json.loads(result_data)
@@ -297,11 +285,10 @@ def _is_task_expired(result_data: bytes, current_time, expiry_threshold) -> bool
             return False
 
         done_time = parser.parse(date_done)
-        return current_time - done_time.replace(tzinfo=None) > expiry_threshold
+        return bool(current_time - done_time.replace(tzinfo=None) > expiry_threshold)
 
     except json.JSONDecodeError:
         return False
-
 
 def _delete_expired_keys(
     redis_client, result_keys: list, current_time, expiry_threshold
@@ -317,11 +304,10 @@ def _delete_expired_keys(
             ):
                 redis_client.delete(key)
                 deleted_count += 1
-        except Exception as e:
-            logger.warning(f"Failed to process key {key}: {e}")
+        except (OSError, ConnectionError, TimeoutError) as e:
+            logger.warning("Failed to process key %s: %s", key, e)
 
     return deleted_count
-
 
 # Cleanup task implementation
 @celery_app.task(name="backend.tasks.celery_app.cleanup_expired_results")
@@ -342,9 +328,9 @@ def cleanup_expired_results():
             redis_client, result_keys, current_time, expiry_threshold
         )
 
-        logger.info(f"Cleanup completed: deleted {deleted_count} expired task results")
+        logger.info("Cleanup completed: deleted %s expired task results", deleted_count)
         return {"deleted_count": deleted_count}
 
-    except Exception as e:
-        logger.error(f"Cleanup task failed: {e}")
+    except (OSError, ConnectionError, TimeoutError) as e:
+        logger.error("Cleanup task failed: %s", e)
         raise

@@ -10,7 +10,7 @@ Solution: Comprehensive Sentry integration with context capture
 import logging
 import os
 from functools import wraps
-from typing import Any, Dict, Optional
+from typing import Any
 
 # Safe import of sentry_sdk - gracefully handle if not installed
 try:
@@ -24,22 +24,20 @@ try:
     SENTRY_AVAILABLE = True
 except ImportError:
     SENTRY_AVAILABLE = False
-    sentry_sdk = None
+    sentry_sdk = None  # type: ignore[assignment]
 
-from ..core.config import get_settings
+from backend.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
 # Lazy settings access to avoid module-level instantiation
 settings = None
 
-
 def _get_settings():
     global settings
     if settings is None:
         settings = get_settings()
     return settings
-
 
 def init_sentry():
     """Initialize Sentry error tracking."""
@@ -83,8 +81,7 @@ def init_sentry():
         before_send=before_send_hook,
     )
 
-    logger.info(f"Sentry initialized for environment: {environment}")
-
+    logger.info("Sentry initialized for environment: %s", environment)
 
 def before_send_hook(
     event: dict[str, Any], hint: dict[str, Any]
@@ -109,10 +106,10 @@ def before_send_hook(
             "HTTPException",  # FastAPI HTTP exceptions
         )
 
-        if exc_type.__name__ in ignored_exceptions:
+        if (exc_type.__name__ in ignored_exceptions
+                and hasattr(exc_value, "status_code") and exc_value.status_code < 500):
             # Only log to Sentry if it's a server error (5xx)
-            if hasattr(exc_value, "status_code") and exc_value.status_code < 500:
-                return None
+            return None
 
     # Filter sensitive data from request
     if "request" in event:
@@ -134,7 +131,6 @@ def before_send_hook(
                     request["query_string"] = "[FILTERED]"
 
     return event
-
 
 def capture_exception(
     error: Exception,
@@ -170,9 +166,8 @@ def capture_exception(
 
         # Capture exception
         event_id = sentry_sdk.capture_exception(error)
-        logger.error(f"Exception captured with Sentry ID: {event_id}")
+        logger.error("Exception captured with Sentry ID: %s", event_id)
         return event_id
-
 
 def capture_message(
     message: str,
@@ -203,8 +198,7 @@ def capture_message(
             for key, value in tags.items():
                 scope.set_tag(key, value)
 
-        return sentry_sdk.capture_message(message, level=level)
-
+        return sentry_sdk.capture_message(message, level=level)  # type: ignore[arg-type]
 
 def add_breadcrumb(
     message: str,
@@ -225,7 +219,6 @@ def add_breadcrumb(
         message=message, category=category, level=level, data=data or {}
     )
 
-
 def set_user_context(
     user_id: str | None = None,
     email: str | None = None,
@@ -237,16 +230,13 @@ def set_user_context(
         {"id": user_id, "email": email, "username": username, "ip_address": ip_address}
     )
 
-
 def set_tag(key: str, value: str):
     """Set custom tag for filtering."""
     sentry_sdk.set_tag(key, value)
 
-
 def set_context(name: str, context: dict[str, Any]):
     """Set custom context."""
     sentry_sdk.set_context(name, context)
-
 
 # Decorator for automatic error capture
 def monitor_errors(
@@ -312,7 +302,6 @@ def monitor_errors(
 
     return decorator
 
-
 # Performance monitoring
 class PerformanceMonitor:
     """Context manager for performance monitoring."""
@@ -338,12 +327,13 @@ class PerformanceMonitor:
 
     def add_span(self, op: str, description: str):
         """Add a span to the transaction."""
+        if self.transaction is None:
+            return None
         return self.transaction.start_child(op=op, description=description)
 
     def span(self, description: str):
         """Create a span context manager."""
         return SpanContext(self, description)
-
 
 class SpanContext:
     """Context manager for spans within a performance monitor."""
@@ -365,7 +355,6 @@ class SpanContext:
         if self.span:
             self.span.__exit__(exc_type, exc_val, exc_tb)
 
-
 # Health check for Sentry
 def sentry_health_check() -> dict[str, Any]:
     """Check if Sentry is properly configured."""
@@ -378,5 +367,5 @@ def sentry_health_check() -> dict[str, Any]:
             "environment": _get_settings().ENVIRONMENT,
             "test_event_id": event_id,
         }
-    except Exception as e:
+    except (RuntimeError, OSError) as e:
         return {"status": "unhealthy", "configured": False, "error": str(e)}

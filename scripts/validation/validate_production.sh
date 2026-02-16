@@ -97,7 +97,7 @@ check_dockerfiles() {
         log_success "Backend Dockerfile exists"
 
         # Validate Dockerfile syntax
-        if docker build -f "$PROJECT_ROOT/infrastructure/docker/Dockerfile.backend" -t shikshasetu-backend:test "$PROJECT_ROOT" --dry-run 2>&1 | grep -q "error"; then
+        if docker build -f "$PROJECT_ROOT/infrastructure/docker/Dockerfile.backend" -t oryon-backend:test "$PROJECT_ROOT" --dry-run 2>&1 | grep -q "error"; then
             log_error "Backend Dockerfile has syntax errors"
         fi
     else

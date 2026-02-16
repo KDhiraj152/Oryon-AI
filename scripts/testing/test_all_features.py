@@ -3,10 +3,10 @@
 Comprehensive AI/ML Pipeline Feature Test
 Tests all major features to show current capabilities and gaps
 """
-import sys
-import os
 import asyncio
 import logging
+import os
+import sys
 from pathlib import Path
 
 # Add project root to Python path
@@ -57,7 +57,7 @@ def test_configuration():
 
     try:
         from backend.core.config import settings
-        print_result("Config Loading", "✅", f"Loaded successfully")
+        print_result("Config Loading", "✅", "Loaded successfully")
         print(f"   Content Gen Model: {settings.CONTENT_GEN_MODEL_ID}")
         print(f"   Embedding Model: {settings.EMBEDDING_MODEL_ID}")
         print(f"   Validator Model: {settings.VALIDATOR_MODEL_ID}")
@@ -77,8 +77,12 @@ def test_model_loader():
     print_section("TEST 2: Model Manager (Optimized)")
 
     try:
-        from backend.core.optimized import get_model_manager, get_device_router, M4_BATCH_SIZES
-        manager = get_model_manager()
+        from backend.core.optimized import (
+            M4_BATCH_SIZES,
+            get_device_router,
+            get_model_manager,
+        )
+        get_model_manager()
         router = get_device_router()
         print_result("Model Manager Init", "✅", f"Device: {router.device_type}")
 
@@ -134,8 +138,8 @@ def test_content_generation():
     print_section("TEST 4: Content Generation (Qwen3-8B)")
 
     try:
-        from backend.pipeline.model_clients import QwenSimplificationClient
         from backend.core.config import settings
+        from backend.pipeline.model_clients import QwenSimplificationClient
 
         print("⏳ Testing Qwen3-8B content generation...")
         try:
@@ -272,7 +276,7 @@ def test_content_validator():
         print(f"\n📝 Test Content: {test_text}")
 
         metrics = validator.get_readability_metrics(test_text)
-        print(f"\n📊 Readability Metrics:")
+        print("\n📊 Readability Metrics:")
         print(f"   Average Sentence Length: {metrics['avg_sentence_length']} words")
         print(f"   Average Word Length: {metrics['avg_word_length']} characters")
         print(f"   Total Sentences: {metrics['total_sentences']}")
@@ -288,7 +292,7 @@ def test_content_validator():
                 target_grade=9,
                 subject="biology"
             )
-            print(f"\n🎯 Validation Result:")
+            print("\n🎯 Validation Result:")
             print(f"   Appropriate: {result['is_appropriate']}")
             print(f"   Predicted Grade: {result['predicted_grade']}")
             print(f"   Confidence: {result['confidence']:.2%}")
@@ -322,7 +326,6 @@ def test_document_processing():
         """
 
         # Just test chunking without embeddings
-        from backend.services.rag import RAGService
         rag = RAGService.__new__(RAGService)  # Create without __init__
         rag.embedding_model = None  # Don't load model
 
@@ -354,8 +357,8 @@ def test_pipeline_orchestration():
         print_result("Pipeline Import", "✅", "Orchestrator loaded successfully")
 
         # Note: Full pipeline test requires models to be downloaded
-        print("   ℹ️  Full pipeline test requires all models downloaded")
-        print("   ℹ️  Use: python scripts/test_full_pipeline.py")
+        print("   (i) Full pipeline test requires all models downloaded")
+        print("   (i) Use: python scripts/test_full_pipeline.py")
 
         return True
 
@@ -371,8 +374,9 @@ def test_api_endpoints():
     print_section("TEST 10: API Endpoints")
 
     try:
-        from backend.api.main import app
         from fastapi.testclient import TestClient
+
+        from backend.api.main import app
 
         client = TestClient(app)
 
@@ -466,7 +470,7 @@ def print_summary():
 def main():
     """Run all tests."""
     print("\n" + "="*70)
-    print("  ShikshaSetu AI/ML Pipeline - Comprehensive Feature Test")
+    print("  Oryon AI/ML Pipeline - Comprehensive Feature Test")
     print("  Testing all features to assess current capabilities")
     print("="*70)
 

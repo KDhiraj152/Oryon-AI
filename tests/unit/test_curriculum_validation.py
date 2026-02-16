@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 
 from backend.models import ContentValidation, ContentStandard, ProcessedContent
-from backend.services.content_validation import (
+from backend.services.content.content_validation import (
     ContentValidationService,
     validate_in_pipeline,
 )

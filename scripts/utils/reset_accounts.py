@@ -8,19 +8,20 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from backend.database import SessionLocal
+from backend.database import SessionLocal, get_db_session
 from backend.models import User
 from backend.utils.auth import get_password_hash
+
 
 def reset_demo_accounts():
     """Delete and recreate demo accounts"""
     
     demo_users = [
         {
-            "email": "demo@shiksha.com",
+            "email": "demo@oryon.com",
             "password": "demo123",
             "full_name": "Demo User",
-            "organization": "ShikshaSetu Demo",
+            "organization": "Oryon Demo",
             "role": "user"
         },
         {
@@ -72,7 +73,7 @@ def reset_demo_accounts():
     print("="*60 + "\n")
     
     print("🔐 SIMPLE LOGIN CREDENTIALS:\n")
-    print("Email: demo@shiksha.com")
+    print("Email: demo@oryon.com")
     print("Password: demo123\n")
     
     print("Email: test@test.com")

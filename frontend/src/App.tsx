@@ -1,14 +1,13 @@
 import { lazy, Suspense, useEffect, memo } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from './store';
-import { ThemeProvider } from './context/ThemeContext';
 import { SystemStatusProvider } from './context/SystemStatusContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { SkipLink } from './lib/accessibility';
 import AppLayout from './components/layout/AppLayout';
 
 // Lazy load pages for better initial load performance
-const Chat = lazy(() => import('./pages/Chat'));
+const Chat = lazy(() => import('./pages/ChatV2'));
 const Auth = lazy(() => import('./pages/Auth'));
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const Settings = lazy(() => import('./pages/Settings'));
@@ -33,10 +32,10 @@ const RoutePrefetcher = memo(function RoutePrefetcher() {
       if (location.pathname === '/') {
         // On landing page, likely to go to auth or chat
         import('./pages/Auth');
-        import('./pages/Chat');
+        import('./pages/ChatV2');
       } else if (location.pathname === '/auth') {
         // After auth, likely to go to chat
-        import('./pages/Chat');
+        import('./pages/ChatV2');
       } else if (location.pathname === '/chat') {
         // In chat, might go to settings
         import('./pages/Settings');
@@ -59,8 +58,7 @@ const App = memo(function App() {
 
   return (
     <ErrorBoundary>
-      <ThemeProvider>
-        <SystemStatusProvider>
+      <SystemStatusProvider>
           {/* Skip link for keyboard users */}
           <SkipLink />
 
@@ -90,7 +88,6 @@ const App = memo(function App() {
             </Suspense>
           </Router>
         </SystemStatusProvider>
-      </ThemeProvider>
     </ErrorBoundary>
   );
 });

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Quick Demo: ShikshaSetu AI/ML Pipeline
+Quick Demo: Oryon AI/ML Pipeline
 
 Demonstrates that all AI/ML components are working.
 """
@@ -12,7 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 print("=" * 80)
-print("ShikshaSetu AI/ML Pipeline - Quick Demo")
+print("Oryon AI/ML Pipeline - Quick Demo")
 print("=" * 80)
 print()
 
@@ -26,8 +26,8 @@ try:
         QwenSimplificationClient,
     )
     from backend.pipeline.orchestrator import ContentPipelineOrchestrator, PipelineStage
-    from backend.services.content_validation import ContentValidationService
     from backend.services.complexity_adaptation import GradeAdaptationService
+    from backend.services.content_validation import ContentValidationService
     from backend.services.question_generator import QuestionGeneratorService
     from backend.services.rag import RAGService
     from backend.services.validate.content_domain import ContentValidator
@@ -183,7 +183,7 @@ print("✅ Content Validator: OPERATIONAL")
 print("✅ API Endpoints: REGISTERED")
 print(f"✅ AI/ML Services: {sum(services_status)}/{len(services_status)} AVAILABLE")
 print()
-print("🎓 ShikshaSetu AI/ML Pipeline is READY FOR USE!")
+print("🎓 Oryon AI/ML Pipeline is READY FOR USE!")
 print()
 print("Next Steps:")
 print("  1. Download models: python scripts/download_models.py")

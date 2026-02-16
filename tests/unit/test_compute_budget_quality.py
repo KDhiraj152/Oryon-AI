@@ -7,11 +7,11 @@ Verifies that no optimization degrades:
   - Edge-case handling (misclassification scenarios)
 """
 import pytest
-from backend.services.ai_core.compute_budget import (
+from backend.services.chat.compute_budget import (
     ComputeClass, ComputeBudget, classify_compute, get_budget, COMPUTE_BUDGETS,
 )
-from backend.services.ai_core.formatter import Intent
-from backend.services.ai_core.router import ModelTier, TIER_ORDER
+from backend.services.chat.formatter import Intent
+from backend.services.chat.router import ModelTier, TIER_ORDER
 
 
 # ── Quality dimension 1: Factual accuracy ──────────────────────────────

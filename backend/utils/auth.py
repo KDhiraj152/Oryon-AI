@@ -5,7 +5,7 @@ import logging
 import re
 import uuid
 from datetime import UTC, datetime, timedelta, timezone
-from typing import Any, Dict, Optional
+from typing import Any
 
 import bcrypt
 from jose import JWTError, jwt
@@ -44,7 +44,6 @@ ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 REFRESH_TOKEN_EXPIRE_DAYS = settings.REFRESH_TOKEN_EXPIRE_DAYS
 BCRYPT_ROUNDS = settings.BCRYPT_ROUNDS
 
-
 # Re-export schemas for backward compatibility
 __all__ = [
     "Token",
@@ -61,9 +60,7 @@ __all__ = [
     "verify_token",
 ]
 
-
 # Password utilities
-
 
 def validate_password_strength(password: str) -> tuple[bool, str]:
     """
@@ -94,7 +91,6 @@ def validate_password_strength(password: str) -> tuple[bool, str]:
 
     return True, ""
 
-
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against its hash."""
     try:
@@ -108,10 +104,9 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
             hashed_bytes = hashed_password
 
         return bcrypt.checkpw(password_bytes, hashed_bytes)
-    except Exception as e:
-        logger.error(f"Password verification error: {e}")
+    except (ValueError, RuntimeError) as e:
+        logger.error("Password verification error: %s", e)
         return False
-
 
 def get_password_hash(password: str) -> str:
     """Hash password using bcrypt with configurable work factor."""
@@ -126,20 +121,16 @@ def get_password_hash(password: str) -> str:
     hashed = bcrypt.hashpw(password_bytes, salt)
     return hashed.decode("utf-8")
 
-
 # Token utilities
-
 
 def generate_jti() -> str:
     """Generate unique JWT ID for token tracking."""
     return str(uuid.uuid4())
 
-
 def generate_device_fingerprint(user_agent: str, ip_address: str) -> str:
     """Generate device fingerprint from user agent and IP."""
     fingerprint_data = f"{user_agent}:{ip_address}"
     return hashlib.sha256(fingerprint_data.encode()).hexdigest()
-
 
 def create_access_token(
     data: dict[str, Any],
@@ -176,8 +167,7 @@ def create_access_token(
     )
 
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
-
+    return str(encoded_jwt)
 
 def create_refresh_token(
     data: dict[str, Any], parent_jti: str | None = None, rotation_count: int = 0
@@ -210,7 +200,6 @@ def create_refresh_token(
 
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt, token_jti, expire
-
 
 def verify_token(token: str, token_type: str = "access") -> TokenData | None:
     """
@@ -246,9 +235,8 @@ def verify_token(token: str, token_type: str = "access") -> TokenData | None:
         return TokenData(user_id=user_id, email=email, role=role)
 
     except JWTError as e:
-        logger.error(f"JWT verification failed: {e}")
+        logger.error("JWT verification failed: %s", e)
         return None
-
 
 def create_tokens(user_id: str, email: str, role: str = "user") -> Token:
     """
@@ -274,7 +262,6 @@ def create_tokens(user_id: str, email: str, role: str = "user") -> Token:
         expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     )
 
-
 def refresh_access_token(refresh_token: str) -> str | None:
     """
     Create new access token from refresh token.
@@ -296,13 +283,11 @@ def refresh_access_token(refresh_token: str) -> str | None:
 
     return new_access_token
 
-
 # FastAPI dependencies
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 security = HTTPBearer()
-
 
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
@@ -331,7 +316,6 @@ def get_current_user(
 
     return token_data
 
-
 def get_current_active_user(
     current_user: TokenData = Depends(get_current_user),
 ) -> TokenData:
@@ -349,7 +333,6 @@ def get_current_active_user(
     """
     # In production, check database for user.is_active
     return current_user
-
 
 def require_admin(current_user: TokenData = Depends(get_current_user)) -> TokenData:
     """
@@ -370,7 +353,6 @@ def require_admin(current_user: TokenData = Depends(get_current_user)) -> TokenD
         )
 
     return current_user
-
 
 def get_current_user_ws(token: str) -> TokenData:
     """
@@ -394,11 +376,10 @@ def get_current_user_ws(token: str) -> TokenData:
         if user_id is None:
             raise ValueError("Invalid token: missing user_id")
 
-        return TokenData(id=user_id, email=email, role=role)
+        return TokenData(user_id=user_id, email=email, role=role)
 
     except JWTError as e:
         raise ValueError(f"Token validation failed: {e}")
-
 
 # Export
 __all__ = [

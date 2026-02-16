@@ -1,0 +1,44 @@
+"""Kustomize configuration for Oryon."""
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: oryon-ai
+
+resources:
+  - deployment.yaml
+  - ingress.yaml
+  - network-policy.yaml
+  - base/rbac.yaml
+
+# Common labels for all resources
+commonLabels:
+  app.kubernetes.io/name: oryon-ai
+  app.kubernetes.io/managed-by: kustomize
+
+# Variable substitution for cloud provider credentials
+# Set these via environment variables or overlay-specific kustomization
+replacements:
+  - source:
+      kind: ConfigMap
+      name: cloud-config
+      fieldPath: data.AWS_ACCOUNT_ID
+    targets:
+      - select:
+          kind: ServiceAccount
+          name: external-secrets-sa
+        fieldPaths:
+          - metadata.annotations.[eks.amazonaws.com/role-arn]
+        options:
+          delimiter: ':'
+          index: 4
+
+# Base images with semantic versioning (override in environment overlays)
+# DO NOT use 'latest' tag in production - always pin to specific versions
+images:
+  - name: oryon-ai/api
+    newName: oryon-ai/api
+    newTag: v1.0.0  # Replace with actual version or override in overlays
+  - name: oryon-ai/worker
+    newName: oryon-ai/worker
+    newTag: v1.0.0  # Replace with actual version or override in overlays

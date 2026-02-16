@@ -37,12 +37,13 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import IntEnum
 from functools import wraps
-from typing import Any, Dict, Optional, TypeVar
+from typing import Any, ClassVar, TypeVar
+
+from backend.utils.lock_factory import create_lock
 
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
-
 
 # macOS QoS classes
 class QoSClass(IntEnum):
@@ -53,7 +54,6 @@ class QoSClass(IntEnum):
     DEFAULT = 0x15  # Normal
     UTILITY = 0x11  # Low - Long-running, non-UI (E-cores)
     BACKGROUND = 0x09  # Lowest - Maintenance tasks (E-cores)
-
 
 @dataclass
 class M4CoreConfig:
@@ -84,7 +84,6 @@ class M4CoreConfig:
     cache_affinity: str = "e-core"  # Caching on efficiency
     background_affinity: str = "e-core"  # Background on efficiency
 
-
 class TaskQoS:
     """
     Task Quality of Service classifier.
@@ -94,7 +93,7 @@ class TaskQoS:
     """
 
     # Task type to QoS mapping
-    TASK_QOS = {
+    TASK_QOS: ClassVar[dict[str, QoSClass]] = {
         # P-core tasks (high priority) - ML inference
         "llm_inference": QoSClass.USER_INITIATED,
         "llm_streaming": QoSClass.USER_INTERACTIVE,
@@ -124,7 +123,8 @@ class TaskQoS:
     @classmethod
     def get_qos(cls, task_type: str) -> QoSClass:
         """Get QoS class for task type."""
-        return cls.TASK_QOS.get(task_type, QoSClass.DEFAULT)
+        result = cls.TASK_QOS.get(task_type)
+        return result if result is not None else QoSClass.DEFAULT
 
     @classmethod
     def is_p_core_task(cls, task_type: str) -> bool:
@@ -138,7 +138,6 @@ class TaskQoS:
         qos = cls.get_qos(task_type)
         return qos in (QoSClass.UTILITY, QoSClass.BACKGROUND)
 
-
 class CoreAffinityManager:
     """
     Manages thread-to-core affinity for M4.
@@ -151,7 +150,7 @@ class CoreAffinityManager:
     """
 
     _instance = None
-    _lock = threading.Lock()
+    _lock = create_lock()
 
     def __new__(cls):
         if cls._instance is None:
@@ -179,8 +178,8 @@ class CoreAffinityManager:
         if self._is_macos:
             try:
                 self._qos_lib = ctypes.CDLL("/usr/lib/system/libsystem_pthread.dylib")
-            except Exception as e:
-                logger.warning(f"Could not load pthread library: {e}")
+            except (OSError, RuntimeError) as e:
+                logger.warning("Could not load pthread library: %s", e)
 
         self._initialized = True
         logger.info(
@@ -202,9 +201,9 @@ class CoreAffinityManager:
                 qos_class.value,
                 0,  # relative priority
             )
-            return result == 0
-        except Exception as e:
-            logger.warning(f"Failed to set QoS: {e}")
+            return bool(result == 0)
+        except (RuntimeError, OSError, ctypes.ArgumentError) as e:
+            logger.warning("Failed to set QoS: %s", e)
             return False
 
     def get_p_core_pool(self) -> ThreadPoolExecutor:
@@ -252,12 +251,12 @@ class CoreAffinityManager:
     def _init_p_core_thread(self):
         """Initialize thread for P-core execution."""
         self.set_thread_qos(QoSClass.USER_INITIATED)
-        logger.debug(f"Thread {threading.current_thread().name} set to P-core QoS")
+        logger.debug("Thread %s set to P-core QoS", threading.current_thread().name)
 
     def _init_e_core_thread(self):
         """Initialize thread for E-core execution."""
         self.set_thread_qos(QoSClass.UTILITY)
-        logger.debug(f"Thread {threading.current_thread().name} set to E-core QoS")
+        logger.debug("Thread %s set to E-core QoS", threading.current_thread().name)
 
     async def run_on_p_core(self, func: Callable[..., T], *args, **kwargs) -> T:
         """
@@ -319,7 +318,6 @@ class CoreAffinityManager:
             },
         }
 
-
 @contextmanager
 def qos_scope(task_type: str):
     """
@@ -336,7 +334,7 @@ def qos_scope(task_type: str):
     # Set QoS
     success = manager.set_thread_qos(qos)
     if success:
-        logger.debug(f"Set QoS to {qos.name} for {task_type}")
+        logger.debug("Set QoS to %s for %s", qos.name, task_type)
 
     try:
         yield
@@ -344,7 +342,6 @@ def qos_scope(task_type: str):
         # Reset to default
         if success:
             manager.set_thread_qos(QoSClass.DEFAULT)
-
 
 def p_core_task(func: Callable[..., T]) -> Callable[..., T]:
     """
@@ -367,7 +364,6 @@ def p_core_task(func: Callable[..., T]) -> Callable[..., T]:
 
     return wrapper
 
-
 def e_core_task(func: Callable[..., T]) -> Callable[..., T]:
     """
     Decorator to run function on E-core.
@@ -389,11 +385,9 @@ def e_core_task(func: Callable[..., T]) -> Callable[..., T]:
 
     return wrapper
 
-
 # ==================== SINGLETON ====================
 
 _affinity_manager: CoreAffinityManager | None = None
-
 
 def get_affinity_manager() -> CoreAffinityManager:
     """Get global core affinity manager."""
@@ -401,7 +395,6 @@ def get_affinity_manager() -> CoreAffinityManager:
     if _affinity_manager is None:
         _affinity_manager = CoreAffinityManager()
     return _affinity_manager
-
 
 __all__ = [
     "CoreAffinityManager",

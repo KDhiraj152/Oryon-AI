@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-ShikshaSetu Startup Validation Script
+Oryon Startup Validation Script
 Checks all components before startup
 """
 
 import os
-import sys
 import subprocess
+import sys
 from pathlib import Path
 
 # Colors for output
@@ -116,8 +116,9 @@ def check_database_connection():
     print_header("Database Connection Check")
 
     try:
-        from backend.database import init_db, engine
         from sqlalchemy import text
+
+        from backend.database import engine, init_db
 
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
@@ -155,7 +156,7 @@ def check_python_syntax():
 
     for py_file in py_files:
         try:
-            with open(py_file, 'r') as f:
+            with open(py_file) as f:
                 ast.parse(f.read())
         except SyntaxError as e:
             errors.append(f"{py_file}: {e}")
@@ -178,7 +179,7 @@ def check_migrations():
     return True
 
 def main():
-    print(f"\n{BLUE}ShikshaSetu Startup Validation{RESET}\n")
+    print(f"\n{BLUE}Oryon Startup Validation{RESET}\n")
 
     checks = [
         ("Python Environment", check_python),

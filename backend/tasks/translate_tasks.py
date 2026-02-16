@@ -5,19 +5,17 @@ Tasks for translation using IndicTrans2-1B.
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from .celery_config import celery_app
 
 logger = logging.getLogger(__name__)
 
-
 def get_translator():
     """Get translator singleton (uses lru_cache from model.py)."""
-    from backend.services.translate.model import get_translator as _get_translator
+    from backend.ml.translate.model import get_translator as _get_translator
 
     return _get_translator()
-
 
 @celery_app.task(
     name="translate.text",
@@ -72,7 +70,7 @@ def translate_text(
         }
 
     except Exception as e:
-        logger.error(f"Translation failed: {e}")
+        logger.error("Translation failed: %s", e)
 
         if self.request.retries < self.max_retries:
             raise self.retry(exc=e)
@@ -82,7 +80,6 @@ def translate_text(
             "error": str(e),
             "original_text": text,
         }
-
 
 @celery_app.task(
     name="translate.batch",
@@ -132,12 +129,11 @@ def translate_batch(
         }
 
     except Exception as e:
-        logger.error(f"Batch translation failed: {e}")
+        logger.error("Batch translation failed: %s", e)
         return {
             "success": False,
             "error": str(e),
         }
-
 
 @celery_app.task(
     name="translate.detect_language",
@@ -191,13 +187,12 @@ def detect_language(self, text: str) -> dict[str, Any]:
         }
 
     except Exception as e:
-        logger.error(f"Language detection failed: {e}")
+        logger.error("Language detection failed: %s", e)
         return {
             "success": False,
             "error": str(e),
             "detected_language": "en",
         }
-
 
 @celery_app.task(
     name="translate.supported_languages",

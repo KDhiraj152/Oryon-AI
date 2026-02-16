@@ -8,13 +8,14 @@ OPTIMIZED: Using async database sessions to avoid blocking event loop.
 
 import asyncio
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 
-from ...database import get_async_db_session
+from backend.db.database import get_async_db_session
+
 from ...models import User
 from ...schemas.auth import AuthResponse, Token, UserCreate, UserData, UserLogin
 from ...utils.auth import (
@@ -30,38 +31,31 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["auth"])
 
-
 # ==================== Models ====================
-
 
 class RefreshRequest(BaseModel):
     refresh_token: str
-
 
 class UserUpdateRequest(BaseModel):
     name: str | None = None
     preferences: dict[str, Any] | None = None
 
-
 # ==================== Helper Functions ====================
-
 
 def user_to_response(user: User) -> UserData:
     """Convert User model to UserData response."""
     return UserData(
         id=str(user.id),
-        email=user.email,
-        name=user.full_name or user.email.split("@")[0],
-        role=user.role,
+        email=str(user.email),
+        name=str(user.full_name or user.email).split("@")[0] if not user.full_name else str(user.full_name),
+        role=str(user.role) if user.role else None,
         preferences={},
         created_at=user.created_at.isoformat() if user.created_at else "",
     )
 
-
 # ==================== Endpoints ====================
 
-
-@router.post("/auth/register", response_model=AuthResponse)
+@router.post("/register", response_model=AuthResponse)
 async def register_user(user_data: UserCreate):
     """Register new user with optimized async database."""
     try:
@@ -94,7 +88,7 @@ async def register_user(user_data: UserCreate):
             await session.refresh(new_user)
 
             tokens = create_tokens(
-                user_id=str(new_user.id), email=new_user.email, role=new_user.role
+                user_id=str(new_user.id), email=str(new_user.email), role=str(new_user.role)
             )
 
             return AuthResponse(
@@ -105,12 +99,11 @@ async def register_user(user_data: UserCreate):
             )
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Registration failed: {e}")
+    except Exception as e:  # BLE001 - HTTP handler
+        logger.error("Registration failed: %s", e)
         raise HTTPException(status_code=500, detail="Registration failed")
 
-
-@router.post("/auth/login", response_model=AuthResponse)
+@router.post("/login", response_model=AuthResponse)
 async def login_user(credentials: UserLogin):
     """Login with email and password using async database."""
     try:
@@ -124,7 +117,7 @@ async def login_user(credentials: UserLogin):
             loop = asyncio.get_running_loop()
             password_valid = await loop.run_in_executor(
                 None, verify_password, credentials.password,
-                user.hashed_password if user else "",
+                str(user.hashed_password) if user else "",
             )
             if not user or not password_valid:
                 raise HTTPException(status_code=401, detail="Invalid credentials")
@@ -133,7 +126,7 @@ async def login_user(credentials: UserLogin):
                 raise HTTPException(status_code=403, detail="Account is disabled")
 
             tokens = create_tokens(
-                user_id=str(user.id), email=user.email, role=user.role
+                user_id=str(user.id), email=str(user.email), role=str(user.role)
             )
 
             return AuthResponse(
@@ -144,12 +137,11 @@ async def login_user(credentials: UserLogin):
             )
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Login failed: {e}")
+    except Exception as e:  # BLE001 - HTTP handler
+        logger.error("Login failed: %s", e)
         raise HTTPException(status_code=500, detail="Login failed")
 
-
-@router.post("/auth/refresh", response_model=Token)
+@router.post("/refresh", response_model=Token)
 async def refresh_token(request: RefreshRequest):
     """Refresh access token using async database."""
     payload = verify_token(request.refresh_token, token_type="refresh")
@@ -162,11 +154,10 @@ async def refresh_token(request: RefreshRequest):
         if not user or not user.is_active:
             raise HTTPException(status_code=401, detail="User not found or inactive")
 
-        tokens = create_tokens(user_id=str(user.id), email=user.email, role=user.role)
+        tokens = create_tokens(user_id=str(user.id), email=str(user.email), role=str(user.role))
         return tokens
 
-
-@router.get("/auth/me", response_model=UserData)
+@router.get("/me", response_model=UserData)
 async def get_current_user_info(current_user: TokenData = Depends(get_current_user)):
     """Get current user information using async database."""
     async with get_async_db_session() as session:
@@ -178,8 +169,7 @@ async def get_current_user_info(current_user: TokenData = Depends(get_current_us
             raise HTTPException(status_code=404, detail="User not found")
         return user_to_response(user)
 
-
-@router.put("/auth/me", response_model=UserData)
+@router.put("/me", response_model=UserData)
 async def update_current_user(
     update_data: UserUpdateRequest, current_user: TokenData = Depends(get_current_user)
 ):
@@ -193,14 +183,13 @@ async def update_current_user(
             raise HTTPException(status_code=404, detail="User not found")
 
         if update_data.name:
-            user.full_name = update_data.name
+            user.full_name = update_data.name  # type: ignore[assignment]
 
         await session.flush()
         await session.refresh(user)
         return user_to_response(user)
 
-
-@router.post("/auth/logout")
+@router.post("/logout")
 async def logout(current_user: TokenData = Depends(get_current_user)):
     """Logout current user (invalidate tokens)."""
     # In a production system, you'd add the token to a blacklist

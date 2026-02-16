@@ -1,5 +1,5 @@
 """
-Performance Benchmarks for ShikshaSetu
+Performance Benchmarks for Oryon
 ======================================
 
 Automated performance regression detection for critical paths.
@@ -252,7 +252,7 @@ class TestEmbeddingPerformance:
     @pytest.mark.skip(reason="Requires model to be loaded")
     def test_single_embedding_performance(self, benchmark_util):
         """Single text embedding should be fast."""
-        from backend.services.rag import get_embedder
+        from backend.services.chat.rag import get_embedder
 
         embedder = get_embedder()
         test_text = "This is a sample text for embedding."
@@ -268,7 +268,7 @@ class TestEmbeddingPerformance:
     @pytest.mark.skip(reason="Requires model to be loaded")
     def test_batch_embedding_performance(self, benchmark_util):
         """Batch embeddings should be efficient."""
-        from backend.services.rag import get_embedder
+        from backend.services.chat.rag import get_embedder
 
         embedder = get_embedder()
         test_texts = [f"Sample text number {i}" for i in range(10)]
@@ -344,7 +344,7 @@ def run_all_benchmarks():
 
     # Import tests
     print("\n" + "=" * 60)
-    print("Running ShikshaSetu Performance Benchmarks")
+    print("Running Oryon Performance Benchmarks")
     print("=" * 60)
 
     # Test imports

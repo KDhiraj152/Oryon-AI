@@ -23,7 +23,7 @@ async def lifespan(app: FastAPI):
 
     # Test database init
     try:
-        from backend.database import init_db
+        from backend.db.database import init_db
 
         init_db()
         logger.info("Database initialized")
@@ -39,15 +39,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Device router failed: {e}")
 
-    # Test rate limiter initialization
+    # Test Redis initialization
     try:
-        from backend.cache import get_redis
-        from backend.core.optimized.rate_limiter import UnifiedRateLimitMiddleware
+        from backend.infra.cache import get_redis
 
         redis_client = get_redis()
         logger.info(f"Redis client: {redis_client}")
     except Exception as e:
-        logger.error(f"Redis/Rate limiter failed: {e}")
+        logger.error(f"Redis failed: {e}")
 
     # Test background tasks (model warmup)
     async def test_warmup():
@@ -63,7 +62,7 @@ async def lifespan(app: FastAPI):
 
 
 # Create app with lifespan
-app = FastAPI(title="ShikshaSetu Test", version="1.0", lifespan=lifespan)
+app = FastAPI(title="Oryon Test", version="1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

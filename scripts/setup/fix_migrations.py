@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """Fix alembic migration version."""
 import os
+
 from sqlalchemy import create_engine, text
+
 
 def main():
     # Get database URL from environment or use default with explicit password
     db_url = os.getenv(
         'DATABASE_URL', 
-        'postgresql://postgres:postgres@localhost:5432/shiksha_setu'  # Default password
+        'postgresql://postgres:postgres@localhost:5432/oryon'  # Default password
     )
     
     engine = create_engine(db_url)

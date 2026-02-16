@@ -70,13 +70,13 @@ class ProgressBar:
         empty = self.width - filled
         bar = "▓" * filled + "░" * empty
         
-        print(f"\n  ════════════════════════════════════════════════════════")
+        print("\n  ════════════════════════════════════════════════════════")
         print(f"  Summary: {bar}")
         print(f"  Completed: \033[0;32m{len(self.completed_items)}/{self.total}\033[0m ({success_pct}%)")
         if self.failed_items:
             print(f"  Failed: \033[1;33m{len(self.failed_items)}\033[0m (will auto-download on first use)")
         print(f"  Time elapsed: {self._format_time(int(elapsed))}")
-        print(f"  ════════════════════════════════════════════════════════")
+        print("  ════════════════════════════════════════════════════════")
     
     @staticmethod
     def _format_time(seconds):

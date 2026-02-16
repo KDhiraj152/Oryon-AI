@@ -2,7 +2,6 @@
 
 import secrets
 from datetime import UTC, datetime, timedelta, timezone
-from typing import Optional
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -13,16 +12,13 @@ from .exceptions import AuthenticationError
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against its hash."""
     return bool(pwd_context.verify(plain_password, hashed_password))
 
-
 def get_password_hash(password: str) -> str:
     """Generate password hash."""
     return str(pwd_context.hash(password))
-
 
 def validate_password_strength(password: str) -> tuple[bool, str | None]:
     """
@@ -53,7 +49,6 @@ def validate_password_strength(password: str) -> tuple[bool, str | None]:
 
     return True, None
 
-
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     """
     Create JWT access token.
@@ -80,7 +75,6 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
     )
     return str(encoded_jwt)
 
-
 def create_refresh_token(data: dict) -> str:
     """
     Create JWT refresh token.
@@ -98,7 +92,6 @@ def create_refresh_token(data: dict) -> str:
         to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM
     )
     return str(encoded_jwt)
-
 
 def decode_token(token: str) -> dict:
     """
@@ -121,11 +114,9 @@ def decode_token(token: str) -> dict:
     except JWTError as e:
         raise AuthenticationError(f"Invalid token: {e!s}")
 
-
 def generate_api_key() -> str:
     """Generate a secure random API key."""
     return secrets.token_urlsafe(32)
-
 
 def generate_session_id() -> str:
     """Generate a secure random session ID."""

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Comprehensive Dependency Checker for ShikshaSetu
+Comprehensive Dependency Checker for Oryon
 Verifies all backend dependencies, configurations, and services
 """
 
@@ -9,7 +9,6 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 
 class DependencyChecker:
@@ -33,13 +32,13 @@ class DependencyChecker:
                 return False
         except Exception as e:
             status = "❌" if critical else "⚠️"
-            self.results.append(f"{status} {name} - ERROR: {str(e)}")
+            self.results.append(f"{status} {name} - ERROR: {e!s}")
             return False
 
     def print_results(self):
         """Print all results and score"""
         print("\n" + "=" * 80)
-        print("SHIKSHA SETU DEPENDENCY CHECK REPORT")
+        print("ORYON AI DEPENDENCY CHECK REPORT")
         print("=" * 80 + "\n")
 
         for result in self.results:
@@ -76,7 +75,7 @@ class DependencyChecker:
 def main():
     checker = DependencyChecker()
 
-    print("Checking ShikshaSetu Backend Dependencies...\n")
+    print("Checking Oryon Backend Dependencies...\n")
 
     # ==================== Python Version ====================
     def check_python_version():

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Quick API test script for ShikshaSetu."""
+"""Quick API test script for Oryon."""
 
 import random
 import string
@@ -10,7 +10,7 @@ BASE = "http://localhost:8000"
 
 
 def main():
-    print("ShikshaSetu API Comprehensive Test")
+    print("Oryon API Comprehensive Test")
     print("=" * 60)
 
     # Test health endpoints

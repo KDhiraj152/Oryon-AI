@@ -7,7 +7,7 @@ from backend.core.config import Settings, settings
 
 def test_settings_initialization():
     """Test settings are initialized properly."""
-    assert settings.APP_NAME == "ShikshaSetu AI Platform API"
+    assert settings.APP_NAME == "Oryon AI Platform API"
     assert settings.APP_VERSION == "4.0.0"
     assert settings.API_PREFIX == "/api/v2"  # V2 API
 

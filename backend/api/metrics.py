@@ -73,7 +73,6 @@ cache_operations_duration_seconds = Histogram(
     ["operation", "cache_type"],
 )
 
-
 class MetricsRoute(APIRoute):
     """Custom route class that records metrics for each request."""
 
@@ -107,7 +106,7 @@ class MetricsRoute(APIRoute):
 
                 return response
 
-            except Exception:
+            except Exception:  # BLE001 - HTTP handler
                 # Record error
                 http_requests_total.labels(
                     method=method, endpoint=endpoint, status=500
@@ -120,11 +119,9 @@ class MetricsRoute(APIRoute):
 
         return custom_route_handler
 
-
 def metrics_endpoint() -> Response:
     """Expose Prometheus metrics endpoint."""
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
-
 
 def track_ml_inference(model: str, operation: str):
     """Context manager to track ML inference metrics."""
@@ -137,7 +134,7 @@ def track_ml_inference(model: str, operation: str):
 
         try:
             yield
-        except Exception:
+        except Exception:  # BLE001 - top-level handler
             status = "error"
             raise
         finally:
@@ -152,7 +149,6 @@ def track_ml_inference(model: str, operation: str):
             ).inc()
 
     return tracker()
-
 
 __all__ = [
     "MetricsRoute",

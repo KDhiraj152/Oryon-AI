@@ -29,7 +29,7 @@ async def test_components():
     # 2. Test Database init
     logger.info("Testing Database init...")
     try:
-        from backend.database import get_engine
+        from backend.db.database import get_engine
 
         engine = get_engine()
         logger.info("✓ Database engine OK")
@@ -103,10 +103,10 @@ async def test_components():
     # 7. Test Rate Limiter Middleware Init
     logger.info("Testing Rate Limiter creation...")
     try:
-        from backend.core.optimized.rate_limiter import RateLimitMiddleware
+        from backend.infra.rate_limiter import RateLimiter
 
-        # Just test that it can be created
-        logger.info("✓ RateLimitMiddleware importable")
+        # Just test that it can be imported
+        logger.info("✓ RateLimiter importable")
     except Exception as e:
         logger.error(f"✗ Rate Limiter failed: {e}")
 

@@ -13,6 +13,7 @@ from typing import Any
 
 __all__ = [
     "get_ai_engine",
+    "get_middleware",
     "get_pipeline",
     "json_dumps",
 ]
@@ -21,7 +22,7 @@ __all__ = [
 
 _ai_engine = None
 _pipeline_service = None
-
+_middleware = None
 
 def get_ai_engine():
     """Get AI engine singleton (lazy-loaded).
@@ -30,11 +31,10 @@ def get_ai_engine():
     """
     global _ai_engine
     if _ai_engine is None:
-        from ..services.ai_core.engine import get_ai_engine as _factory
+        from ..services.chat.engine import get_ai_engine as _factory
 
         _ai_engine = _factory()
     return _ai_engine
-
 
 def get_pipeline():
     """Get pipeline service singleton (lazy-loaded)."""
@@ -45,8 +45,23 @@ def get_pipeline():
         _pipeline_service = get_pipeline_service()
     return _pipeline_service
 
+def get_middleware():
+    """Get middleware orchestrator singleton (lazy-loaded).
 
-# ==================== JSON Serialization ====================
+    Returns None if the middleware hasn't been initialised yet
+    (e.g. during unit tests).
+    """
+    global _middleware
+    if _middleware is None:
+        try:
+            from ..middleware.orchestrator import get_middleware as _factory
+
+            _middleware = _factory()
+        except (ImportError, RuntimeError):
+            return None
+    return _middleware
+
+# ==================== JSON Serialization ==
 
 try:
     import orjson

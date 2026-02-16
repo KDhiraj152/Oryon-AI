@@ -13,18 +13,18 @@ Emits METRIC messages to all subscribers at configurable intervals.
 """
 
 import asyncio
+import contextlib
 import logging
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any, Dict
+from typing import Any
 
 import psutil
 
 from .base import AgentMessage, AgentStatus, BaseAgent, MessageType
 
 logger = logging.getLogger(__name__)
-
 
 @dataclass
 class ResourceSnapshot:
@@ -54,7 +54,6 @@ class ResourceSnapshot:
         elif self.ram_percent > 70:
             return "warning"
         return "normal"
-
 
 class ResourceMonitorAgent(BaseAgent):
     """
@@ -96,10 +95,8 @@ class ResourceMonitorAgent(BaseAgent):
         """Stop monitoring."""
         if self._monitor_task:
             self._monitor_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._monitor_task
-            except asyncio.CancelledError:
-                pass
         await super().stop()
 
     async def handle_message(self, message: AgentMessage) -> AgentMessage | None:
@@ -150,8 +147,8 @@ class ResourceMonitorAgent(BaseAgent):
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
-                logger.error(f"Monitor loop error: {e}")
+            except (RuntimeError, OSError) as e:
+                logger.error("Monitor loop error: %s", e)
                 await asyncio.sleep(self.monitor_interval_s)
 
     def _take_snapshot(self) -> ResourceSnapshot:
@@ -172,9 +169,9 @@ class ResourceMonitorAgent(BaseAgent):
                 gpu_util = mem.percent
             elif torch.cuda.is_available():
                 gpu_used_mb = torch.cuda.memory_allocated() / (1024 * 1024)
-                gpu_total_mb = torch.cuda.get_device_properties(0).total_mem / (1024 * 1024)
+                gpu_total_mb = torch.cuda.get_device_properties(0).total_memory / (1024 * 1024)
                 gpu_util = (gpu_used_mb / gpu_total_mb * 100) if gpu_total_mb > 0 else 0
-        except (ImportError, Exception):
+        except (ImportError, RuntimeError):
             pass
 
         # Active model count
@@ -182,8 +179,8 @@ class ResourceMonitorAgent(BaseAgent):
         try:
             from backend.core.optimized.memory_coordinator import get_memory_coordinator
             coord = get_memory_coordinator()
-            active_models = len(coord.loaded_models)
-        except Exception:
+            active_models = len(coord._loaded_models)
+        except (ImportError, RuntimeError):
             pass
 
         # Latency percentiles
@@ -219,35 +216,34 @@ class ResourceMonitorAgent(BaseAgent):
 
     async def _check_thresholds(self, snapshot: ResourceSnapshot) -> None:
         """Check resource thresholds and emit alerts."""
-        now = time.time()
+        time.time()
 
-        if snapshot.memory_pressure in ("critical", "emergency"):
-            if self._should_alert("memory_pressure"):
-                await self._route_reply(AgentMessage(
-                    msg_type=MessageType.EVENT,
-                    sender=self.name,
-                    recipient="hardware_optimizer",
-                    payload={
-                        "action": "memory_pressure",
-                        "level": snapshot.memory_pressure,
-                        "ram_percent": snapshot.ram_percent,
-                        "ram_used_gb": snapshot.ram_used_gb,
-                    },
-                    priority=10,
-                ))
+        if (snapshot.memory_pressure in ("critical", "emergency")
+                and self._should_alert("memory_pressure")):
+            await self._route_reply(AgentMessage(
+                msg_type=MessageType.EVENT,
+                sender=self.name,
+                recipient="hardware_optimizer",
+                payload={
+                    "action": "memory_pressure",
+                    "level": snapshot.memory_pressure,
+                    "ram_percent": snapshot.ram_percent,
+                    "ram_used_gb": snapshot.ram_used_gb,
+                },
+                priority=10,
+            ))
 
-        if snapshot.p95_latency_ms > 5000:  # > 5s P95
-            if self._should_alert("high_latency"):
-                await self._route_reply(AgentMessage(
-                    msg_type=MessageType.EVENT,
-                    sender=self.name,
-                    recipient="self_improvement",
-                    payload={
-                        "action": "high_latency",
-                        "p95_ms": snapshot.p95_latency_ms,
-                        "p99_ms": snapshot.p99_latency_ms,
-                    },
-                ))
+        if snapshot.p95_latency_ms > 5000 and self._should_alert("high_latency"):  # > 5s P95
+            await self._route_reply(AgentMessage(
+                msg_type=MessageType.EVENT,
+                sender=self.name,
+                recipient="self_improvement",
+                payload={
+                    "action": "high_latency",
+                    "p95_ms": snapshot.p95_latency_ms,
+                    "p99_ms": snapshot.p99_latency_ms,
+                },
+            ))
 
     def _should_alert(self, alert_type: str) -> bool:
         """Check if alert should fire (respects cooldown)."""

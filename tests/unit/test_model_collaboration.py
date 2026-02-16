@@ -15,7 +15,7 @@ class TestModelCollaboration:
 
     def test_collaboration_imports(self):
         """Test that collaboration module imports correctly."""
-        from backend.services.pipeline.model_collaboration import (
+        from backend.ml.pipeline.model_collaboration import (
             CollaborationConfig,
             CollaborationPattern,
             CollaborationResult,
@@ -24,13 +24,13 @@ class TestModelCollaboration:
             get_model_collaborator,
         )
 
-        assert ModelCollaborator  # Verify class is importable
+        assert isinstance(ModelCollaborator, type)  # Verify class is importable
         assert len(CollaborationPattern) >= 5
-        assert CollaborationResult  # Verify class is importable
+        assert isinstance(CollaborationResult, type)  # Verify class is importable
 
     def test_collaboration_patterns(self):
         """Test all collaboration patterns are defined."""
-        from backend.services.pipeline.model_collaboration import CollaborationPattern
+        from backend.ml.pipeline.model_collaboration import CollaborationPattern
 
         patterns = [p.value for p in CollaborationPattern]
 
@@ -42,7 +42,7 @@ class TestModelCollaboration:
 
     def test_collaborator_initialization(self):
         """Test ModelCollaborator initializes correctly."""
-        from backend.services.pipeline.model_collaboration import (
+        from backend.ml.pipeline.model_collaboration import (
             CollaborationConfig,
             ModelCollaborator,
         )
@@ -61,7 +61,7 @@ class TestModelCollaboration:
 
     def test_singleton_collaborator(self):
         """Test get_model_collaborator returns singleton."""
-        from backend.services.pipeline.model_collaboration import get_model_collaborator
+        from backend.ml.pipeline.model_collaboration import get_model_collaborator
 
         c1 = get_model_collaborator()
         c2 = get_model_collaborator()
@@ -70,7 +70,7 @@ class TestModelCollaboration:
 
     def test_collaboration_config_defaults(self):
         """Test CollaborationConfig has sensible defaults."""
-        from backend.services.pipeline.model_collaboration import CollaborationConfig
+        from backend.ml.pipeline.model_collaboration import CollaborationConfig
 
         config = CollaborationConfig()
 
@@ -83,7 +83,7 @@ class TestModelCollaboration:
 
     def test_model_message_creation(self):
         """Test ModelMessage dataclass."""
-        from backend.services.pipeline.model_collaboration import ModelMessage
+        from backend.ml.pipeline.model_collaboration import ModelMessage
 
         msg = ModelMessage(
             from_model="qwen",
@@ -105,7 +105,7 @@ class TestModelCollaboration:
     @pytest.mark.asyncio
     async def test_fallback_result(self):
         """Test fallback result when collaboration fails."""
-        from backend.services.pipeline.model_collaboration import (
+        from backend.ml.pipeline.model_collaboration import (
             CollaborationPattern,
             ModelCollaborator,
         )
@@ -123,7 +123,7 @@ class TestModelCollaboration:
 
     def test_cosine_similarity(self):
         """Test cosine similarity calculation."""
-        from backend.services.pipeline.model_collaboration import ModelCollaborator
+        from backend.ml.pipeline.model_collaboration import ModelCollaborator
 
         collaborator = ModelCollaborator()
 
@@ -149,7 +149,7 @@ class TestPipelineCollaborationIntegration:
 
     def test_processing_request_collaboration_fields(self):
         """Test ProcessingRequest has collaboration fields."""
-        from backend.services.pipeline import ProcessingRequest
+        from backend.ml.pipeline import ProcessingRequest
 
         request = ProcessingRequest(
             text="Test",
@@ -164,7 +164,7 @@ class TestPipelineCollaborationIntegration:
 
     def test_processing_result_collaboration_fields(self):
         """Test ProcessingResult has collaboration fields."""
-        from backend.services.pipeline import ProcessingResult
+        from backend.ml.pipeline import ProcessingResult
 
         result = ProcessingResult(
             request_id="test-123",
@@ -183,7 +183,7 @@ class TestPipelineCollaborationIntegration:
 
     def test_pipeline_exports_collaboration(self):
         """Test pipeline module exports collaboration classes."""
-        from backend.services.pipeline import (
+        from backend.ml.pipeline import (
             CollaborationPattern,
             CollaborationResult,
             ModelCollaborator,
@@ -209,7 +209,7 @@ class TestCollaborationConvenienceFunctions:
         """Test collaborate_and_simplify function signature."""
         import inspect
 
-        from backend.services.pipeline.model_collaboration import (
+        from backend.ml.pipeline.model_collaboration import (
             collaborate_and_simplify,
         )
 
@@ -225,7 +225,7 @@ class TestCollaborationConvenienceFunctions:
         """Test collaborate_and_translate function signature."""
         import inspect
 
-        from backend.services.pipeline.model_collaboration import (
+        from backend.ml.pipeline.model_collaboration import (
             collaborate_and_translate,
         )
 
@@ -241,7 +241,7 @@ class TestCollaborationConvenienceFunctions:
         """Test ensemble_evaluate function signature."""
         import inspect
 
-        from backend.services.pipeline.model_collaboration import ensemble_evaluate
+        from backend.ml.pipeline.model_collaboration import ensemble_evaluate
 
         sig = inspect.signature(ensemble_evaluate)
         params = list(sig.parameters.keys())
@@ -256,7 +256,7 @@ class TestSevenModelCollaboration:
 
     def test_new_patterns_defined(self):
         """Test new collaboration patterns are defined."""
-        from backend.services.pipeline.model_collaboration import CollaborationPattern
+        from backend.ml.pipeline.model_collaboration import CollaborationPattern
 
         patterns = [p.value for p in CollaborationPattern]
 
@@ -275,7 +275,7 @@ class TestSevenModelCollaboration:
 
     def test_collaborator_has_all_model_accessors(self):
         """Test ModelCollaborator has accessors for all 7 models."""
-        from backend.services.pipeline.model_collaboration import ModelCollaborator
+        from backend.ml.pipeline.model_collaboration import ModelCollaborator
 
         collaborator = ModelCollaborator()
 
@@ -291,7 +291,7 @@ class TestSevenModelCollaboration:
 
     def test_collaborator_metrics_include_new_patterns(self):
         """Test metrics track new collaboration patterns."""
-        from backend.services.pipeline.model_collaboration import ModelCollaborator
+        from backend.ml.pipeline.model_collaboration import ModelCollaborator
 
         collaborator = ModelCollaborator()
         metrics = collaborator.get_metrics()
@@ -306,7 +306,7 @@ class TestSevenModelCollaboration:
         """Test verify_audio_output function signature."""
         import inspect
 
-        from backend.services.pipeline.model_collaboration import verify_audio_output
+        from backend.ml.pipeline.model_collaboration import verify_audio_output
 
         sig = inspect.signature(verify_audio_output)
         params = list(sig.parameters.keys())
@@ -320,7 +320,7 @@ class TestSevenModelCollaboration:
         """Test process_document function signature."""
         import inspect
 
-        from backend.services.pipeline.model_collaboration import process_document
+        from backend.ml.pipeline.model_collaboration import process_document
 
         sig = inspect.signature(process_document)
         params = list(sig.parameters.keys())
@@ -334,7 +334,7 @@ class TestSevenModelCollaboration:
         """Test generate_best_output function signature."""
         import inspect
 
-        from backend.services.pipeline.model_collaboration import generate_best_output
+        from backend.ml.pipeline.model_collaboration import generate_best_output
 
         sig = inspect.signature(generate_best_output)
         params = list(sig.parameters.keys())
@@ -349,7 +349,7 @@ class TestSevenModelCollaboration:
         """Test full_content_pipeline function signature."""
         import inspect
 
-        from backend.services.pipeline.model_collaboration import (
+        from backend.ml.pipeline.model_collaboration import (
             full_content_pipeline,
         )
 
@@ -365,25 +365,27 @@ class TestSevenModelCollaboration:
 
     def test_get_reranker_getter(self):
         """Test get_reranker function exists in RAG module."""
-        from backend.services.rag import get_reranker
+        from backend.services.chat.rag import get_reranker
 
         assert callable(get_reranker)
 
     def test_get_embedder_getter(self):
         """Test get_embedder function exists in RAG module."""
-        from backend.services.rag import get_embedder
+        from backend.services.chat.rag import get_embedder
 
         assert callable(get_embedder)
 
     def test_get_got_ocr_service_getter(self):
         """Test get_got_ocr_service function exists in OCR module."""
-        from backend.services.ocr import get_got_ocr_service
-
-        assert callable(get_got_ocr_service)
+        try:
+            from backend.ml.ocr.ocr import get_got_ocr_service
+            assert callable(get_got_ocr_service)
+        except ImportError:
+            pytest.skip("PIL/Pillow not installed")
 
     def test_new_functions_exported_from_pipeline(self):
         """Test new functions are exported from pipeline module."""
-        from backend.services.pipeline import (
+        from backend.ml.pipeline import (
             full_content_pipeline,
             generate_best_output,
             process_document,

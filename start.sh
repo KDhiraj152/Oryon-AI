@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================================
-# SHIKSHA SETU - PRODUCTION START SCRIPT (v4.0 - Universal AI for India)
+# ORYON AI - PRODUCTION START SCRIPT (v4.0 - Universal AI for India)
 # ============================================================================
 # PRODUCTION-ONLY MODE - Optimized for performance, security, and stability.
 #
@@ -89,10 +89,10 @@ export PROMETHEUS_PORT="${PROMETHEUS_PORT:-9090}"
 export GRAFANA_PORT="${GRAFANA_PORT:-3001}"
 export POSTGRES_USER="${POSTGRES_USER:-postgres}"
 export POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-postgres}"
-export POSTGRES_DB="${POSTGRES_DB:-shiksha_setu}"
+export POSTGRES_DB="${POSTGRES_DB:-oryon}"
 
-POSTGRES_CONTAINERS="shikshasetu_postgres shiksha_postgres shiksha_postgres_dev"
-REDIS_CONTAINERS="shikshasetu_redis shiksha_redis shiksha_redis_dev"
+POSTGRES_CONTAINERS="oryon_postgres oryon_postgres oryon_postgres_dev"
+REDIS_CONTAINERS="oryon_redis oryon_redis oryon_redis_dev"
 
 # Fast timeouts - using netcat port checks instead of slow curl
 HEALTH_CHECK_INTERVAL=0.2
@@ -208,7 +208,7 @@ start_container() {
 clear
 echo ""
 echo -e "${MAGENTA}   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${CYAN}   ॐ  ${WHITE}${BOLD}SHIKSHA SETU${NC}${CYAN}  ॐ${NC}"
+echo -e "${CYAN}   ॐ  ${WHITE}${BOLD}ORYON AI${NC}${CYAN}  ॐ${NC}"
 echo -e "${DIM}   Local-First Multilingual AI Platform${NC}"
 $QUICK_MODE && echo -e "${YELLOW}   ⚡ QUICK MODE${NC}"
 echo -e "${MAGENTA}   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -285,18 +285,18 @@ if ! $SKIP_DOCKER && is_docker_running; then
 
     if [[ -z "$POSTGRES_NAME" ]]; then
         POSTGRES_NAME=$(start_container "$POSTGRES_CONTAINERS" || echo "")
-        if [[ -z "$POSTGRES_NAME" ]] && [[ -f "$PROJECT_ROOT/docker-compose.yml" ]]; then
-            docker compose up -d postgres redis >/dev/null 2>&1 &
+        if [[ -z "$POSTGRES_NAME" ]] && [[ -f "$PROJECT_ROOT/deploy/docker-compose.yml" ]]; then
+            docker compose -f "$PROJECT_ROOT/deploy/docker-compose.yml" up -d postgres redis >/dev/null 2>&1 &
             COMPOSE_PID=$!
             spin $COMPOSE_PID "Starting containers..."
             wait $COMPOSE_PID 2>/dev/null || true
-            POSTGRES_NAME=$(get_running_container "$POSTGRES_CONTAINERS" || echo "shikshasetu_postgres")
-            REDIS_NAME=$(get_running_container "$REDIS_CONTAINERS" || echo "shikshasetu_redis")
+            POSTGRES_NAME=$(get_running_container "$POSTGRES_CONTAINERS" || echo "oryon_postgres")
+            REDIS_NAME=$(get_running_container "$REDIS_CONTAINERS" || echo "oryon_redis")
         fi
     fi
 
     if [[ -z "$REDIS_NAME" ]]; then
-        REDIS_NAME=$(start_container "$REDIS_CONTAINERS" || echo "shikshasetu_redis")
+        REDIS_NAME=$(start_container "$REDIS_CONTAINERS" || echo "oryon_redis")
     fi
 
     # Database health checks - use Docker healthcheck status (fast!)
@@ -365,18 +365,18 @@ fi
 if $START_MONITORING; then
     step "Starting monitoring stack..."
 
-    MONITORING_COMPOSE="$PROJECT_ROOT/infrastructure/monitoring/docker-compose.monitoring.local.yml"
+    MONITORING_COMPOSE="$PROJECT_ROOT/deploy/monitoring/docker-compose.monitoring.local.yml"
 
     if [[ -f "$MONITORING_COMPOSE" ]]; then
         # Use docker-compose for proper monitoring stack with health checks
-        cd "$PROJECT_ROOT/infrastructure/monitoring"
+        cd "$PROJECT_ROOT/deploy/monitoring"
         docker compose -f docker-compose.monitoring.local.yml up -d >/dev/null 2>&1
         cd "$PROJECT_ROOT"
 
         # Wait for Prometheus health (uses Docker healthcheck)
         echo -e "  ${WHITE}Prometheus${NC}:"
         for i in {1..15}; do
-            if docker inspect --format='{{.State.Health.Status}}' shikshasetu_prometheus 2>/dev/null | grep -q "healthy"; then
+            if docker inspect --format='{{.State.Health.Status}}' oryon_prometheus 2>/dev/null | grep -q "healthy"; then
                 ok "Prometheus ready (port $PROMETHEUS_PORT) - scraping /metrics"
                 break
             fi
@@ -386,7 +386,7 @@ if $START_MONITORING; then
         # Wait for Grafana health (uses Docker healthcheck)
         echo -e "  ${WHITE}Grafana${NC}:"
         for i in {1..15}; do
-            if docker inspect --format='{{.State.Health.Status}}' shikshasetu_grafana 2>/dev/null | grep -q "healthy"; then
+            if docker inspect --format='{{.State.Health.Status}}' oryon_grafana 2>/dev/null | grep -q "healthy"; then
                 ok "Grafana ready (port $GRAFANA_PORT) - dashboards pre-configured"
                 break
             fi
@@ -399,7 +399,7 @@ if $START_MONITORING; then
         warn "Falling back to basic containers..."
 
         # Fallback to basic containers if compose file missing
-        PROMETHEUS_CONFIG="$PROJECT_ROOT/infrastructure/monitoring/prometheus-local.yml"
+        PROMETHEUS_CONFIG="$PROJECT_ROOT/deploy/monitoring/prometheus-local.yml"
         if [[ -f "$PROMETHEUS_CONFIG" ]]; then
             docker rm -f prometheus 2>/dev/null || true
             docker run -d --name prometheus \
@@ -576,7 +576,7 @@ print('SafetyPipeline OK')
 
     # Validate Adaptive Context Allocator
     if "$VENV_PATH/bin/python" -c "
-from backend.services.ai_core.context import AdaptiveContextAllocator
+from backend.services.chat.context import AdaptiveContextAllocator
 print('ContextAllocator OK')
 " 2>/dev/null | grep -q "OK"; then
         ok "Adaptive Context Allocator ready"
@@ -636,7 +636,7 @@ echo -e "     PostgreSQL  │ ${GREEN}●${NC} Port $POSTGRES_PORT"
 echo -e "     Redis       │ ${GREEN}●${NC} Port $REDIS_PORT"
 if $START_MONITORING; then
 echo -e "     Prometheus  │ ${GREEN}●${NC} http://localhost:$PROMETHEUS_PORT"
-echo -e "     Grafana     │ ${GREEN}●${NC} http://localhost:$GRAFANA_PORT (admin/shiksha)"
+echo -e "     Grafana     │ ${GREEN}●${NC} http://localhost:$GRAFANA_PORT (admin/oryon)"
 fi
 echo ""
 if [[ -n "$CHIP" ]]; then

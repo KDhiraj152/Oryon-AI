@@ -1,5 +1,5 @@
 #!/bin/bash
-# ShikshaSetu Deployment Verification Script
+# Oryon Deployment Verification Script
 # Validates all critical services are healthy after deployment
 
 set -e
@@ -289,7 +289,7 @@ check_memory() {
 # Main execution
 main() {
     echo "╔════════════════════════════════════════════════════════════╗"
-    echo "║     ShikshaSetu Deployment Verification                   ║"
+    echo "║     Oryon Deployment Verification                   ║"
     echo "╚════════════════════════════════════════════════════════════╝"
     echo ""
 

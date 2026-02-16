@@ -1,5 +1,5 @@
 """
-ShikshaSetu Multi-Agent System
+Oryon Multi-Agent System
 ================================
 
 Modular agent framework for self-optimizing AI pipeline.
@@ -29,14 +29,14 @@ from .resource_monitor import ResourceMonitorAgent
 from .self_improvement import SelfImprovementAgent
 
 __all__ = [
-    "BaseAgent",
     "AgentMessage",
     "AgentRegistry",
     "AgentStatus",
-    "OrchestratorAgent",
-    "ModelExecutionAgent",
-    "HardwareOptimizerAgent",
+    "BaseAgent",
     "EvaluationAgent",
+    "HardwareOptimizerAgent",
+    "ModelExecutionAgent",
+    "OrchestratorAgent",
     "ResourceMonitorAgent",
     "SelfImprovementAgent",
 ]

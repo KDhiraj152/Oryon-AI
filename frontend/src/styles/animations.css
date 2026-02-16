@@ -1,0 +1,237 @@
+/*
+ * GPU-Accelerated Animation System
+ *
+ * All animations use ONLY transform + opacity (composited properties).
+ * This prevents layout thrashing and ensures 60fps.
+ *
+ * Usage: Apply via Tailwind classes defined in tailwind.config.js
+ * or directly via these CSS classes.
+ *
+ * Respects prefers-reduced-motion globally via @media query.
+ */
+
+/* ── Message Entrance ─────────────────────────────────────────────────── */
+
+@keyframes message-in {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-message-in {
+  animation: message-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, opacity;
+}
+
+/* Stagger support — set --stagger-index via inline style */
+.animate-message-stagger {
+  animation: message-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-delay: calc(var(--stagger-index, 0) * 40ms);
+  opacity: 0;
+  will-change: transform, opacity;
+}
+
+/* ── Token Streaming (zero flicker) ───────────────────────────────────── */
+
+@keyframes token-fade {
+  0% { opacity: 0.6; }
+  100% { opacity: 1; }
+}
+
+.animate-token {
+  animation: token-fade 0.08s ease-out forwards;
+  will-change: opacity;
+}
+
+/* ── Streaming Cursor ─────────────────────────────────────────────────── */
+
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.animate-cursor-blink {
+  animation: cursor-blink 1s ease-in-out infinite;
+  will-change: opacity;
+}
+
+/* Three-dot thinking pulse */
+@keyframes thinking-dot {
+  0%, 100% { opacity: 0.3; transform: translateY(0); }
+  50% { opacity: 1; transform: translateY(-3px); }
+}
+
+.animate-thinking-dot {
+  animation: thinking-dot 1.4s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+.animate-thinking-dot:nth-child(2) { animation-delay: 0.15s; }
+.animate-thinking-dot:nth-child(3) { animation-delay: 0.3s; }
+
+/* ── Fade In/Out ──────────────────────────────────────────────────────── */
+
+@keyframes fade-in {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes fade-out {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out forwards;
+}
+
+.animate-fade-out {
+  animation: fade-out 0.15s ease-in forwards;
+}
+
+/* ── Scale In (popovers, modals) ──────────────────────────────────────── */
+
+@keyframes scale-up {
+  0% {
+    opacity: 0;
+    transform: scale(0.95) translateY(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-scale-up {
+  animation: scale-up 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  will-change: transform, opacity;
+}
+
+/* ── Slide transitions ────────────────────────────────────────────────── */
+
+@keyframes slide-up-in {
+  0% {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-down-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up-in {
+  animation: slide-up-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, opacity;
+}
+
+.animate-slide-down-in {
+  animation: slide-down-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, opacity;
+}
+
+/* ── Skeleton Shimmer ─────────────────────────────────────────────────── */
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.04) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+}
+
+.dark .animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.06) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+}
+
+/* ── Scroll Button ────────────────────────────────────────────────────── */
+
+@keyframes bounce-subtle {
+  0%, 100% { transform: translateY(0) translateX(-50%); }
+  50% { transform: translateY(-3px) translateX(-50%); }
+}
+
+.animate-bounce-subtle {
+  animation: bounce-subtle 2s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* ── Avatar Pop ───────────────────────────────────────────────────────── */
+
+@keyframes avatar-pop {
+  0% { transform: scale(0.8); opacity: 0; }
+  60% { transform: scale(1.05); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+.animate-avatar-pop {
+  animation: avatar-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  will-change: transform, opacity;
+}
+
+/* ── Progress Bar ─────────────────────────────────────────────────────── */
+
+@keyframes progress-indeterminate {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(300%); }
+}
+
+.animate-progress {
+  animation: progress-indeterminate 1.5s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* ── Reduced Motion ───────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .animate-message-in,
+  .animate-message-stagger,
+  .animate-token,
+  .animate-scale-up,
+  .animate-slide-up-in,
+  .animate-slide-down-in,
+  .animate-avatar-pop {
+    opacity: 1 !important;
+    transform: none !important;
+    animation: none !important;
+  }
+}

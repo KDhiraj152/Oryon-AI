@@ -1,7 +1,7 @@
 """Celery tasks for audio transcription using Whisper."""
 
 from datetime import UTC, datetime, timezone
-from typing import Any, Dict
+from typing import Any
 
 from celery import shared_task
 
@@ -10,13 +10,11 @@ from ..utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-
 def _get_torch():
     """Lazy import torch to avoid startup overhead."""
     import torch
 
     return torch
-
 
 @shared_task(bind=True, name="audio.transcribe")
 def transcribe_audio_task(
@@ -39,7 +37,7 @@ def transcribe_audio_task(
         Transcription result with metadata
     """
     try:
-        logger.info(f"Starting audio transcription: {audio_path}")
+        logger.info("Starting audio transcription: %s", audio_path)
 
         # Import here to avoid loading model on module import
         import librosa
@@ -59,11 +57,11 @@ def transcribe_audio_task(
         audio, sr = librosa.load(audio_path, sr=16000)
         duration = len(audio) / sr
 
-        logger.info(f"Audio duration: {duration:.2f} seconds")
+        logger.info("Audio duration: %.2f seconds", duration)
 
         # Process audio in chunks (30 seconds each)
         chunk_duration = 30
-        chunk_samples = chunk_duration * sr
+        chunk_samples = int(chunk_duration * sr)
         transcriptions = []
 
         for i in range(0, len(audio), chunk_samples):
@@ -125,6 +123,6 @@ def transcribe_audio_task(
 
         return result
 
-    except Exception as e:
-        logger.error(f"Transcription failed: {e}", exc_info=True)
+    except Exception as e:  # task handler
+        logger.error("Transcription failed: %s", e, exc_info=True)
         raise

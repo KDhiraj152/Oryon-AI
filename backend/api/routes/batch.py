@@ -16,8 +16,8 @@ import asyncio
 import logging
 import time
 import uuid
-from enum import Enum
-from typing import Any, Dict, List, Optional
+from enum import Enum, StrEnum
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -29,7 +29,6 @@ router = APIRouter()
 # OPTIMIZATION: Lazy-loaded pipeline singleton
 _pipeline_service = None
 
-
 def _get_pipeline():
     """Get pipeline service singleton (lazy-loaded)."""
     global _pipeline_service
@@ -39,18 +38,15 @@ def _get_pipeline():
         _pipeline_service = get_pipeline_service()
     return _pipeline_service
 
-
 # ==================== Task Types & Constants ====================
 
-
-class TaskType(str, Enum):
+class TaskType(StrEnum):
     """Task types with optimal batch sizes."""
 
     EMBEDDING = "embedding"
     RERANKING = "reranking"
     LLM_INFERENCE = "llm_inference"
     TRANSLATION = "translation"
-
 
 # M4 Optimized batch sizes (DO NOT CHANGE - hardware-specific)
 M4_BATCH_SIZES: dict[TaskType, int] = {
@@ -71,7 +67,6 @@ M4_PERF_CONFIG = {
 # OPTIMIZATION: Per-concurrency-level semaphores for batch processing
 _BATCH_SEMAPHORES: dict[int, asyncio.Semaphore] = {}
 
-
 def _get_batch_semaphore(max_concurrent: int) -> asyncio.Semaphore:
     """Get or create semaphore for batch processing.
 
@@ -82,16 +77,13 @@ def _get_batch_semaphore(max_concurrent: int) -> asyncio.Semaphore:
         _BATCH_SEMAPHORES[max_concurrent] = asyncio.Semaphore(max_concurrent)
     return _BATCH_SEMAPHORES[max_concurrent]
 
-
 # ==================== Models ====================
-
 
 class BatchTextItem(BaseModel):
     """Single item in batch processing."""
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
     text: str
-
 
 class BatchProcessRequest(BaseModel):
     """Batch processing request."""
@@ -101,7 +93,6 @@ class BatchProcessRequest(BaseModel):
     target_language: str = Field(default="Hindi")
     max_concurrency: int = Field(default=4, ge=1, le=16)
     enable_collaboration: bool = False
-
 
 class BatchProcessResult(BaseModel):
     """Single result in batch processing."""
@@ -114,7 +105,6 @@ class BatchProcessResult(BaseModel):
     validation_score: float | None = None
     processing_time_ms: float
     error: str | None = None
-
 
 class BatchProcessResponse(BaseModel):
     """Batch processing response."""
@@ -132,12 +122,10 @@ class BatchProcessResponse(BaseModel):
     cache_hits: int
     models_used: list[str]
 
-
 class EmbeddingRequest(BaseModel):
     """Embedding request."""
 
     texts: list[str] = Field(..., min_length=1, max_length=1000)
-
 
 class EmbeddingResponse(BaseModel):
     """Embedding response."""
@@ -149,14 +137,12 @@ class EmbeddingResponse(BaseModel):
     throughput_texts_per_sec: float
     model: str
 
-
 class RerankRequest(BaseModel):
     """Rerank request."""
 
     query: str
     passages: list[str] = Field(..., min_length=1, max_length=100)
     top_k: int = Field(default=10, ge=1, le=100)
-
 
 class RerankResponse(BaseModel):
     """Rerank response."""
@@ -167,7 +153,6 @@ class RerankResponse(BaseModel):
     throughput_docs_per_sec: float
     model: str
 
-
 class MultiModelRequest(BaseModel):
     """Multi-model collaboration request."""
 
@@ -176,7 +161,6 @@ class MultiModelRequest(BaseModel):
     target_language: str = Field(default="Hindi")
     collaboration_pattern: str = Field(default="verify")
     generate_audio: bool = False
-
 
 class MultiModelResponse(BaseModel):
     """Multi-model collaboration response."""
@@ -194,9 +178,7 @@ class MultiModelResponse(BaseModel):
     total_time_ms: float
     stage_times: dict[str, float]
 
-
 # ==================== Helper Functions ====================
-
 
 async def gather_with_concurrency(n: int, *tasks):
     """Run async tasks with concurrency limit using semaphore.
@@ -212,7 +194,6 @@ async def gather_with_concurrency(n: int, *tasks):
     return await asyncio.gather(
         *(sem_task(task) for task in tasks), return_exceptions=True
     )
-
 
 async def process_batch_chunks(
     items: list, chunk_size: int, processor, concurrency: int = 4
@@ -244,17 +225,14 @@ async def process_batch_chunks(
 
     return results
 
-
 def get_async_task_runner():
     """Get async task runner for batch processing."""
     # Placeholder - returns None to use default asyncio.gather
     return None
 
-
 # ==================== Batch Processing Endpoints ====================
 
-
-@router.post("/batch/process", response_model=BatchProcessResponse, tags=["batch"])
+@router.post("/process", response_model=BatchProcessResponse, tags=["batch"])
 async def batch_process(request: BatchProcessRequest):
     """
     Hardware-optimized batch processing for multiple texts.
@@ -311,7 +289,7 @@ async def batch_process(request: BatchProcessRequest):
                     validation_score=result.validation_score,
                     processing_time_ms=(time.perf_counter() - item_start) * 1000,
                 )
-            except Exception as e:
+            except (RuntimeError, ValueError, OSError) as e:
                 return BatchProcessResult(
                     id=item.id,
                     success=False,
@@ -355,11 +333,10 @@ async def batch_process(request: BatchProcessRequest):
         )
 
     except Exception as e:
-        logger.error(f"Batch processing error: {e}")
+        logger.error("Batch processing error: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.post("/batch/embed", response_model=EmbeddingResponse, tags=["batch"])
+@router.post("/embed", response_model=EmbeddingResponse, tags=["batch"])
 async def batch_embed(request: EmbeddingRequest):
     """
     High-throughput embedding generation (348+ texts/s on M4).
@@ -383,7 +360,7 @@ async def batch_embed(request: EmbeddingRequest):
         # FIX (CRITICAL-3): embedder.encode() is synchronous GPU-bound (MPS).
         # Wrap in run_in_executor to avoid blocking the event loop.
         loop = asyncio.get_running_loop()
-        from ..inference import get_gpu_executor
+        from backend.ml.inference import get_gpu_executor
 
         for i in range(0, len(request.texts), optimal_batch):
             batch = request.texts[i : i + optimal_batch]
@@ -412,11 +389,10 @@ async def batch_embed(request: EmbeddingRequest):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Embedding error: {e}")
+        logger.error("Embedding error: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.post("/batch/rerank", response_model=RerankResponse, tags=["batch"])
+@router.post("/rerank", response_model=RerankResponse, tags=["batch"])
 async def batch_rerank(request: RerankRequest):
     """
     High-speed reranking (2.6ms/doc on M4).
@@ -439,7 +415,7 @@ async def batch_rerank(request: RerankRequest):
         # FIX (CRITICAL-2): reranker.predict() is synchronous GPU-bound (MPS CrossEncoder).
         # Wrap in run_in_executor to avoid blocking the event loop for ~260ms.
         loop = asyncio.get_running_loop()
-        from ..inference import get_gpu_executor
+        from backend.ml.inference import get_gpu_executor
 
         rerank_batch = M4_BATCH_SIZES.get(TaskType.RERANKING, 32)
         scores = await loop.run_in_executor(
@@ -474,9 +450,8 @@ async def batch_rerank(request: RerankRequest):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Reranking error: {e}")
+        logger.error("Reranking error: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 async def _run_simplification_stage(
     request: "MultiModelRequest",
@@ -497,7 +472,6 @@ async def _run_simplification_stage(
         dict(collab_result.model_scores),
         elapsed,
     )
-
 
 async def _run_translation_stage(
     text: str,
@@ -524,7 +498,6 @@ async def _run_translation_stage(
         elapsed,
     )
 
-
 async def _run_audio_stage(
     result: "MultiModelResponse",
     request: "MultiModelRequest",
@@ -546,11 +519,10 @@ async def _run_audio_stage(
             )
             audio_url = f"/api/v2/audio/{audio_path}"
             models_used.append("mms-tts")
-        except Exception as e:
-            logger.warning(f"TTS failed: {e}")
+        except (RuntimeError, ValueError, OSError) as e:
+            logger.warning("TTS failed: %s", e)
 
     return audio_url, (time.perf_counter() - stage_start) * 1000
-
 
 @router.post(
     "/multimodel/process", response_model=MultiModelResponse, tags=["multimodel"]
@@ -662,5 +634,5 @@ async def multimodel_process(request: MultiModelRequest):
         return result
 
     except Exception as e:
-        logger.error(f"Multi-model processing error: {e}")
+        logger.error("Multi-model processing error: %s", e)
         raise HTTPException(status_code=500, detail=str(e))

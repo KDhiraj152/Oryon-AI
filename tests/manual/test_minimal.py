@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Minimal server to isolate blocking in ShikshaSetu.
+Minimal server to isolate blocking in Oryon.
 """
 
 import logging
@@ -12,7 +12,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # Create minimal app
-app = FastAPI(title="ShikshaSetu Test", version="1.0")
+app = FastAPI(title="Oryon Test", version="1.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -22,8 +22,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Add middleware from ShikshaSetu
-logger.info("Adding ShikshaSetu middleware...")
+# Add middleware from Oryon
+logger.info("Adding Oryon middleware...")
 try:
     from backend.api.middleware import (
         RequestIDMiddleware,

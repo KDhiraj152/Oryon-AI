@@ -38,7 +38,7 @@ exclude = '''
     \.git
     | \.venv
     | __pycache__
-    | alembic/versions
+    | config/alembic/versions
 )/
 '''
 ```
@@ -68,7 +68,7 @@ ignore = [
 
 [tool.ruff.per-file-ignores]
 "tests/*" = ["ARG"]  # Allow unused arguments in tests
-"alembic/*" = ["E501"]  # Allow long lines in migrations
+"config/alembic/*" = ["E501"]  # Allow long lines in migrations
 ```
 
 ### Type Checking with mypy
@@ -329,7 +329,7 @@ Name                                    Stmts   Miss  Cover
 -----------------------------------------------------------
 backend/api/main.py                       245     18    93%
 backend/services/rag.py                   312     25    92%
-backend/services/translate/service.py     89      8    91%
+backend/ml/translate/service.py           89      8    91%
 backend/core/config.py                    156      0   100%
 -----------------------------------------------------------
 TOTAL                                    2847    284    90%

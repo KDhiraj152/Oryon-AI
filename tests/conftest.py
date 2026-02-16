@@ -33,7 +33,7 @@ os.environ["RATE_LIMIT_ENABLED"] = "false"
 # Use PostgreSQL test database (default works for most setups)
 TEST_DATABASE_URL = os.getenv(
     "TEST_DATABASE_URL",
-    "postgresql://postgres:password@localhost:5432/shiksha_setu_test",
+    "postgresql://postgres:password@localhost:5432/oryon_test",
 )
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 
@@ -50,7 +50,7 @@ os.environ["CELERY_TASK_EAGER_PROPAGATES"] = "true"
 # Import after environment setup
 from backend.api.main import app
 from backend.core.config import settings
-from backend.database import Base, get_db
+from backend.db.database import Base, get_db
 from backend.models import ContentValidation, ProcessedContent, User
 from backend.utils.auth import create_access_token, get_password_hash
 
@@ -202,7 +202,7 @@ def setup_test_environment():
     if "DATABASE_URL" not in os.environ:
         # Default to PostgreSQL test database
         os.environ["DATABASE_URL"] = (
-            "postgresql://user:password@localhost:5432/test_shiksha_setu"
+            "postgresql://user:password@localhost:5432/test_oryon"
         )
 
     # Disable SQL echo for cleaner test output
@@ -220,7 +220,7 @@ def setup_test_environment():
 @pytest.fixture
 def clean_database():
     """Clean database between tests."""
-    from backend.database import Base, engine
+    from backend.db.database import Base, engine
 
     # Drop all tables
     Base.metadata.drop_all(bind=engine)

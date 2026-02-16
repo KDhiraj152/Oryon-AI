@@ -12,7 +12,6 @@ We only need fast, low-collision hashes for key generation.
 """
 
 import hashlib
-from typing import Optional, Union
 
 # Try to import xxhash for 10-20x faster hashing
 try:
@@ -21,7 +20,6 @@ try:
     _HAS_XXHASH = True
 except ImportError:
     _HAS_XXHASH = False
-
 
 def fast_hash(content: str | bytes, length: int = 32) -> str:
     """
@@ -54,7 +52,6 @@ def fast_hash(content: str | bytes, length: int = 32) -> str:
         # MD5 fallback - still 3x faster than SHA256 (not for security)
         return hashlib.md5(content, usedforsecurity=False).hexdigest()[:length]
 
-
 def fast_hash_int(content: str | bytes) -> int:
     """
     Generate a fast integer hash for bloom filters/hash tables.
@@ -73,7 +70,6 @@ def fast_hash_int(content: str | bytes) -> int:
     else:
         # Use first 16 hex chars of MD5 as 64-bit int (not for security)
         return int(hashlib.md5(content, usedforsecurity=False).hexdigest()[:16], 16)
-
 
 def secure_hash(content: str | bytes, length: int | None = None) -> str:
     """
@@ -96,7 +92,6 @@ def secure_hash(content: str | bytes, length: int | None = None) -> str:
 
     digest = hashlib.sha256(content).hexdigest()
     return digest[:length] if length else digest
-
 
 def cache_key(*args, length: int = 32) -> str:
     """
@@ -124,7 +119,6 @@ def cache_key(*args, length: int = 32) -> str:
             key_parts.append(str(arg))
 
     return fast_hash(":".join(key_parts), length)
-
 
 # Module-level check for xxhash availability
 def has_xxhash() -> bool:

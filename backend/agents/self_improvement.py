@@ -22,15 +22,14 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import Enum, StrEnum
 from typing import Any
 
 from .base import AgentMessage, AgentRegistry, BaseAgent, MessageType
 
 logger = logging.getLogger(__name__)
 
-
-class ProposalStatus(str, Enum):
+class ProposalStatus(StrEnum):
     PROPOSED = "proposed"
     VALIDATING = "validating"
     VALIDATED = "validated"
@@ -38,8 +37,7 @@ class ProposalStatus(str, Enum):
     REJECTED = "rejected"
     REVERTED = "reverted"
 
-
-class OptimizationType(str, Enum):
+class OptimizationType(StrEnum):
     BATCH_SIZE = "batch_size"
     CONCURRENCY = "concurrency"
     CACHE_POLICY = "cache_policy"
@@ -47,7 +45,6 @@ class OptimizationType(str, Enum):
     MEMORY_LIMIT = "memory_limit"
     THREAD_COUNT = "thread_count"
     QUEUE_CONFIG = "queue_config"
-
 
 @dataclass
 class OptimizationProposal:
@@ -82,7 +79,6 @@ class OptimizationProposal:
             "applied_at": self.applied_at,
         }
 
-
 @dataclass
 class KnowledgeEntry:
     """A record of what worked (or didn't) for future reference."""
@@ -92,7 +88,6 @@ class KnowledgeEntry:
     outcome: str      # "improved", "degraded", "neutral"
     magnitude: float  # % improvement/degradation
     timestamp: float = field(default_factory=time.time)
-
 
 class SelfImprovementAgent(BaseAgent):
     """
@@ -255,7 +250,7 @@ class SelfImprovementAgent(BaseAgent):
                 parameter=f"{model}_cache_ttl",
                 current_value="current",
                 proposed_value="double",
-                reason=f"Increase cache hit rate to compensate for slower inference",
+                reason="Increase cache hit rate to compensate for slower inference",
                 expected_improvement="Reduce cache misses by ~20%",
             ))
         elif degradation_pct > 20:
@@ -307,7 +302,7 @@ class SelfImprovementAgent(BaseAgent):
                 parameter=f"{model}_max_concurrent",
                 current_value="current",
                 proposed_value="reduce_half",
-                reason=f"Reduce contention to lower error rate",
+                reason="Reduce contention to lower error rate",
                 expected_improvement="Reduce resource contention errors",
             ))
 
@@ -357,12 +352,12 @@ class SelfImprovementAgent(BaseAgent):
             while len(self._knowledge_base) > self._max_knowledge:
                 self._knowledge_base.pop(0)
 
-            logger.info(f"Applied optimization: {proposal.id} — {proposal.reason}")
+            logger.info("Applied optimization: %s — %s", proposal.id, proposal.reason)
 
-        except Exception as e:
+        except (RuntimeError, ValueError, OSError) as e:
             proposal.status = ProposalStatus.REJECTED
             proposal.result = f"Error: {e}"
-            logger.error(f"Failed to apply optimization {proposal.id}: {e}")
+            logger.error("Failed to apply optimization %s: %s", proposal.id, e)
         finally:
             self._active_proposal = None
 
@@ -406,25 +401,27 @@ class SelfImprovementAgent(BaseAgent):
         elif proposal.opt_type == OptimizationType.CACHE_POLICY:
             # Cache TTL changes — apply directly
             try:
-                from backend.cache.multi_tier_cache import get_cache
-                cache = get_cache()
+                from backend.infra.cache.multi_tier_cache import get_unified_cache
+                get_unified_cache()
                 # Specific cache tuning would go here
-                logger.info(f"Cache policy updated: {proposal.parameter}")
+                logger.info("Cache policy updated: %s", proposal.parameter)
                 return True
-            except Exception:
+            except (ImportError, RuntimeError):
                 return False
 
         elif proposal.opt_type == OptimizationType.MEMORY_LIMIT:
             # Memory limit changes via memory coordinator
             try:
-                from backend.core.optimized.memory_coordinator import get_memory_coordinator
+                from backend.core.optimized.memory_coordinator import (
+                    get_memory_coordinator,
+                )
                 coordinator = get_memory_coordinator()
                 # Increase headroom
-                coordinator._config.headroom_gb = min(
-                    2.0, coordinator._config.headroom_gb * 1.2
+                coordinator.config.headroom_gb = min(
+                    2.0, coordinator.config.headroom_gb * 1.2
                 )
                 return True
-            except Exception:
+            except (ImportError, RuntimeError):
                 return False
 
         return False

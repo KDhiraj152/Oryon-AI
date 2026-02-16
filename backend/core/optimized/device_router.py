@@ -20,13 +20,14 @@ import platform
 import threading
 from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass
-from enum import Enum
-from typing import Any, Dict, Optional, Tuple
+from enum import Enum, StrEnum
+from typing import Any, ClassVar
+
+from backend.utils.lock_factory import create_lock
 
 logger = logging.getLogger(__name__)
 
-
-class DeviceTaskType(str, Enum):
+class DeviceTaskType(StrEnum):
     """Types of ML tasks for hardware-level routing.
 
     Maps ML workloads to optimal compute units (GPU/ANE/CPU).
@@ -43,12 +44,10 @@ class DeviceTaskType(str, Enum):
     CLASSIFICATION = "classification"  # Text classification
     SUMMARIZATION = "summarization"  # Text summarization
 
-
 # Backward-compatible alias
 TaskType = DeviceTaskType
 
-
-class ComputeBackend(str, Enum):
+class ComputeBackend(StrEnum):
     """Available compute backends."""
 
     MLX = "mlx"  # Apple MLX (fastest on Apple Silicon)
@@ -57,7 +56,6 @@ class ComputeBackend(str, Enum):
     CUDA = "cuda"  # NVIDIA GPU
     ONNX = "onnx"  # ONNX Runtime (CPU optimized)
     CPU = "cpu"  # CPU fallback
-
 
 # Batch sizes per chip generation - scaled by GPU cores and memory bandwidth
 # Base = M4 (10-core GPU, 120GB/s bandwidth)
@@ -160,7 +158,6 @@ M4_PERF_CONFIG = {
     "qos_user_interactive": 0x21,  # P-core QoS class
 }
 
-
 @dataclass
 class DeviceCapabilities:
     """Detected device capabilities."""
@@ -201,7 +198,6 @@ class DeviceCapabilities:
         else:
             return "CPU"
 
-
 @dataclass
 class RoutingDecision:
     """Result of routing decision."""
@@ -213,7 +209,6 @@ class RoutingDecision:
     fallback_backend: ComputeBackend | None = None
     optimal_batch_size: int = 1
     memory_limit_gb: float = 4.0
-
 
 class M4ResourceManager:
     """
@@ -229,7 +224,7 @@ class M4ResourceManager:
     """
 
     _instance = None
-    _lock = threading.Lock()
+    _lock = create_lock()
 
     def __new__(cls):
         if cls._instance is None:
@@ -362,11 +357,9 @@ class M4ResourceManager:
         with self._memory_lock:
             self._allocated_memory = max(0, self._allocated_memory - amount_gb)
 
-
 def get_resource_manager() -> M4ResourceManager:
     """Get global M4 resource manager."""
     return M4ResourceManager()
-
 
 class DeviceRouter:
     """
@@ -381,7 +374,7 @@ class DeviceRouter:
 
     # Task -> Preferred backends (in priority order)
     # M4 Optimized: MLX for LLMs, MPS for most models (CoreML has size limits)
-    TASK_PREFERENCES: dict[DeviceTaskType, list] = {
+    TASK_PREFERENCES: ClassVar[dict[DeviceTaskType, list]] = {
         DeviceTaskType.LLM_INFERENCE: [
             ComputeBackend.MLX,  # Fastest on Apple Silicon (4-bit quantized, 12x)
             ComputeBackend.CUDA,  # Fast on NVIDIA
@@ -437,7 +430,7 @@ class DeviceRouter:
         """Initialize device router with capability detection."""
         self.capabilities = self._detect_capabilities()
         self._apply_optimizations()
-        logger.info(f"[DeviceRouter] Initialized: {self.capabilities.chip_name}")
+        logger.info("[DeviceRouter] Initialized: %s", self.capabilities.chip_name)
 
     def _detect_capabilities(self) -> DeviceCapabilities:
         """Detect all available compute capabilities (fast - defers heavy imports)."""
@@ -551,8 +544,8 @@ class DeviceRouter:
             )
             caps.memory_gb = int(result.stdout.strip()) / (1024**3)
 
-        except Exception as e:
-            logger.warning(f"[DeviceRouter] Apple Silicon detection error: {e}")
+        except (RuntimeError, OSError) as e:
+            logger.warning("[DeviceRouter] Apple Silicon detection error: %s", e)
             caps.chip_name = "Apple Silicon"
 
     def _set_pcore_qos(self):
@@ -570,8 +563,8 @@ class DeviceRouter:
                 0,  # relative priority
             )
             logger.debug("[DeviceRouter] P-core QoS set for main thread")
-        except Exception as e:
-            logger.debug(f"[DeviceRouter] Could not set P-core QoS: {e}")
+        except (RuntimeError, OSError) as e:
+            logger.debug("[DeviceRouter] Could not set P-core QoS: %s", e)
 
     def _apply_optimizations(self):
         """Apply device-specific optimizations for maximum throughput.
@@ -632,11 +625,11 @@ class DeviceRouter:
             logger.info(
                 "[DeviceRouter] M4 optimizations applied (864 percent avg improvement)"
             )
-            logger.info(f"  - GPU cores: {self.capabilities.gpu_cores}")
+            logger.info("  - GPU cores: %s", self.capabilities.gpu_cores)
             logger.info(
                 f"  - Neural Engine: {self.capabilities.neural_engine_tops} TOPS"
             )
-            logger.info(f"  - Memory: {self.capabilities.memory_gb:.1f} GB unified")
+            logger.info("  - Memory: %.1f GB unified", self.capabilities.memory_gb)
             logger.info(
                 f"  - MPS memory fraction: {M4_PERF_CONFIG['mps_memory_fraction']}"
             )
@@ -651,7 +644,7 @@ class DeviceRouter:
                 torch.backends.cuda.enable_flash_sdp(True)
                 torch.backends.cuda.enable_mem_efficient_sdp(True)
                 logger.info("[DeviceRouter] CUDA optimizations applied")
-            except Exception:
+            except (ImportError, RuntimeError):
                 pass
 
     def route(self, task_type: DeviceTaskType) -> RoutingDecision:
@@ -910,11 +903,9 @@ class DeviceRouter:
 
         return config
 
-
 # Global singleton
 _device_router: DeviceRouter | None = None
-_router_lock = threading.Lock()
-
+_router_lock = create_lock()
 
 def get_device_router() -> DeviceRouter:
     """Get global device router instance."""

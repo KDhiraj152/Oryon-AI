@@ -114,7 +114,7 @@ def generate_test_token(user_id: str, email: str, role: str):
 def main():
     """Main setup function."""
     print("=" * 60)
-    print("ShikshaSetu Authentication Setup")
+    print("Oryon Authentication Setup")
     print("=" * 60)
     print()
 
@@ -130,19 +130,19 @@ def main():
 
     test_users = [
         {
-            "email": "test@shiksha.com",
+            "email": "test@oryon.com",
             "password": "Test@1234567",
             "full_name": "Test User",
             "role": "user",
         },
         {
-            "email": "reviewer@shiksha.com",
+            "email": "reviewer@oryon.com",
             "password": "Reviewer@123456",
             "full_name": "Test Reviewer",
             "role": "teacher",
         },
         {
-            "email": "admin@shiksha.com",
+            "email": "admin@oryon.com",
             "password": "Admin@123456",
             "full_name": "Admin User",
             "role": "admin",
@@ -190,7 +190,7 @@ def main():
     print("1. Login to get token:")
     print("   curl -X POST http://localhost:8000/api/v2/auth/login \\")
     print('     -H "Content-Type: application/json" \\')
-    print('     -d \'{"email": "test@shiksha.com", "password": "Test@123456"}\'')
+    print('     -d \'{"email": "test@oryon.com", "password": "Test@123456"}\'')
     print()
     print("2. Use token to access protected endpoints:")
     print("   curl -X POST http://localhost:8000/api/v2/chat/guest \\")

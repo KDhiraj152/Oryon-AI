@@ -18,12 +18,10 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
-
 class RequestCancelled(Exception):
     """Raised when the client has disconnected."""
 
     pass
-
 
 async def check_cancelled(request: Request) -> None:
     """
@@ -33,9 +31,8 @@ async def check_cancelled(request: Request) -> None:
     Raises RequestCancelled if client has disconnected.
     """
     if await request.is_disconnected():
-        logger.info(f"Client disconnected: {request.method} {request.url.path}")
+        logger.info("Client disconnected: %s %s", request.method, request.url.path)
         raise RequestCancelled("Client disconnected")
-
 
 async def with_cancellation(
     request: Request, generator: AsyncGenerator[T, None], cleanup_fn=None
@@ -63,11 +60,11 @@ async def with_cancellation(
         async for item in generator:
             # Check if client is still connected
             if await request.is_disconnected():
-                logger.info(f"Client disconnected during streaming: {request.url.path}")
+                logger.info("Client disconnected during streaming: %s", request.url.path)
                 break
             yield item
     except asyncio.CancelledError:
-        logger.info(f"Request cancelled: {request.url.path}")
+        logger.info("Request cancelled: %s", request.url.path)
         raise
     finally:
         if cleanup_fn:
@@ -76,9 +73,8 @@ async def with_cancellation(
                     await cleanup_fn()
                 else:
                     cleanup_fn()
-            except Exception as e:
-                logger.warning(f"Cleanup error on cancellation: {e}")
-
+            except (RuntimeError, OSError) as e:
+                logger.warning("Cleanup error on cancellation: %s", e)
 
 def cancellable(check_interval: int = 10):
     """
@@ -103,16 +99,15 @@ def cancellable(check_interval: int = 10):
             try:
                 return await func(request, *args, **kwargs)
             except RequestCancelled:
-                logger.info(f"Request cancelled by client: {request.url.path}")
+                logger.info("Request cancelled by client: %s", request.url.path)
                 return None
             except asyncio.CancelledError:
-                logger.info(f"Request task cancelled: {request.url.path}")
+                logger.info("Request task cancelled: %s", request.url.path)
                 raise
 
         return wrapper
 
     return decorator
-
 
 class CancellationToken:
     """
@@ -131,7 +126,7 @@ class CancellationToken:
         self.request = request
         self.check_interval = check_interval
         self._cancelled = False
-        self._last_check = 0
+        self._last_check: float = 0.0
 
     async def is_cancelled(self) -> bool:
         """Check if cancellation has been requested."""
@@ -148,8 +143,8 @@ class CancellationToken:
                 self._last_check = now
                 if await self.request.is_disconnected():
                     self._cancelled = True
-                    logger.debug(f"Detected client disconnect: {self.request.url.path}")
-        except Exception:
+                    logger.debug("Detected client disconnect: %s", self.request.url.path)
+        except (RuntimeError, OSError):
             pass  # Ignore errors in cancellation check
 
         return self._cancelled
@@ -157,7 +152,6 @@ class CancellationToken:
     def cancel(self) -> None:
         """Manually mark as cancelled."""
         self._cancelled = True
-
 
 __all__ = [
     "CancellationToken",

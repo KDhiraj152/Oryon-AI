@@ -1,6 +1,6 @@
 #!/bin/bash
 # ===================================================================
-# ShikshaSetu - Frontend Only (v2.0)
+# Oryon - Frontend Only (v2.0)
 # Starts React frontend (requires backend running separately)
 #
 # Routes available:
@@ -44,7 +44,7 @@ if [ ! -d "frontend" ]; then
     exit 1
 fi
 
-print_header "🎨 SHIKSHA SETU - FRONTEND"
+print_header "🎨 ORYON AI - FRONTEND"
 
 # ===================================================================
 # Checks

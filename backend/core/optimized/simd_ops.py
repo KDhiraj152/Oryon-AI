@@ -23,7 +23,6 @@ Performance targets:
 import logging
 import os
 from functools import lru_cache
-from typing import Optional, Tuple, Union
 
 import numpy as np
 
@@ -52,11 +51,9 @@ try:
 except ImportError:
     _HAS_NUMBA = False
 
-
 # ============================================================================
 # ALIGNED MEMORY ALLOCATION
 # ============================================================================
-
 
 def aligned_zeros(shape: tuple[int, ...], dtype: np.dtype = np.float32) -> np.ndarray:
     """
@@ -90,7 +87,6 @@ def aligned_zeros(shape: tuple[int, ...], dtype: np.dtype = np.float32) -> np.nd
 
     return aligned
 
-
 def aligned_empty(shape: tuple[int, ...], dtype: np.dtype = np.float32) -> np.ndarray:
     """
     Allocate cache-line aligned uninitialized array.
@@ -108,7 +104,6 @@ def aligned_empty(shape: tuple[int, ...], dtype: np.dtype = np.float32) -> np.nd
 
     return raw[offset : offset + total_bytes].view(dtype).reshape(shape)
 
-
 def ensure_contiguous(arr: np.ndarray) -> np.ndarray:
     """
     Ensure array is C-contiguous for optimal SIMD access.
@@ -119,11 +114,9 @@ def ensure_contiguous(arr: np.ndarray) -> np.ndarray:
         return arr
     return np.ascontiguousarray(arr)
 
-
 # ============================================================================
 # VECTORIZED SIMILARITY OPERATIONS
 # ============================================================================
-
 
 def cosine_similarity_batch(
     queries: np.ndarray,
@@ -172,7 +165,6 @@ def cosine_similarity_batch(
         return similarities.ravel()
     return similarities
 
-
 def dot_product_batch(
     vectors_a: np.ndarray,
     vectors_b: np.ndarray,
@@ -189,7 +181,6 @@ def dot_product_batch(
     """
     # einsum is optimized for this pattern
     return np.einsum("ij,ij->i", vectors_a, vectors_b, optimize=True)
-
 
 def normalize_vectors_inplace(vectors: np.ndarray) -> np.ndarray:
     """
@@ -208,7 +199,6 @@ def normalize_vectors_inplace(vectors: np.ndarray) -> np.ndarray:
     vectors /= norms[:, np.newaxis]
     return vectors
 
-
 def normalize_vectors(vectors: np.ndarray) -> np.ndarray:
     """
     Normalize vectors to unit length (copy version).
@@ -222,7 +212,6 @@ def normalize_vectors(vectors: np.ndarray) -> np.ndarray:
     norms = np.sqrt(np.einsum("ij,ij->i", vectors, vectors, optimize=True))
     norms = np.maximum(norms, 1e-8)
     return vectors / norms[:, np.newaxis]
-
 
 def cosine_similarity_single(vec1: np.ndarray, vec2: np.ndarray) -> float:
     """
@@ -251,7 +240,6 @@ def cosine_similarity_single(vec1: np.ndarray, vec2: np.ndarray) -> float:
 
     return float(dot / (norm1 * norm2))
 
-
 # ============================================================================
 # GPU-ACCELERATED SEARCH (MPS/CUDA)
 # ============================================================================
@@ -259,7 +247,6 @@ def cosine_similarity_single(vec1: np.ndarray, vec2: np.ndarray) -> float:
 # Cache GPU availability check
 _GPU_AVAILABLE = None
 _GPU_DEVICE = None
-
 
 def _check_gpu():
     """Check and cache GPU availability."""
@@ -284,7 +271,6 @@ def _check_gpu():
         _GPU_DEVICE = None
 
     return _GPU_AVAILABLE, _GPU_DEVICE
-
 
 def gpu_cosine_similarity(
     query: np.ndarray,
@@ -337,7 +323,6 @@ def gpu_cosine_similarity(
 
     return similarities.float().cpu().numpy()
 
-
 def gpu_top_k_search(
     query: np.ndarray,
     documents: np.ndarray,
@@ -387,11 +372,9 @@ def gpu_top_k_search(
 
     return top_indices.cpu().numpy(), top_scores.cpu().numpy()
 
-
 # ============================================================================
 # HNSW-OPTIMIZED DISTANCE FUNCTIONS
 # ============================================================================
-
 
 def l2_distance_batch(
     query: np.ndarray,
@@ -425,7 +408,6 @@ def l2_distance_batch(
 
     return np.sqrt(distances_sq)
 
-
 def inner_product_distance_batch(
     query: np.ndarray,
     candidates: np.ndarray,
@@ -444,11 +426,9 @@ def inner_product_distance_batch(
     """
     return -np.dot(candidates, query)
 
-
 # ============================================================================
 # FAST TOP-K SELECTION
 # ============================================================================
-
 
 def top_k_indices(
     scores: np.ndarray,
@@ -478,7 +458,6 @@ def top_k_indices(
     else:
         indices = np.argpartition(scores, k)[:k]
         return indices[np.argsort(scores[indices])]
-
 
 def top_k_2d(
     scores: np.ndarray,
@@ -518,11 +497,9 @@ def top_k_2d(
 
     return indices, top_scores
 
-
 # ============================================================================
 # EMBEDDING SERIALIZATION (ZERO-COPY)
 # ============================================================================
-
 
 def embedding_to_bytes(
     embedding: np.ndarray,
@@ -545,7 +522,6 @@ def embedding_to_bytes(
     if use_float16 and embedding.dtype != np.float16:
         return embedding.astype(np.float16).tobytes()
     return embedding.tobytes()
-
 
 def bytes_to_embedding(
     data: bytes,
@@ -574,11 +550,9 @@ def bytes_to_embedding(
         return embedding.astype(np.float32)
     return embedding
 
-
 # ============================================================================
 # BATCH PROCESSING UTILITIES
 # ============================================================================
-
 
 def process_in_batches(
     data: np.ndarray,
@@ -609,7 +583,6 @@ def process_in_batches(
         results.append(func(batch))
 
     return np.concatenate(results, axis=axis)
-
 
 # ============================================================================
 # NUMBA JIT FUNCTIONS (OPTIONAL, FASTER)
@@ -669,11 +642,9 @@ if _HAS_NUMBA:
             return result.ravel()
         return result
 
-
 # ============================================================================
 # FEATURE DETECTION
 # ============================================================================
-
 
 @lru_cache(maxsize=1)
 def get_simd_capabilities() -> dict:
@@ -722,7 +693,6 @@ def get_simd_capabilities() -> dict:
 
     return caps
 
-
 # Export best available implementations
 def get_best_cosine_similarity():
     """Get fastest available cosine similarity function."""
@@ -730,6 +700,5 @@ def get_best_cosine_similarity():
         return cosine_similarity_numba
     return cosine_similarity_batch
 
-
 # Log capabilities on import
-logger.info(f"SIMD capabilities: {get_simd_capabilities()}")
+logger.info("SIMD capabilities: %s", get_simd_capabilities())

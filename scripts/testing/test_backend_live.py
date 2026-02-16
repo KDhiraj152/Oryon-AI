@@ -2,7 +2,7 @@
 """
 Live Backend Test Script
 ========================
-Tests the ShikshaSetu API with real prompts and verifies responses.
+Tests the Oryon API with real prompts and verifies responses.
 
 Usage:
     ./bin/test-backend-live [--port 9000] [--verbose]
@@ -13,8 +13,8 @@ import asyncio
 import json
 import sys
 import time
-from typing import Dict, Any, Optional, List
 from dataclasses import dataclass, field
+from typing import Any, Optional
 
 try:
     import httpx
@@ -42,14 +42,14 @@ class TestResult:
     passed: bool
     response_time_ms: float
     status_code: int = 0
-    response_data: Optional[Dict] = None
-    error: Optional[str] = None
+    response_data: dict | None = None
+    error: str | None = None
 
 
 @dataclass
 class TestSuite:
     name: str
-    results: List[TestResult] = field(default_factory=list)
+    results: list[TestResult] = field(default_factory=list)
 
     @property
     def passed(self) -> int:
@@ -68,8 +68,8 @@ class BackendTester:
     def __init__(self, base_url: str, verbose: bool = False):
         self.base_url = base_url
         self.verbose = verbose
-        self.suites: List[TestSuite] = []
-        self.client: Optional[httpx.AsyncClient] = None
+        self.suites: list[TestSuite] = []
+        self.client: httpx.AsyncClient | None = None
 
     async def __aenter__(self):
         self.client = httpx.AsyncClient(timeout=120.0)
@@ -95,13 +95,14 @@ class BackendTester:
         self,
         method: str,
         endpoint: str,
-        json_data: Optional[Dict] = None,
+        json_data: dict | None = None,
         timeout: float = 60.0
     ) -> TestResult:
         """Make a request and return result."""
         url = f"{self.base_url}{endpoint}"
         start = time.perf_counter()
 
+        assert self.client is not None
         try:
             if method == "GET":
                 response = await self.client.get(url, timeout=timeout)
@@ -112,7 +113,7 @@ class BackendTester:
 
             try:
                 data = response.json()
-            except:
+            except Exception:
                 data = {"raw": response.text[:500]}
 
             return TestResult(
@@ -206,14 +207,14 @@ class BackendTester:
                 "complexity_level": test["complexity_level"],
                 "subject": "Education"
             })
-            result.name = test["name"]
+            result.name = str(test["name"])
             suite.results.append(result)
 
             if result.passed:
-                self.log(f"{test['name']}: {result.status_code} ({result.response_time_ms:.0f}ms)", "success")
+                self.log(f"{test['name']!s}: {result.status_code} ({result.response_time_ms:.0f}ms)", "success")
                 if result.response_data:
-                    simplified = result.response_data.get("simplified_text", "")[:100]
-                    self.log(f"  Input: {test['text'][:60]}...", "debug")
+                    simplified = str(result.response_data.get("simplified_text", ""))[:100]
+                    self.log(f"  Input: {str(test['text'])[:60]}...", "debug")
                     self.log(f"  Output: {simplified}...", "debug")
             else:
                 self.log(f"{test['name']}: {result.error or result.status_code}", "error")
@@ -377,14 +378,14 @@ class BackendTester:
     async def run_all(self):
         """Run all test suites."""
         print(f"\n{CYAN}{'═'*60}")
-        print(f"  {BOLD}🧪 SHIKSHA SETU LIVE BACKEND TEST{NC}")
+        print(f"  {BOLD}🧪 ORYON AI LIVE BACKEND TEST{NC}")
         print(f"{CYAN}{'═'*60}{NC}")
         print(f"\n   Base URL: {self.base_url}")
         print(f"   Verbose: {self.verbose}")
 
         # Wait for server to be ready
-        print(f"\n   Checking server availability...")
-        for i in range(5):
+        print("\n   Checking server availability...")
+        for _i in range(5):
             result = await self.request("GET", "/health", timeout=5.0)
             if result.passed:
                 print(f"   {GREEN}✓ Server is ready{NC}")

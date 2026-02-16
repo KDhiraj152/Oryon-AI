@@ -8,10 +8,12 @@ sys.path.insert(0, str(backend_dir))
 
 # Load environment variables
 from dotenv import load_dotenv
+
 load_dotenv()
 
 import database
 import models  # Import all models to register them with Base
+
 
 def init_database():
     """Create all tables in the database"""

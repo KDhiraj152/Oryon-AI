@@ -8,15 +8,15 @@ Health checks, system status, hardware monitoring, and admin endpoints.
 import logging
 import time
 from datetime import UTC, datetime, timezone
-from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 
-from ...cache import get_unified_cache
+from backend.db.database import get_async_db_session
+from backend.infra.cache import get_unified_cache
+
 from ...core.optimized import get_device_router
-from ...database import get_async_db_session
 from ...utils.auth import TokenData, get_current_user
 from ..deps import get_ai_engine as _get_ai_engine
 
@@ -30,10 +30,8 @@ _startup_time = time.time()
 # Cached device info (computed once, never changes)
 _cached_device_info = None
 
-
 # OPTIMIZATION: Pre-computed static responses
 _POLICY_MODES_RESPONSE = None
-
 
 def _get_policy_modes_response():
     """Get cached policy modes response (computed once)."""
@@ -96,7 +94,6 @@ def _get_policy_modes_response():
         }
     return _POLICY_MODES_RESPONSE
 
-
 # Model name constants to avoid duplication
 MODEL_QWEN = "qwen3-8b"
 MODEL_INDICTRANS = "indictrans2-1b"
@@ -106,9 +103,7 @@ MODEL_MMS_TTS = "mms-tts"
 MODEL_WHISPER = "whisper-v3-turbo"
 MODEL_GOT_OCR = "got-ocr2"
 
-
 # ==================== Models ====================
-
 
 class ProgressStats(BaseModel):
     """User progress statistics."""
@@ -120,7 +115,6 @@ class ProgressStats(BaseModel):
     avg_session_duration_mins: float
     streak_days: int
 
-
 class QuizGenerateRequest(BaseModel):
     """Quiz generation request."""
 
@@ -129,13 +123,11 @@ class QuizGenerateRequest(BaseModel):
     num_questions: int = Field(default=5, ge=1, le=20)
     difficulty: str = Field(default="medium")
 
-
 class QuizSubmitRequest(BaseModel):
     """Quiz submission request."""
 
     quiz_id: str
     answers: dict[str, str]
-
 
 class BackupRequest(BaseModel):
     """Backup request."""
@@ -143,15 +135,12 @@ class BackupRequest(BaseModel):
     include_cache: bool = False
     compress: bool = True
 
-
 # Error constants
 ERROR_REVIEWER_ADMIN_REQUIRED = "Teacher or admin access required"
 
-
 # ==================== Health Endpoints ====================
 
-
-@router.get("/health", tags=["health"])
+@router.get("", tags=["health"])
 async def health_check():
     """Instant health check - no model loading."""
     return {
@@ -160,12 +149,10 @@ async def health_check():
         "uptime_seconds": int(time.time() - _startup_time),
     }
 
-
 @router.get("/test-simple", tags=["health"])
 async def test_simple():
     """Simple test endpoint."""
     return {"status": "ok", "message": "test endpoint works"}
-
 
 @router.get("/policy", tags=["policy"])
 async def get_policy_status():
@@ -210,14 +197,12 @@ async def get_policy_status():
         "stats": policy.get_stats(),
     }
 
-
 class PolicyModeRequest(BaseModel):
     """Request to switch policy mode."""
 
     mode: str = Field(
         ..., description="Target mode: OPEN, EDUCATION, RESEARCH, or RESTRICTED"
     )
-
 
 @router.post("/policy/mode", tags=["policy"])
 async def switch_policy_mode(
@@ -255,15 +240,13 @@ async def switch_policy_mode(
         **result,
     }
 
-
 @router.get("/policy/modes", tags=["policy"])
 async def list_policy_modes():
     """List all available policy modes with descriptions."""
     # OPTIMIZATION: Return pre-computed cached response
     return _get_policy_modes_response()
 
-
-@router.get("/health/detailed", tags=["health"])
+@router.get("/detailed", tags=["health"])
 async def detailed_health_check():
     """Detailed health check with all components."""
     device_router = get_device_router()
@@ -292,7 +275,7 @@ async def detailed_health_check():
         async with get_async_db_session() as session:
             await session.execute(text("SELECT 1"))
         health["components"]["database"] = {"status": "healthy"}
-    except Exception as e:
+    except (OSError, RuntimeError, ValueError) as e:
         health["components"]["database"] = {"status": "error", "error": str(e)}
         health["status"] = "degraded"
 
@@ -301,11 +284,10 @@ async def detailed_health_check():
         cache = get_unified_cache()
         await cache.set("health_check", "ok", ttl=10)
         health["components"]["cache"] = {"status": "healthy"}
-    except Exception as e:
+    except (OSError, RuntimeError, ValueError) as e:
         health["components"]["cache"] = {"status": "error", "error": str(e)}
 
     return health
-
 
 @router.get("/stats", tags=["monitoring"])
 async def get_stats():
@@ -328,9 +310,7 @@ async def get_stats():
     # Fallback: basic stats without device info
     return {"device": "loading...", "uptime_seconds": int(time.time() - _startup_time)}
 
-
 # ==================== Progress Endpoints ====================
-
 
 @router.get("/progress/stats", response_model=ProgressStats, tags=["progress"])
 async def get_user_progress(current_user: TokenData = Depends(get_current_user)):
@@ -345,12 +325,11 @@ async def get_user_progress(current_user: TokenData = Depends(get_current_user))
         streak_days=7,
     )
 
-
 @router.post("/progress/quiz/generate", tags=["progress"])
 async def generate_quiz(request: QuizGenerateRequest):
     """Generate a quiz on a topic."""
     try:
-        from ...services.ai_core.engine import GenerationConfig
+        from ...services.chat.engine import GenerationConfig
 
         # OPTIMIZATION: Use cached engine singleton
         engine = _get_ai_engine()
@@ -391,7 +370,6 @@ Make sure all answers are educationally accurate and age-appropriate."""
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.post("/progress/quiz/submit", tags=["progress"])
 async def submit_quiz(request: QuizSubmitRequest):
     """Submit quiz answers and get score."""
@@ -403,9 +381,7 @@ async def submit_quiz(request: QuizSubmitRequest):
         "feedback": "Great job! Keep practicing.",
     }
 
-
 # ==================== Admin Endpoints ====================
-
 
 @router.post("/admin/backup", tags=["admin"])
 async def create_backup(
@@ -424,7 +400,6 @@ async def create_backup(
         "timestamp": datetime.now(UTC).isoformat(),
     }
 
-
 @router.get("/admin/backups", tags=["admin"])
 async def list_backups(current_user: TokenData = Depends(get_current_user)):
     """List available backups (admin only)."""
@@ -433,9 +408,7 @@ async def list_backups(current_user: TokenData = Depends(get_current_user)):
 
     return {"backups": []}
 
-
 # ==================== Review Endpoints ====================
-
 
 @router.get("/review/pending", tags=["review"])
 async def get_pending_reviews(
@@ -462,9 +435,8 @@ async def get_pending_reviews(
         }
 
     except Exception as e:
-        logger.error(f"Failed to get pending reviews: {e}")
+        logger.error("Failed to get pending reviews: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/review/{response_id}", tags=["review"])
 async def get_review_by_id(
@@ -488,9 +460,8 @@ async def get_review_by_id(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to get review: {e}")
+        logger.error("Failed to get review: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.post("/review/{response_id}/submit", tags=["review"])
 async def submit_review(
@@ -534,9 +505,8 @@ async def submit_review(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to submit review: {e}")
+        logger.error("Failed to submit review: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get("/review/stats", tags=["review"])
 async def get_review_stats(current_user: TokenData = Depends(get_current_user)):
@@ -552,12 +522,10 @@ async def get_review_stats(current_user: TokenData = Depends(get_current_user)):
         return queue.get_stats()
 
     except Exception as e:
-        logger.error(f"Failed to get review stats: {e}")
+        logger.error("Failed to get review stats: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 # ==================== Profile Endpoints ====================
-
 
 @router.get("/profile/me", tags=["profile"])
 async def get_my_profile(current_user: TokenData = Depends(get_current_user)):
@@ -574,9 +542,8 @@ async def get_my_profile(current_user: TokenData = Depends(get_current_user)):
         }
 
     except Exception as e:
-        logger.error(f"Failed to get profile: {e}")
+        logger.error("Failed to get profile: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.put("/profile/me", tags=["profile"])
 async def update_my_profile(
@@ -599,12 +566,10 @@ async def update_my_profile(
         return {"success": True, "profile": updated}
 
     except Exception as e:
-        logger.error(f"Failed to update profile: {e}")
+        logger.error("Failed to update profile: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 # ==================== Hardware Status Endpoints ====================
-
 
 @router.get("/hardware/status", tags=["system"])
 async def get_hardware_status():
@@ -651,10 +616,9 @@ async def get_hardware_status():
         }
         return _cached_device_info
 
-    except Exception as e:
-        logger.error(f"Hardware status error: {e}")
+    except (OSError, RuntimeError, ValueError) as e:
+        logger.error("Hardware status error: %s", e)
         return {"device": {"chip": "Unknown"}, "optimization": {}, "error": str(e)}
-
 
 @router.get("/models/status", tags=["system"])
 async def get_models_status():
@@ -718,9 +682,8 @@ async def get_models_status():
         }
 
     except Exception as e:
-        logger.error(f"Models status error: {e}")
+        logger.error("Models status error: %s", e)
         return {"error": str(e)}
-
 
 @router.post("/models/warmup", tags=["system"])
 async def warmup_models(models: list[str] | None = None):
@@ -738,7 +701,7 @@ async def warmup_models(models: list[str] | None = None):
             try:
                 await pipeline._embedder.embed(["warmup"])
                 warmed.append("bge-m3")
-            except Exception:
+            except (RuntimeError, ValueError, OSError):
                 pass
 
         # Warm up inference engine
@@ -754,9 +717,8 @@ async def warmup_models(models: list[str] | None = None):
         }
 
     except Exception as e:
-        logger.error(f"Model warmup error: {e}")
+        logger.error("Model warmup error: %s", e)
         return {"success": False, "warmed_up": [], "error": str(e)}
-
 
 @router.get("/cache/status", tags=["system"])
 async def get_cache_status():
@@ -796,9 +758,8 @@ async def get_cache_status():
         }
 
     except Exception as e:
-        logger.error(f"Cache status error: {e}")
+        logger.error("Cache status error: %s", e)
         return {"status": "error", "error": str(e)}
-
 
 @router.get("/batch/metrics", tags=["system"])
 async def get_batch_metrics():
@@ -826,7 +787,7 @@ async def get_batch_metrics():
         }
 
     except Exception as e:
-        logger.error(f"Batch metrics error: {e}")
+        logger.error("Batch metrics error: %s", e)
         return {
             "embeddings": {
                 "texts_per_second": 0,
@@ -836,7 +797,6 @@ async def get_batch_metrics():
             "reranking": {"docs_per_second": 0, "avg_latency_ms": 0},
             "llm": {"tokens_per_second": 0, "active_requests": 0},
         }
-
 
 @router.get("/hardware/benchmarks", tags=["system"])
 async def get_hardware_benchmarks():
@@ -867,5 +827,5 @@ async def get_hardware_benchmarks():
             }
 
     except Exception as e:
-        logger.error(f"Benchmarks error: {e}")
+        logger.error("Benchmarks error: %s", e)
         return {"error": str(e)}

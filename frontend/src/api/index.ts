@@ -1,5 +1,5 @@
 /**
- * API Index - Modular API client for Shiksha Setu
+ * API Index - Modular API client for Oryon AI
  *
  * This file re-exports all API modules for backward compatibility.
  * Individual modules can be imported directly for tree-shaking benefits.
@@ -11,7 +11,6 @@
  *
  * // Import specific modules (recommended)
  * import { auth } from './api/auth';
- * import { chat } from './api/chat';
  */
 
 // Re-export all types
@@ -25,10 +24,6 @@ export { auth, refreshToken } from './auth';
 
 // Re-export conversation module
 export { conversations } from './conversations';
-
-// Re-export chat module
-export { chat } from './chat';
-export type { SendMessageOptions } from './chat';
 
 // Re-export content module
 export { content } from './content';
@@ -66,7 +61,6 @@ export type {
 // Import all modules for default export
 import { auth } from './auth';
 import { conversations } from './conversations';
-import { chat } from './chat';
 import { content } from './content';
 import { audio } from './audio';
 import { progress } from './progress';
@@ -79,7 +73,6 @@ import { profile, review } from './profileReview';
 export default {
   auth,
   conversations,
-  chat,
   content,
   audio,
   progress,

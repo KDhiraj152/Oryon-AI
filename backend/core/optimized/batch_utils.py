@@ -17,13 +17,12 @@ import time
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Dict, Generic, List, Optional, TypeVar
+from typing import Any, Generic, TypeVar
 
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 R = TypeVar("R")
-
 
 @dataclass
 class BatchRequest(Generic[T]):
@@ -33,7 +32,6 @@ class BatchRequest(Generic[T]):
     future: asyncio.Future
     created_at: float = field(default_factory=time.perf_counter)
 
-
 @dataclass
 class BatchConfig:
     """Configuration for batch processing."""
@@ -41,7 +39,6 @@ class BatchConfig:
     max_batch_size: int = 32
     max_wait_ms: float = 10.0  # Max time to wait for more requests
     min_batch_size: int = 1  # Process immediately if this many waiting
-
 
 class AsyncBatcher(Generic[T, R]):
     """
@@ -138,8 +135,8 @@ class AsyncBatcher(Generic[T, R]):
                 self._total_items += len(batch)
                 self._total_wait_time += time.perf_counter() - wait_start
 
-            except Exception as e:
-                logger.error(f"Batch processing error: {e}")
+            except (RuntimeError, ValueError, OSError) as e:
+                logger.error("Batch processing error: %s", e)
                 for req in batch:
                     if not req.future.done():
                         req.future.set_exception(e)
@@ -167,13 +164,11 @@ class AsyncBatcher(Generic[T, R]):
         if self._process_task and not self._process_task.done():
             await self._process_task
 
-
 # ============================================================================
 # EMBEDDING BATCHER - Optimized for BGE-M3
 # ============================================================================
 
-_embedding_batcher: Optional["EmbeddingBatcher"] = None
-
+_embedding_batcher: "EmbeddingBatcher" | None = None
 
 class EmbeddingBatcher(AsyncBatcher[str, list[float]]):
     """
@@ -200,18 +195,18 @@ class EmbeddingBatcher(AsyncBatcher[str, list[float]]):
     def _embed_batch(self, texts: list[str]) -> list[list[float]]:
         """Process batch of texts through embedder."""
         if self._embedder is None:
-            from ..rag import get_embedder
+            from backend.services.chat.rag import get_embedder
 
             self._embedder = get_embedder()
 
         # Use batch encode for efficiency
         if hasattr(self._embedder, "encode_batch"):
-            return self._embedder.encode_batch(texts)
+            result: list[list[float]] = self._embedder.encode_batch(texts)
+            return result
         elif hasattr(self._embedder, "encode"):
             return [self._embedder.encode(t).tolist() for t in texts]
         else:
             raise RuntimeError("Embedder has no batch encode method")
-
 
 def get_embedding_batcher() -> EmbeddingBatcher:
     """Get singleton embedding batcher."""
@@ -220,11 +215,9 @@ def get_embedding_batcher() -> EmbeddingBatcher:
         _embedding_batcher = EmbeddingBatcher()
     return _embedding_batcher
 
-
 # ============================================================================
 # INFERENCE PREFETCH - Async prefetching for common operations
 # ============================================================================
-
 
 class InferencePrefetcher:
     """
@@ -266,8 +259,8 @@ class InferencePrefetcher:
 
         try:
             return await task
-        except Exception as e:
-            logger.warning(f"Prefetch failed for {key}: {e}")
+        except (RuntimeError, ValueError, OSError) as e:
+            logger.warning("Prefetch failed for %s: %s", key, e)
             return None
 
     async def clear(self) -> None:
@@ -277,9 +270,7 @@ class InferencePrefetcher:
                 task.cancel()
             self._cache.clear()
 
-
 _prefetcher: InferencePrefetcher | None = None
-
 
 def get_prefetcher() -> InferencePrefetcher:
     """Get singleton prefetcher."""

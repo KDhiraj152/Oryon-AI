@@ -21,7 +21,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 def test_fast_arithmetic():
     """Test the fast arithmetic computation path."""
-    from backend.services.ai_core.engine import AIEngine
+    from backend.services.chat.engine import AIEngine
 
     engine = AIEngine()
 
@@ -57,7 +57,7 @@ def test_fast_arithmetic():
 
 def test_intent_classification():
     """Test intent classification for simple queries."""
-    from backend.services.ai_core.intent import IntelligentIntentClassifier, Intent
+    from backend.services.chat.intent import IntelligentIntentClassifier, Intent
 
     classifier = IntelligentIntentClassifier()
 
@@ -90,8 +90,8 @@ def test_intent_classification():
 
 def test_is_simple_query():
     """Test simple query detection."""
-    from backend.services.ai_core.engine import AIEngine
-    from backend.services.ai_core.formatter import Intent
+    from backend.services.chat.engine import AIEngine
+    from backend.services.chat.formatter import Intent
 
     engine = AIEngine()
 
@@ -123,7 +123,7 @@ def test_is_simple_query():
 
 def test_formatter_intent_detection():
     """Test formatter intent detection for arithmetic."""
-    from backend.services.ai_core.formatter import Intent, ResponseFormatter
+    from backend.services.chat.formatter import Intent, ResponseFormatter
 
     formatter = ResponseFormatter()
 
@@ -152,7 +152,7 @@ def test_formatter_intent_detection():
 
 async def test_full_chat_flow():
     """Test the full chat flow with simple queries."""
-    from backend.services.ai_core.engine import GenerationConfig, get_ai_engine
+    from backend.services.chat.engine import GenerationConfig, get_ai_engine
 
     print("Testing Full Chat Flow:")
     print("-" * 50)
@@ -194,7 +194,7 @@ async def test_full_chat_flow():
 def main():
     """Run all tests."""
     print("=" * 60)
-    print("SHIKSHA SETU - Simple Query Handling Tests")
+    print("ORYON AI - Simple Query Handling Tests")
     print("=" * 60)
     print()
 

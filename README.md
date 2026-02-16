@@ -1,6 +1,6 @@
 <p align="center">
-  <h1 align="center">शिक्षा सेतु — Shiksha Setu</h1>
-  <p align="center"><strong>Self-hosted, offline-capable AI platform with multilingual support</strong></p>
+  <h1 align="center">Oryon AI</h1>
+  <p align="center"><strong>Modular intelligence and workflow orchestration engine — self-hosted, offline-capable</strong></p>
 </p>
 
 <p align="center">
@@ -16,11 +16,11 @@
 
 ## About
 
-Shiksha Setu is a self-hosted AI platform that runs LLM chat, RAG, voice I/O, document analysis, semantic search, and multilingual translation on your own hardware.
+Oryon AI is a domain-agnostic ML-driven orchestration and decision automation framework. Self-hosted, it runs LLM chat, RAG, voice I/O, document analysis, semantic search, and multilingual translation on your own hardware.
 
 - **Local-first** — all processing happens on-device. No external API calls or telemetry.
 - **Offline-capable** — works without internet after a one-time ~10GB model download.
-- **Multilingual** — supports 10 Indian languages + English via IndicTrans2.
+- **Multilingual** — supports 10+ languages via pluggable translation backends.
 - **Open source** — MIT licensed. Swap models, tune prompts, extend as needed.
 
 ---
@@ -32,7 +32,7 @@ Shiksha Setu is a self-hosted AI platform that runs LLM chat, RAG, voice I/O, do
 | Capability | Model | What It Does |
 |:-----------|:------|:-------------|
 | **Chat & Reasoning** | Qwen3-8B (MLX 4-bit) | RAG-enhanced conversational AI with streaming responses |
-| **Translation** | IndicTrans2-1B | Real-time translation across 10 Indian languages + English |
+| **Translation** | IndicTrans2-1B | Real-time translation across 10+ supported languages |
 | **Voice Input** | Whisper V3 Turbo | Speech-to-text in any supported language — 8x faster than Whisper V3 |
 | **Voice Output** | MMS-TTS + Edge-TTS | Natural text-to-speech with automatic failover |
 | **Semantic Search** | BGE-M3 + BGE-Reranker-v2-M3 | Multilingual vector search with cross-encoder reranking |
@@ -76,7 +76,7 @@ Benchmarked on Apple Silicon M4 Pro (16GB unified memory):
 | Translation Latency | **120ms** |
 | Memory Efficiency | **75% reduction** from FP16 baseline (INT4 quantization) |
 
-**Voice-to-voice end-to-end** (speak a question in Hindi → hear the answer): **~4 seconds.**
+**Voice-to-voice end-to-end** (speak a question → hear the answer): **~4 seconds.**
 
 ---
 
@@ -84,7 +84,7 @@ Benchmarked on Apple Silicon M4 Pro (16GB unified memory):
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│                         SHIKSHA SETU v4.1                                │
+│                         ORYON AI v4.1                                │
 ├──────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
 │   React 18 + TypeScript + Vite + Tailwind + shadcn/ui                   │
@@ -153,8 +153,8 @@ A custom **Memory Coordinator** orchestrates 6+ concurrent AI models in shared m
 
 ```bash
 # Clone
-git clone https://github.com/KDhiraj152/Shiksha-setu.git
-cd Shiksha-setu
+git clone https://github.com/KDhiraj152/Oryon-AI.git
+cd Oryon-AI
 
 # Setup (creates venv, installs deps, downloads models, runs migrations)
 ./setup.sh
@@ -221,32 +221,56 @@ All endpoints under `/api/v2/`. Full reference in [docs/05-api-reference.md](doc
 ## Project Structure
 
 ```
-Shiksha-setu/
+Oryon-AI/
 ├── backend/                 # FastAPI application
 │   ├── api/                 #   Routes, middleware, metrics
+│   │   ├── routes/          #     Auth, chat, content, health endpoints
+│   │   └── middleware/      #     Request classification, orchestration
 │   ├── agents/              #   Multi-agent system (7 specialized agents)
 │   ├── core/                #   Config, security, circuit breakers
-│   │   └── optimized/       #   Apple Silicon optimizations (22 modules)
-│   ├── services/            #   AI pipeline, RAG, translation, TTS, safety
-│   │   ├── ai_core/         #     Intent routing, prompts, safety
+│   │   └── optimized/       #     Apple Silicon optimizations (22 modules)
+│   ├── db/                  #   Database connection & session management
+│   ├── infra/               #   Infrastructure layer
+│   │   ├── cache/           #     Multi-tier caching (L1/L2/L3)
+│   │   ├── hardware/        #     Device management & GPU scheduling
+│   │   ├── telemetry/       #     Logging, metrics, profiling
+│   │   └── runtime/         #     Execution & orchestration
+│   ├── ml/                  #   Machine learning pipelines
 │   │   ├── inference/       #     MLX, CoreML, unified engine
 │   │   ├── pipeline/        #     Content orchestration
-│   │   └── translate/       #     IndicTrans2 integration
+│   │   ├── speech/          #     TTS & speech services
+│   │   ├── translate/       #     IndicTrans2 integration
+│   │   └── evaluation/      #     Semantic accuracy evaluation
+│   ├── services/            #   Business logic services
+│   │   ├── chat/            #     AI engine, RAG, intent routing
+│   │   ├── content/         #     Simplification, validation
+│   │   └── users/           #     User profiles, review queue
 │   ├── models/              #   SQLAlchemy ORM models
-│   ├── cache/               #   Multi-tier caching (L1/L2/L3)
-│   └── monitoring/          #   Prometheus, OOM alerts
+│   ├── schemas/             #   Pydantic request/response schemas
+│   ├── tasks/               #   Celery background tasks
+│   └── utils/               #   Shared utilities
 ├── frontend/                # React + TypeScript + Vite
 │   └── src/
 │       ├── api/             #   Backend API client layer
 │       ├── pages/           #   Landing, Auth, Chat, Settings
 │       ├── components/      #   Chat UI, layout, system status
 │       └── store/           #   Zustand state management
+├── config/                  # Configuration (symlinked to root for tools)
+│   ├── alembic/             #   18 database migrations
+│   ├── policy/              #   Content policy configuration
+│   ├── alembic.ini          #   Alembic config
+│   ├── pyproject.toml       #   Python project config
+│   └── pyrightconfig.json   #   Type checking config
+├── deploy/                  # Deployment infrastructure
+│   ├── docker/              #   Docker configurations
+│   ├── docker-compose.yml   #   Main compose file
+│   ├── kubernetes/          #   K8s manifests
+│   ├── nginx/               #   Nginx configs
+│   └── monitoring/          #   Prometheus, Grafana
 ├── docs/                    # 11 documentation files
 ├── tests/                   # Unit, integration, e2e, performance
-├── alembic/                 # 18 database migrations
-├── infrastructure/          # Docker, Kubernetes, Nginx, monitoring
 ├── scripts/                 # Setup, deployment, testing, benchmarks
-└── storage/                 # Audio, cache, models, uploads
+└── data/                    # Runtime data (audio, cache, models, uploads)
 ```
 
 ---
@@ -258,7 +282,7 @@ Copy `.env.example` to `.env` and configure:
 ```bash
 # Core
 ENVIRONMENT=development
-DATABASE_URL=postgresql://postgres:password@localhost:5432/shiksha_setu
+DATABASE_URL=postgresql://postgres:password@localhost:5432/oryon
 REDIS_URL=redis://localhost:6379/0
 
 # Device (auto-detected if not set)

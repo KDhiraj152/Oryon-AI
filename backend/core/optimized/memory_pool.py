@@ -31,14 +31,15 @@ import threading
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, TypeVar
+from typing import Any, ClassVar, TypeVar
 
 import numpy as np
+
+from backend.utils.lock_factory import create_lock
 
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
-
 
 @dataclass
 class MemoryBudget:
@@ -76,7 +77,6 @@ class MemoryBudget:
     def cache_bytes(self) -> int:
         return int(self.cache_gb * 1024 * 1024 * 1024)
 
-
 @dataclass
 class BufferStats:
     """Statistics for buffer pool."""
@@ -86,7 +86,6 @@ class BufferStats:
     peak_usage: int = 0
     current_usage: int = 0
     fragmentation_ratio: float = 0.0
-
 
 class SizeClassAllocator:
     """
@@ -104,7 +103,7 @@ class SizeClassAllocator:
     """
 
     # Size classes (power of 2 aligned) - expanded for ML workloads
-    SIZE_CLASSES = [
+    SIZE_CLASSES: ClassVar[list] = [
         64,  # 64B - small metadata
         256,  # 256B - small tensors
         1024,  # 1KB - token ids
@@ -169,7 +168,7 @@ class SizeClassAllocator:
         """Find smallest size class that fits requested size."""
         for size_class in self.SIZE_CLASSES:
             if size_class >= size:
-                return size_class
+                return int(size_class)
         # Larger than any class, return exact size
         return size
 
@@ -246,7 +245,6 @@ class SizeClassAllocator:
             },
         }
 
-
 class TensorPool:
     """
     Typed tensor pool for inference buffers.
@@ -260,7 +258,7 @@ class TensorPool:
     """
 
     # Common tensor shapes for M4-optimized batch sizes (increased batches)
-    COMMON_SHAPES = {
+    COMMON_SHAPES: ClassVar[dict] = {
         "token_ids": [(1, 512), (4, 512), (8, 512), (1, 2048), (4, 2048)],
         "embeddings": [(1, 1024), (8, 1024), (32, 1024), (64, 1024)],
         "embeddings_fp16": [(1, 1024), (32, 1024), (64, 1024)],
@@ -339,7 +337,6 @@ class TensorPool:
             "shapes_cached": len(self._pools),
         }
 
-
 class MemoryMappedWeights:
     """
     Memory-mapped model weights for efficient loading.
@@ -353,7 +350,7 @@ class MemoryMappedWeights:
 
     def __init__(self, base_path: Path | None = None):
         self.base_path = (
-            base_path or Path.home() / ".cache" / "shiksha_setu" / "weights"
+            base_path or Path.home() / ".cache" / "oryon" / "weights"
         )
         self.base_path.mkdir(parents=True, exist_ok=True)
 
@@ -382,7 +379,7 @@ class MemoryMappedWeights:
             # Write data
             f.write(weights.tobytes())
 
-        logger.info(f"Saved weights {name}: {weights.shape} to {path}")
+        logger.info("Saved weights %s: %s to %s", name, weights.shape, path)
         return path
 
     def load_weights(
@@ -428,10 +425,10 @@ class MemoryMappedWeights:
                 self._maps[name] = mm
                 self._arrays[name] = arr
 
-            logger.info(f"Memory-mapped weights {name}: {shape}")
+            logger.info("Memory-mapped weights %s: %s", name, shape)
             return arr
 
-        except Exception:
+        except (OSError, ValueError):
             os.close(fd)
             raise
 
@@ -460,7 +457,6 @@ class MemoryMappedWeights:
             "total_bytes": sum(arr.nbytes for arr in self._arrays.values()),
         }
 
-
 class UnifiedMemoryPool:
     """
     Unified memory pool manager for M4.
@@ -470,7 +466,7 @@ class UnifiedMemoryPool:
     """
 
     _instance = None
-    _lock = threading.Lock()
+    _lock = create_lock()
 
     def __new__(cls):
         if cls._instance is None:
@@ -530,7 +526,7 @@ class UnifiedMemoryPool:
 
             if torch.backends.mps.is_available():
                 torch.mps.empty_cache()
-        except Exception:
+        except (ImportError, RuntimeError, OSError):
             pass
 
     def get_stats(self) -> dict[str, Any]:
@@ -547,14 +543,11 @@ class UnifiedMemoryPool:
             "mmap_weights": self.mmap_weights.get_stats(),
         }
 
-
 # ==================== SINGLETON ====================
-
 
 def get_memory_pool() -> UnifiedMemoryPool:
     """Get global unified memory pool."""
     return UnifiedMemoryPool()
-
 
 __all__ = [
     "BufferStats",

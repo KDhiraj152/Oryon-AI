@@ -2,7 +2,7 @@
 
 import logging
 import time
-from typing import Any, Dict, List
+from typing import Any
 
 from celery import Task
 from celery.exceptions import SoftTimeLimitExceeded
@@ -11,12 +11,11 @@ from ..models import ProcessedContent
 from ..services.ocr import OCRService
 from ..services.simplify.simplifier import TextSimplifier
 from ..services.speech.generator import SpeechGenerator
-from ..services.translate.engine import TranslationEngine
+from ..ml.translate.engine import TranslationEngine
 from ..services.validate.validator import ValidationModule
 from .celery_app import celery_app
 
 logger = logging.getLogger(__name__)
-
 
 class CallbackTask(Task):
     """Base task with callbacks for progress tracking."""
@@ -35,7 +34,6 @@ class CallbackTask(Task):
                 "timestamp": time.time(),
             },
         )
-
 
 @celery_app.task(
     bind=True,
@@ -87,12 +85,11 @@ def extract_text_task(
         }
 
     except SoftTimeLimitExceeded:
-        logger.error(f"Text extraction timed out for {file_path}")
+        logger.error("Text extraction timed out for %s", file_path)
         raise
     except Exception as e:
-        logger.error(f"Text extraction failed: {e}")
+        logger.error("Text extraction failed: %s", e)
         raise
-
 
 @celery_app.task(
     bind=True,
@@ -135,8 +132,8 @@ def simplify_text_task(
             try:
                 model_client = QwenSimplificationClient(api_key)
                 logger.info("Qwen3-8B model client initialized")
-            except Exception as e:
-                logger.warning(f"Failed to initialize Qwen client: {e}")
+            except (ImportError, RuntimeError) as e:
+                logger.warning("Failed to initialize Qwen client: %s", e)
 
         simplifier = TextSimplifier(model_client=model_client)
 
@@ -173,9 +170,8 @@ def simplify_text_task(
         logger.error("Text simplification timed out")
         raise
     except Exception as e:
-        logger.error(f"Text simplification failed: {e}")
+        logger.error("Text simplification failed: %s", e)
         raise
-
 
 @celery_app.task(
     bind=True,
@@ -218,8 +214,8 @@ def translate_text_task(
             try:
                 model_client = IndicTrans2Client(api_key)
                 logger.info("IndicTrans2 model client initialized")
-            except Exception as e:
-                logger.warning(f"Failed to initialize IndicTrans2 client: {e}")
+            except (ImportError, RuntimeError) as e:
+                logger.warning("Failed to initialize IndicTrans2 client: %s", e)
 
         translator = TranslationEngine(model_client=model_client)
 
@@ -272,9 +268,8 @@ def translate_text_task(
         logger.error("Translation timed out")
         raise
     except Exception as e:
-        logger.error(f"Translation failed: {e}")
+        logger.error("Translation failed: %s", e)
         raise
-
 
 @celery_app.task(
     bind=True,
@@ -331,9 +326,8 @@ def validate_content_task(
         }
 
     except Exception as e:
-        logger.error(f"Content validation failed: {e}")
+        logger.error("Content validation failed: %s", e)
         raise
-
 
 @celery_app.task(
     bind=True,
@@ -391,9 +385,8 @@ def generate_audio_task(
         }
 
     except Exception as e:
-        logger.error(f"Audio generation failed: {e}")
+        logger.error("Audio generation failed: %s", e)
         raise
-
 
 @celery_app.task(
     bind=True,
@@ -428,7 +421,7 @@ def full_pipeline_task(
     """
     try:
         task_id = self.request.id
-        logger.info(f"Starting full pipeline task {task_id}")
+        logger.info("Starting full pipeline task %s", task_id)
 
         # Stage 1: Extract text (0-20%)
         self.update_progress(task_id, 5, "pipeline", "Starting extraction...")
@@ -482,7 +475,7 @@ def full_pipeline_task(
         # Save to database
         self.update_progress(task_id, 95, "pipeline", "Saving results...")
 
-        from ..database import get_db_session
+        from backend.db.database import get_db_session
 
         with get_db_session() as session:
             try:
@@ -519,8 +512,8 @@ def full_pipeline_task(
                     record.language: str(record.id) for record in content_records
                 }
 
-            except Exception as e:
-                logger.error(f"Failed to save content: {e}")
+            except (OSError, RuntimeError, ValueError) as e:
+                logger.error("Failed to save content: %s", e)
                 raise
 
         self.update_progress(task_id, 100, "pipeline", "Pipeline complete!")
@@ -561,9 +554,8 @@ def full_pipeline_task(
         }
 
     except Exception as e:
-        logger.error(f"Full pipeline failed: {e}", exc_info=True)
+        logger.error("Full pipeline failed: %s", e, exc_info=True)
         raise
-
 
 @celery_app.task(name="pipeline.cleanup_old_results")
 def cleanup_old_results():
@@ -574,9 +566,8 @@ def cleanup_old_results():
         logger.info("Cleanup task executed")
         return {"status": "cleaned"}
     except Exception as e:
-        logger.error(f"Cleanup failed: {e}")
+        logger.error("Cleanup failed: %s", e)
         raise
-
 
 # Export
 __all__ = [

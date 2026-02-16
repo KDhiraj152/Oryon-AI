@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SHIKSHA SETU - COMPREHENSIVE END-TO-END BENCHMARK SUITE
+ORYON AI - COMPREHENSIVE END-TO-END BENCHMARK SUITE
 ========================================================
 
 Tests all system components with rigorous benchmarking:
@@ -24,7 +24,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 # Add project root to path
 PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -128,7 +128,7 @@ def benchmark_system_info() -> dict[str, Any]:
 
     import platform
 
-    info = {
+    info: dict[str, Any] = {
         "platform": platform.system(),
         "platform_release": platform.release(),
         "architecture": platform.machine(),
@@ -236,7 +236,7 @@ def benchmark_database(suite: BenchmarkSuite):
             import random
 
             start = time.perf_counter()
-            for i in range(100):
+            for _i in range(100):
                 vec = [random.random() for _ in range(1024)]
                 conn.execute(
                     text("INSERT INTO bench_vectors (embedding) VALUES (:vec::vector)"),
@@ -424,7 +424,7 @@ def benchmark_model_loading(suite: BenchmarkSuite):
         import mlx_lm
 
         start = time.perf_counter()
-        model, tokenizer = mlx_lm.load("mlx-community/Qwen3-8B-4bit")
+        model, tokenizer, *_ = mlx_lm.load("mlx-community/Qwen3-8B-4bit")  # type: ignore
         load_time = time.perf_counter() - start
 
         suite.add_result(
@@ -533,7 +533,7 @@ def benchmark_inference(suite: BenchmarkSuite):
     try:
         import mlx_lm
 
-        model, tokenizer = mlx_lm.load("mlx-community/Qwen3-8B-4bit")
+        model, tokenizer, *_ = mlx_lm.load("mlx-community/Qwen3-8B-4bit")  # type: ignore
 
         prompt = "Explain photosynthesis in simple terms for a beginner user."
         messages = [{"role": "user", "content": prompt}]
@@ -542,11 +542,11 @@ def benchmark_inference(suite: BenchmarkSuite):
         )
 
         # Warmup
-        _ = mlx_lm.generate(model, tokenizer, prompt=prompt_text, max_tokens=10)
+        _ = mlx_lm.generate(model, tokenizer, prompt=prompt_text, max_tokens=10)  # type: ignore[arg-type]
 
         # Benchmark - generate 100 tokens
         start = time.perf_counter()
-        response = mlx_lm.generate(model, tokenizer, prompt=prompt_text, max_tokens=100)
+        response = mlx_lm.generate(model, tokenizer, prompt=prompt_text, max_tokens=100)  # type: ignore[arg-type]
         gen_time = time.perf_counter() - start
 
         tokens_generated = len(tokenizer.encode(response))
@@ -736,7 +736,7 @@ def benchmark_codebase(suite: BenchmarkSuite):
 def run_benchmarks():
     """Run all benchmarks and generate report."""
     print("\n" + "=" * 60)
-    print("🏁 SHIKSHA SETU - COMPREHENSIVE BENCHMARK SUITE")
+    print("🏁 ORYON AI - COMPREHENSIVE BENCHMARK SUITE")
     print("=" * 60)
     print(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 

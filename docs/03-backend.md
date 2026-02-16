@@ -28,7 +28,6 @@ Built on Starlette with `uvloop` for async I/O, FastAPI delivers performance tha
 ```
 backend/
 ├── __init__.py
-├── database.py              # SQLAlchemy engine & session management
 │
 ├── api/                     # HTTP layer
 │   ├── __init__.py
@@ -36,10 +35,17 @@ backend/
 │   ├── deps.py              # Shared lazy-loaded singletons (get_ai_engine, get_pipeline, json_dumps)
 │   ├── documentation.py     # OpenAPI customization
 │   ├── metrics.py           # Prometheus instrumentation
-│   ├── middleware.py        # Exception handlers
+│   ├── exception_handlers.py # Exception handlers (was middleware.py)
 │   ├── unified_middleware.py    # Consolidated middleware chain
 │   ├── validation_middleware.py # Request validation
 │   ├── version_middleware.py    # API versioning headers
+│   ├── middleware/          # Middleware orchestration layer
+│   │   ├── classifier.py    #   Request classification
+│   │   ├── evaluator.py     #   Self-evaluation loop
+│   │   ├── latency.py       #   Latency control
+│   │   ├── memory.py        #   Memory management
+│   │   ├── orchestrator.py  #   Unified facade
+│   │   └── pipeline.py      #   Agent pipeline
 │   └── routes/
 │       ├── __init__.py      # Router consolidation
 │       ├── auth.py          # Authentication endpoints
@@ -49,7 +55,7 @@ backend/
 │       ├── health.py        # Health, status & admin endpoints
 │       └── agents.py        # Multi-agent system endpoints
 │
-├── core/                    # Infrastructure & system-level operations
+├── core/                    # Core infrastructure & system-level operations
 │   ├── config.py            # Application settings (env-backed)
 │   ├── constants.py         # Application-wide constants
 │   ├── types.py             # Canonical enums: ModelTier, TaskType, ModelType
@@ -76,35 +82,85 @@ backend/
 │       ├── benchmark.py            # Performance benchmarking
 │       └── ...                     # (22 submodules total)
 │
-├── cache/                   # Multi-tier caching infrastructure
-│   ├── __init__.py          # Redis client singleton
-│   ├── multi_tier_cache.py  # L1/L2/L3 cache implementation
-│   ├── redis_cache.py       # Redis cache backend
-│   ├── embedding_cache.py   # Embedding-specific cache (SQLite)
-│   ├── response_cache.py    # Response cache
-│   ├── kv_cache.py          # Key-value cache
-│   └── fast_serializer.py   # msgpack serialization
+├── db/                      # Database layer
+│   ├── __init__.py
+│   └── database.py          # SQLAlchemy engine & session management
 │
-├── services/                # Business logic
-│   ├── ai_core/             # AI engine (intent, routing, safety, prompts, citations)
-│   ├── pipeline/            # Content processing pipeline & orchestration
-│   ├── inference/           # ML backends (MLX, CoreML, unified engine)
-│   ├── evaluation/          # Semantic accuracy evaluation & refinement
-│   ├── translate/           # Translation (IndicTrans2 engine & service)
-│   ├── tts/                 # Text-to-Speech (Edge TTS, MMS-TTS)
-│   ├── validate/            # Curriculum validation (content_domain, domain standards)
-│   ├── rag.py               # RAG Q&A with BGE-M3 embeddings
-│   ├── ocr.py               # Document OCR (GOT-OCR2)
-│   ├── simplifier.py        # Content simplification
-│   ├── safety_pipeline.py   # 3-pass safety verification
-│   ├── cultural_context.py  # Indian cultural context adaptation
-│   ├── content_validation.py  # Curriculum alignment checks
-│   ├── complexity_adaptation.py  # Grade-level content adaptation
-│   ├── speech_generator.py  # Speech generation
-│   ├── speech_processor.py  # Speech processing
-│   ├── user_profile.py   # User personalization
-│   ├── review_queue.py      # Content review workflow
-│   └── error_tracking.py    # Sentry integration
+├── infra/                   # Infrastructure layer
+│   ├── __init__.py
+│   ├── health.py            # Health checker & probes
+│   ├── cache/               # Multi-tier caching infrastructure
+│   │   ├── __init__.py      #   Redis client singleton
+│   │   ├── multi_tier_cache.py  # L1/L2/L3 cache implementation
+│   │   ├── redis_cache.py   #   Redis cache backend
+│   │   ├── embedding_cache.py   # Embedding-specific cache (SQLite)
+│   │   ├── response_cache.py    # Response cache
+│   │   ├── kv_cache.py      #   Key-value cache
+│   │   └── fast_serializer.py   # msgpack serialization
+│   ├── hardware/            # Hardware management
+│   │   ├── device.py        #   Device detection & placement
+│   │   ├── precision.py     #   Per-model dtype management
+│   │   ├── memory.py        #   Memory budget allocation
+│   │   └── gpu_pool.py      #   Pre-warmed GPU contexts
+│   ├── telemetry/           # Observability
+│   │   ├── __init__.py      #   Logger, metrics, profiler exports
+│   │   ├── logger.py        #   JSON logging with context vars
+│   │   ├── tracer.py        #   OpenTelemetry spans + decorators
+│   │   ├── metrics.py       #   Prometheus counters/histograms
+│   │   ├── profiler.py      #   Hierarchical span-tree profiling
+│   │   └── dashboard.py     #   Aggregated observability endpoint
+│   └── runtime/             # Execution & orchestration
+│       ├── backends/        #   Inference backends
+│       ├── runtime.py       #   Central execution coordinator
+│       ├── batcher.py       #   Time/count-triggered batching
+│       ├── streamer.py      #   Backpressure-aware streaming
+│       ├── worker_pool.py   #   Async concurrency control
+│       ├── pipeline.py      #   Stage-based request processing
+│       ├── router.py        #   Complexity → model routing
+│       ├── queue.py         #   Priority queue with load shedding
+│       └── dispatcher.py    #   Single API→execution entry point
+│
+├── ml/                      # Machine Learning layer
+│   ├── __init__.py
+│   ├── inference/           # ML backends
+│   │   ├── mlx_backend.py   #   Apple MLX backend
+│   │   ├── coreml_backend.py #  CoreML backend
+│   │   └── unified_engine.py #  Unified inference engine
+│   ├── pipeline/            # Content processing pipeline
+│   │   ├── unified_pipeline.py  # Main pipeline service
+│   │   ├── orchestrator.py  #   Pipeline orchestration
+│   │   ├── orchestrator_v2.py # Async orchestrator
+│   │   └── model_collaboration.py # Model collaboration
+│   ├── speech/              # Speech services
+│   │   ├── tts/             #   Text-to-speech (Edge TTS, MMS-TTS)
+│   │   ├── speech_generator.py  # Speech generation
+│   │   └── speech_processor.py  # Speech processing
+│   ├── translate/           # Translation services
+│   │   ├── engine.py        #   IndicTrans2 engine
+│   │   └── service.py       #   Translation service
+│   ├── ocr/                 # OCR services
+│   │   └── ocr.py           #   GOT-OCR2 integration
+│   └── evaluation/          # Evaluation & refinement
+│       └── semantic_accuracy/   # Semantic accuracy evaluation
+│
+├── services/                # Business logic services
+│   ├── __init__.py
+│   ├── error_tracking.py    # Sentry integration
+│   ├── chat/                # Chat & AI engine
+│   │   ├── engine.py        #   AI engine (intent, routing, safety)
+│   │   ├── rag.py           #   RAG Q&A with BGE-M3 embeddings
+│   │   ├── prompts.py       #   Prompt templates
+│   │   ├── citations.py     #   Citation extraction
+│   │   └── context.py       #   Context management
+│   ├── content/             # Content services
+│   │   ├── simplify/        #   Content simplification
+│   │   ├── validate/        #   Curriculum validation
+│   │   ├── safety_pipeline.py   # 3-pass safety verification
+│   │   ├── cultural_context.py  # Indian cultural context adaptation
+│   │   └── complexity_adaptation.py # Grade-level content adaptation
+│   └── users/               # User services
+│       ├── user_profile.py  #   User personalization
+│       └── review_queue.py  #   Content review workflow
 │
 ├── models/                  # SQLAlchemy ORM definitions
 │   ├── auth.py              # User, APIKey, Token models
@@ -112,7 +168,7 @@ backend/
 │   ├── content.py           # ProcessedContent, Translation, Audio
 │   ├── progress.py          # UserProgress, Quiz, Achievement
 │   ├── rag.py               # DocumentChunk, Embedding, ChatHistory
-│   └── student.py           # UserProfile, UserPreference
+│   └── user_profile.py      # UserProfile, UserPreference
 │
 ├── schemas/                 # Pydantic request/response models
 │   ├── auth.py              # Auth DTOs (UserCreate, Token, etc.)
@@ -128,10 +184,6 @@ backend/
 │   ├── resource_monitor.py  # Memory, GPU, latency tracking
 │   └── self_improvement.py  # Closed-loop optimization
 │
-├── monitoring/              # Observability
-│   ├── metrics.py           # Prometheus metrics
-│   └── oom_alerts.py        # OOM detection & alerting
-│
 ├── tasks/                   # Celery background tasks
 │   ├── celery_app.py        # Celery application instance
 │   ├── celery_config.py     # Worker configuration
@@ -141,6 +193,7 @@ backend/
     ├── auth.py              # Auth helpers (get_current_user)
     ├── logging.py           # Structured logging setup
     ├── hashing.py           # Hashing utilities
+    ├── lock_factory.py      # Injectable lock factory for DI
     ├── cancellation.py      # Task cancellation
     └── memory_guard.py      # Memory guard utilities
 ```
@@ -223,7 +276,7 @@ class Settings:
     """Application settings with optimal 2025 model stack."""
 
     # Application
-    APP_NAME: str = "ShikshaSetu AI Platform API"
+    APP_NAME: str = "Oryon AI Platform API"
     APP_VERSION: str = "4.0.0"
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "production")
 
@@ -586,7 +639,7 @@ class MultiTierCache:
 Consistent error handling with custom exceptions:
 
 ```python
-class ShikshaSetuException(Exception):
+class OryonException(Exception):
     """Base exception for application errors."""
 
     def __init__(self, message: str, code: str, status_code: int = 500):
@@ -595,8 +648,8 @@ class ShikshaSetuException(Exception):
         self.status_code = status_code
 
 
-@app.exception_handler(ShikshaSetuException)
-async def shiksha_exception_handler(request: Request, exc: ShikshaSetuException):
+@app.exception_handler(OryonException)
+async def oryon_exception_handler(request: Request, exc: OryonException):
     return JSONResponse(
         status_code=exc.status_code,
         content={

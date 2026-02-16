@@ -10,7 +10,7 @@ POSTGRES_PORT="${POSTGRES_PORT:-5432}"
 RETENTION_DAYS="${RETENTION_DAYS:-7}"
 
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-BACKUP_FILE="${BACKUP_DIR}/shikshasetu_${TIMESTAMP}.sql.gz"
+BACKUP_FILE="${BACKUP_DIR}/oryon_${TIMESTAMP}.sql.gz"
 
 echo "[$(date)] Starting PostgreSQL backup..."
 
@@ -39,10 +39,10 @@ fi
 
 # Clean old backups
 echo "[$(date)] Cleaning backups older than ${RETENTION_DAYS} days..."
-find "${BACKUP_DIR}" -name "shikshasetu_*.sql.gz" -type f -mtime +${RETENTION_DAYS} -delete
+find "${BACKUP_DIR}" -name "oryon_*.sql.gz" -type f -mtime +${RETENTION_DAYS} -delete
 
 # List remaining backups
 echo "[$(date)] Current backups:"
-ls -lh "${BACKUP_DIR}"/shikshasetu_*.sql.gz
+ls -lh "${BACKUP_DIR}"/oryon_*.sql.gz
 
 echo "[$(date)] Backup process completed."

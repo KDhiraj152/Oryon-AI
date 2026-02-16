@@ -18,15 +18,14 @@ import logging
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import Enum, StrEnum
 from typing import Any
 
 from .base import AgentMessage, BaseAgent, MessageType
 
 logger = logging.getLogger(__name__)
 
-
-class InferenceTask(str, Enum):
+class InferenceTask(StrEnum):
     """Supported inference task types."""
     GENERATE = "generate"
     GENERATE_STREAM = "generate_stream"
@@ -36,7 +35,6 @@ class InferenceTask(str, Enum):
     TTS = "tts"
     STT = "stt"
     OCR = "ocr"
-
 
 @dataclass
 class ModelStats:
@@ -99,7 +97,6 @@ class ModelStats:
             "tokens": self.tokens_generated,
         }
 
-
 # Map InferenceTask → model names used in MemoryCoordinator
 TASK_TO_MODEL: dict[InferenceTask, str] = {
     InferenceTask.GENERATE: "llm",
@@ -111,7 +108,6 @@ TASK_TO_MODEL: dict[InferenceTask, str] = {
     InferenceTask.STT: "stt",
     InferenceTask.OCR: "ocr",
 }
-
 
 class ModelExecutionAgent(BaseAgent):
     """
@@ -142,15 +138,15 @@ class ModelExecutionAgent(BaseAgent):
         try:
             from backend.core.optimized.device_router import get_device_router
             self._device_router = get_device_router()
-            logger.info(f"ModelExecution: device_router available, backends={self._device_router.get_optimal_backends()}")
-        except Exception as e:
+            logger.info("ModelExecution: device_router available, backends=%s", self._device_router.get_optimal_backends())
+        except (ImportError, RuntimeError) as e:
             self._device_router = None  # type: ignore[assignment]
-            logger.warning(f"ModelExecution: device_router unavailable: {e}")
+            logger.warning("ModelExecution: device_router unavailable: %s", e)
 
         try:
             from backend.core.optimized.memory_coordinator import get_memory_coordinator
             self._memory_coordinator = get_memory_coordinator()
-        except Exception:
+        except (ImportError, RuntimeError):
             self._memory_coordinator = None  # type: ignore[assignment]
 
     async def handle_message(self, message: AgentMessage) -> AgentMessage | None:
@@ -211,11 +207,11 @@ class ModelExecutionAgent(BaseAgent):
                     "model": model_name,
                 })
 
-            except Exception as e:
+            except (RuntimeError, ValueError, OSError) as e:
                 elapsed_ms = (time.perf_counter() - t0) * 1000
                 stats.record_error()
                 self._log_request(message.correlation_id, task_str, elapsed_ms, False)
-                logger.error(f"Inference failed for {task_str}: {e}", exc_info=True)
+                logger.error("Inference failed for %s: %s", task_str, e, exc_info=True)
                 return message.reply({"error": str(e), "task": task_str})
             finally:
                 self._active_requests -= 1
@@ -245,7 +241,7 @@ class ModelExecutionAgent(BaseAgent):
 
     async def _exec_generate(self, payload: dict) -> dict:
         """Execute LLM generation via UnifiedInferenceEngine."""
-        from backend.services.inference.unified_engine import get_inference_engine
+        from backend.ml.inference.unified_engine import get_inference_engine
 
         engine = get_inference_engine()
         prompt = payload.get("prompt", "")
@@ -265,7 +261,7 @@ class ModelExecutionAgent(BaseAgent):
 
     async def _exec_embed(self, payload: dict) -> dict:
         """Execute embedding via UnifiedInferenceEngine."""
-        from backend.services.inference.unified_engine import get_inference_engine
+        from backend.ml.inference.unified_engine import get_inference_engine
 
         engine = get_inference_engine()
         texts = payload.get("texts", [])
@@ -298,13 +294,13 @@ class ModelExecutionAgent(BaseAgent):
         target_lang = payload.get("target_lang", "hi")
 
         try:
-            from backend.services.translate.engine import TranslationEngine
+            from backend.ml.translate.engine import TranslationEngine
             engine = TranslationEngine()
             result = await loop.run_in_executor(
                 None, lambda: engine.translate(text, source_lang, target_lang)
             )
             return {"translated_text": result}
-        except Exception as e:
+        except (ImportError, RuntimeError, ValueError, OSError) as e:
             raise RuntimeError(f"Translation failed: {e}")
 
     async def _exec_tts(self, payload: dict) -> dict:
@@ -339,13 +335,13 @@ class ModelExecutionAgent(BaseAgent):
         image_path = payload.get("image_path", "")
 
         try:
-            from backend.services.ocr import get_ocr_service
+            from backend.ml.ocr.ocr import get_ocr_service
             ocr_service = get_ocr_service()
             result = await loop.run_in_executor(
                 None, lambda: ocr_service.process_image(image_path)  # type: ignore[attr-defined]
             )
             return {"text": result}
-        except Exception as e:
+        except (ImportError, RuntimeError, ValueError, OSError) as e:
             raise RuntimeError(f"OCR failed: {e}")
 
     async def _emit_metric(self, model_name: str, latency_ms: float, tokens: int) -> None:
@@ -389,7 +385,7 @@ class ModelExecutionAgent(BaseAgent):
                     results[model_name] = "acquired" if ok else "failed"
                 else:
                     results[model_name] = "no_coordinator"
-            except Exception as e:
+            except (RuntimeError, ValueError, OSError) as e:
                 results[model_name] = f"error: {e}"
         return message.reply({"preload_results": results})
 
@@ -400,7 +396,7 @@ class ModelExecutionAgent(BaseAgent):
             new_val = changes["max_concurrent"]
             self._max_concurrent = new_val
             self._request_semaphore = asyncio.Semaphore(new_val)
-            logger.info(f"ModelExecution: max_concurrent updated to {new_val}")
+            logger.info("ModelExecution: max_concurrent updated to %s", new_val)
         return None
 
     def _get_or_create_stats(self, model_name: str) -> ModelStats:

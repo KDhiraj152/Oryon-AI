@@ -27,20 +27,16 @@ logger = logging.getLogger(__name__)
 
 # ── Cached primitives (no torch import needed) ──────────────────────────
 
-
 @functools.lru_cache(maxsize=1)
 def is_apple_silicon() -> bool:
     """True if running on Apple Silicon (M1/M2/M3/M4)."""
     return platform.system() == "Darwin" and platform.machine() == "arm64"
 
-
 @functools.lru_cache(maxsize=1)
 def is_darwin() -> bool:
     return platform.system() == "Darwin"
 
-
 # ── Lazy torch-dependent checks (import on first call) ──────────────────
-
 
 @functools.lru_cache(maxsize=1)
 def has_mps() -> bool:
@@ -51,7 +47,6 @@ def has_mps() -> bool:
     except ImportError:
         return False
 
-
 @functools.lru_cache(maxsize=1)
 def has_cuda() -> bool:
     """True if CUDA GPU is available."""
@@ -61,25 +56,21 @@ def has_cuda() -> bool:
     except ImportError:
         return False
 
-
 @functools.lru_cache(maxsize=1)
 def has_mlx() -> bool:
     """True if Apple MLX framework is available."""
     try:
-        import mlx.core  # noqa: F401
+        import mlx.core
         return True
     except ImportError:
         return False
-
 
 @functools.lru_cache(maxsize=1)
 def has_gpu() -> bool:
     """True if any GPU accelerator is available (MPS, CUDA, or MLX)."""
     return has_mps() or has_cuda() or has_mlx()
 
-
 # ── Device selection ─────────────────────────────────────────────────────
-
 
 @functools.lru_cache(maxsize=1)
 def get_device() -> str:
@@ -95,7 +86,6 @@ def get_device() -> str:
         return "mps"
     return "cpu"
 
-
 def get_torch_dtype():
     """Return optimal torch dtype for current device."""
     import torch
@@ -103,12 +93,10 @@ def get_torch_dtype():
         return torch.float16
     return torch.float32
 
-
 # ── Full capabilities (delegates to DeviceRouter) ───────────────────────
 
-
 @functools.lru_cache(maxsize=1)
-def device_caps() -> "DeviceCapabilities":
+def device_caps() -> DeviceCapabilities:
     """
     Get full device capabilities (chip name, core counts, memory, etc.).
 
@@ -116,10 +104,14 @@ def device_caps() -> "DeviceCapabilities":
     Falls back to a basic DeviceCapabilities if DeviceRouter unavailable.
     """
     try:
-        from backend.core.optimized.device_router import get_device_router
+        from backend.core.optimized.device_router import (
+            DeviceCapabilities,
+            get_device_router,
+        )
         router = get_device_router()
-        return router.capabilities
-    except Exception:
+        caps: DeviceCapabilities = router.capabilities
+        return caps
+    except (ImportError, RuntimeError):
         # Minimal fallback
         from backend.core.optimized.device_router import DeviceCapabilities
         caps = DeviceCapabilities()
@@ -128,7 +120,6 @@ def device_caps() -> "DeviceCapabilities":
         caps.has_cuda = has_cuda()
         caps.mlx_available = has_mlx()
         return caps
-
 
 def empty_gpu_cache() -> None:
     """
@@ -142,12 +133,12 @@ def empty_gpu_cache() -> None:
         try:
             import torch
             torch.mps.empty_cache()
-        except Exception:
+        except (ImportError, RuntimeError, OSError):
             pass
     elif device == "cuda":
         try:
             import torch
             torch.cuda.empty_cache()
-        except Exception:
+        except (ImportError, RuntimeError, OSError):
             pass
     # MLX manages its own memory — no explicit cache clear needed.

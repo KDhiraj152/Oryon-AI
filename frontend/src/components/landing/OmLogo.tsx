@@ -114,7 +114,7 @@ function NavVariant({ size, className, color, isVisible, textColor, glowColor }:
           <OmSymbol size={size} color={textColor} />
         </div>
         <span className={`nav-t-${scopeId} text-sm font-semibold tracking-tight`}>
-          shiksha setu
+          oryon ai
         </span>
       </div>
     </>
@@ -136,7 +136,7 @@ function FooterVariant({ size, className, color, isVisible }: Readonly<VariantPr
         <OmSymbol size={size} color={symbolColor} />
         <div className={`foot-d-${scopeId} h-4 w-px`} />
         <span className={`foot-l-${scopeId} text-xs tracking-widest uppercase font-medium`}>
-          Shiksha Setu
+          Oryon AI
         </span>
       </div>
     </>

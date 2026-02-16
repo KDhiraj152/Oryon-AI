@@ -123,29 +123,9 @@ _LAZY_IMPORTS: dict[str, str] = {
     "SpeculativeDecodingStats": "performance",
     "get_performance_optimizer": "performance",
     "get_speculative_decoder": "performance",
-    # prefetch
-    "AccessPatternTracker": "prefetch",
-    "PrefetchManager": "prefetch",
-    "PrefetchStrategy": "prefetch",
-    "get_prefetch_manager": "prefetch",
-    "with_prefetch": "prefetch",
     # quantization
     "QuantConfig": "quantization",
     "QuantizationStrategy": "quantization",
-    # rate_limiter
-    "RateLimitConfig": "rate_limiter",
-    "RateLimitMiddleware": "rate_limiter",
-    "SimpleRateLimiter": "rate_limiter",
-    "UnifiedRateLimiter": "rate_limiter",
-    "UserRole": "rate_limiter",
-    # request_coalescing
-    "CoalesceTaskType": "request_coalescing",
-    "EmbeddingCoalescer": "request_coalescing",
-    "RequestCoalescer": "request_coalescing",
-    "coalesce": "request_coalescing",
-    "compute_fingerprint": "request_coalescing",
-    "get_embedding_coalescer": "request_coalescing",
-    "get_request_coalescer": "request_coalescing",
     # self_optimizer
     "FeedbackLearner": "self_optimizer",
     "OptimizationMetrics": "self_optimizer",
@@ -180,21 +160,10 @@ _LAZY_IMPORTS: dict[str, str] = {
     # singleton
     "ThreadSafeSingleton": "singleton",
     "lazy_singleton": "singleton",
-    # zero_copy
-    "MMapFile": "zero_copy",
-    "NumpyBufferPool": "zero_copy",
-    "RingBuffer": "zero_copy",
-    "ZeroCopyBuffer": "zero_copy",
-    "bytes_to_numpy_zerocopy": "zero_copy",
-    "get_buffer_pool": "zero_copy",
-    "numpy_to_bytes_zerocopy": "zero_copy",
-    "streaming_numpy_load": "zero_copy",
-    "streaming_numpy_save": "zero_copy",
 }
 
 # Cache for loaded submodules
 _loaded_modules: dict[str, Any] = {}
-
 
 def __getattr__(name: str) -> Any:
     """Lazy import: load submodule only when a symbol is first accessed."""
@@ -207,10 +176,8 @@ def __getattr__(name: str) -> Any:
         return getattr(_loaded_modules[submodule_name], name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
-
 def __dir__() -> list[str]:
     """Support tab-completion and dir() for lazy imports."""
-    return list(_LAZY_IMPORTS.keys()) + ["ModelType"]
+    return [*list(_LAZY_IMPORTS.keys()), "ModelType"]
 
-
-__all__ = sorted(list(_LAZY_IMPORTS.keys()) + ["ModelType"])
+__all__ = sorted([*list(_LAZY_IMPORTS.keys()), "ModelType"])

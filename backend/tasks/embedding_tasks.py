@@ -5,7 +5,7 @@ Tasks for text embedding using BGE-M3.
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from .celery_config import celery_app
 
@@ -14,16 +14,14 @@ logger = logging.getLogger(__name__)
 # Lazy-loaded model
 _embedder = None
 
-
 def get_embedder():
     """Get shared embedder singleton (lazy loading)."""
     global _embedder
     if _embedder is None:
-        from backend.services.rag import get_embedder as _get_singleton
+        from backend.services.chat.rag import get_embedder as _get_singleton
 
         _embedder = _get_singleton()  # Use singleton instead of creating new instance
     return _embedder
-
 
 @celery_app.task(
     name="embedding.embed_text",
@@ -69,8 +67,8 @@ def embed_text(
             "text_length": len(text),
         }
 
-    except Exception as e:
-        logger.error(f"Embedding failed: {e}")
+    except Exception as e:  # task handler — intentionally broad
+        logger.error("Embedding failed: %s", e)
 
         if self.request.retries < self.max_retries:
             raise self.retry(exc=e)
@@ -79,7 +77,6 @@ def embed_text(
             "success": False,
             "error": str(e),
         }
-
 
 @celery_app.task(
     name="embedding.embed_batch",
@@ -129,13 +126,12 @@ def embed_batch(
             "dimensions": len(embeddings_list[0]) if embeddings_list else 0,
         }
 
-    except Exception as e:
-        logger.error(f"Batch embedding failed: {e}")
+    except Exception as e:  # task handler — intentionally broad
+        logger.error("Batch embedding failed: %s", e)
         return {
             "success": False,
             "error": str(e),
         }
-
 
 @celery_app.task(
     name="embedding.similarity",
@@ -191,13 +187,12 @@ def compute_similarity(
             "text2_length": len(text2),
         }
 
-    except Exception as e:
-        logger.error(f"Similarity computation failed: {e}")
+    except Exception as e:  # task handler — intentionally broad
+        logger.error("Similarity computation failed: %s", e)
         return {
             "success": False,
             "error": str(e),
         }
-
 
 @celery_app.task(
     name="embedding.index_documents",
@@ -248,13 +243,12 @@ def index_documents(
             "dimensions": len(embeddings[0]) if embeddings else 0,
         }
 
-    except Exception as e:
-        logger.error(f"Document indexing failed: {e}")
+    except Exception as e:  # task handler — intentionally broad
+        logger.error("Document indexing failed: %s", e)
         return {
             "success": False,
             "error": str(e),
         }
-
 
 @celery_app.task(
     name="embedding.search",
@@ -304,8 +298,8 @@ def search(
             "top_k": top_k,
         }
 
-    except Exception as e:
-        logger.error(f"Search failed: {e}")
+    except Exception as e:  # task handler — intentionally broad
+        logger.error("Search failed: %s", e)
         return {
             "success": False,
             "error": str(e),

@@ -1,8 +1,8 @@
 """
-ShikshaSetu Services Module
+Oryon Services Module
 ============================
 
-Business logic services for the ShikshaSetu platform.
+Business logic services for the Oryon platform.
 
 Active Services:
 - inference/: LLM and embedding generation (MLX, CoreML, Unified)
@@ -25,14 +25,12 @@ Usage:
     engine = get_inference_engine()
 """
 
-
 # OCR imports are lazy to avoid fitz dependency issues
 def get_ocr_service():
     """Get the OCR service (lazy import to avoid fitz dependency)."""
     from .ocr import OCRService
 
     return OCRService()
-
 
 # Lazy imports to avoid circular dependencies
 def get_inference_engine():
@@ -41,13 +39,11 @@ def get_inference_engine():
 
     return _get()
 
-
 def get_pipeline_service():
     """Get the unified pipeline service."""
     from .pipeline import get_pipeline_service as _get
 
     return _get()
-
 
 def get_semantic_evaluator():
     """Get the semantic accuracy evaluator."""
@@ -55,13 +51,11 @@ def get_semantic_evaluator():
 
     return _get()
 
-
 def get_cultural_context():
     """Get the cultural context service."""
     from .cultural_context import UnifiedCulturalContextService
 
     return UnifiedCulturalContextService()
-
 
 def get_simplifier():
     """Get the text simplifier service."""
@@ -69,13 +63,11 @@ def get_simplifier():
 
     return TextSimplifier()
 
-
 def get_review_queue():
     """Get the response review queue."""
     from .review_queue import get_review_queue as _get
 
     return _get()
-
 
 __all__ = [
     # Factory functions (lazy imports — no circular dependencies)

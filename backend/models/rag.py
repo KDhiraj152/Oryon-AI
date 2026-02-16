@@ -4,6 +4,7 @@ RAG (Retrieval-Augmented Generation) models.
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import (
     ARRAY,
@@ -17,13 +18,12 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 
-from ..database import Base
+from backend.db.database import Base
 
 
 def utcnow():
     """Get current UTC time as naive datetime (for TIMESTAMP WITHOUT TIME ZONE)."""
     return datetime.utcnow()
-
 
 class DocumentChunk(Base):
     """Stores text chunks from uploaded documents for RAG."""
@@ -44,7 +44,6 @@ class DocumentChunk(Base):
         JSONB
     )  # page number, section, etc. (renamed from 'metadata' to avoid SQLAlchemy reserved word)
     created_at = Column(TIMESTAMP, default=utcnow)
-
 
 class Embedding(Base):
     """Stores vector embeddings for semantic search using pgvector."""
@@ -69,7 +68,6 @@ class Embedding(Base):
     )  # Version 2 = E5-large (1024-dim), Version 1 = MiniLM (384-dim)
     created_at = Column(TIMESTAMP, default=utcnow)
 
-
 class ChatHistory(Base):
     """Stores Q&A chat history for context-aware conversations."""
 
@@ -90,6 +88,6 @@ class ChatHistory(Base):
     )
     question = Column(Text, nullable=False)
     answer = Column(Text, nullable=False)
-    context_chunks = Column(ARRAY(UUID(as_uuid=True)))  # IDs of chunks used
+    context_chunks: Any = Column(ARRAY(UUID(as_uuid=True)))  # IDs of chunks used
     confidence_score = Column(Float)
     created_at = Column(TIMESTAMP, default=utcnow, index=True)

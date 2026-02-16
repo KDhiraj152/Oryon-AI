@@ -1,26 +1,27 @@
 """
-ShikshaSetu Main Application - V2 Optimized API Only
-=====================================================
+Oryon Main Application — Research-Lab-Grade Architecture
+================================================================
 
-Streamlined application using ONLY the optimized V2 API.
-All legacy V1 routes have been consolidated into the v2_api module.
+Six-layer architecture:
+  Layer 6 — Telemetry     (structured logging, tracing, metrics, profiling)
+  Layer 5 — Scalability   (circuit breakers, rate limiting, health, cache)
+  Layer 4 — Hardware       (device detection, precision, memory, GPU pool)
+  Layer 3 — Execution     (runtime, batcher, streamer, worker pool, backends)
+  Layer 2 — Orchestration  (pipeline, router, queue, dispatcher)
+  Layer 1 — API            (FastAPI routes, middleware, exception handling)
+
+All layers are initialized in dependency order during lifespan startup
+and torn down in reverse order during shutdown.
 
 Features:
-- Single unified API at /api/v2/*
-- Native Apple Silicon (M4) optimization
+- Async-first, hardware-aware, horizontally scalable, fully observable
+- Native Apple Silicon (M4) optimization via HAL
 - Multi-tier caching (L1 memory, L2 Redis)
-- Concurrent processing with batching
-- No middleware patching - native optimizations
-- OpenTelemetry distributed tracing
-- Circuit breakers for resilience
-- Consistent validation error handling
-- API versioning headers
+- Dynamic batching with backpressure-aware streaming
+- OpenTelemetry distributed tracing + Prometheus metrics
+- Circuit breakers, rate limiting, health probes
 - Configurable policy engine for content filtering
-
-Policy Modes (controlled via ALLOW_UNRESTRICTED_MODE env var):
-- RESTRICTED (default): Full content_domain/safety enforcement
-- UNRESTRICTED: Content filters bypassed, system safety active
-- EXTERNAL_ALLOWED: Unrestricted + external API calls enabled
+- Self-optimizing 6-agent system
 
 FIXES APPLIED:
 - M6: Uses lifespan context manager instead of deprecated @app.on_event
@@ -29,17 +30,17 @@ FIXES APPLIED:
 """
 
 from collections.abc import AsyncGenerator, Callable
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from typing import Any
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from ..core.config import settings
-from ..core.exceptions import ShikshaSetuException
+from ..core.exceptions import OryonException
 from ..services.error_tracking import init_sentry
 from ..utils.logging import setup_logging
-from .middleware import (
+from .exception_handlers import (
     exception_handler,
     generic_exception_handler,
 )
@@ -57,7 +58,6 @@ except ImportError:
     def print_startup_banner():
         pass
 
-
 # Modular router structure (flattened from v2/)
 from .metrics import metrics_endpoint
 from .routes import router as v2_router
@@ -65,21 +65,46 @@ from .routes import router as v2_router
 # Initialize logging
 logger = setup_logging()
 
+# ==================== NEW ARCHITECTURE LAYER IMPORTS ====================
+# Lazy-loaded singletons — imported at use site to avoid circular deps
+# These factory functions are called during lifespan startup.
+def _get_layer_singletons():
+    """Import all layer singletons. Called once during startup."""
+    from ..infra.runtime.runtime import get_runtime
+    from ..infra.hardware.device import get_device_manager
+    from ..infra.hardware.memory import get_memory_manager
+    from ..infra.hardware.precision import get_precision_manager
+    from ..infra.runtime.dispatcher import get_dispatcher
+    from ..core.circuit_breaker import get_circuit_breaker
+    from ..infra.health import check_database, check_memory, get_health_checker
+    from ..infra.telemetry.dashboard import get_observability_dashboard
+
+    return {
+        "device_manager": get_device_manager,
+        "precision_manager": get_precision_manager,
+        "memory_manager": get_memory_manager,
+        "runtime": get_runtime,
+        "dispatcher": get_dispatcher,
+        "health_checker": get_health_checker,
+        "check_database": check_database,
+        "check_memory": check_memory,
+        "get_circuit_breaker": get_circuit_breaker,
+        "get_dashboard": get_observability_dashboard,
+    }
 
 # ==================== LIFESPAN CONTEXT MANAGER ====================
 # FIX M6: Use lifespan instead of deprecated @app.on_event handlers
 
-
 async def _shutdown_cleanup() -> None:
     """Shutdown cleanup helper — extracted to reduce cognitive complexity."""
-    logger.info(f"Shutting down {settings.APP_NAME}")
+    logger.info("Shutting down %s", settings.APP_NAME)
 
     _cancel_warmup_task()
 
     try:
         await _stop_gpu_scheduler()
     except Exception as e:
-        logger.warning(f"GPU Scheduler shutdown failed: {e}")
+        logger.warning("GPU Scheduler shutdown failed: %s", e)
 
     _cleanup_memory_coordinator()
     _log_cache_stats()
@@ -90,7 +115,7 @@ async def _shutdown_cleanup() -> None:
             await app.state.cache.close()
             logger.info("Cache connections closed")
         except Exception as e:
-            logger.warning(f"Cache close failed: {e}")
+            logger.warning("Cache close failed: %s", e)
 
     # Close storage Redis connections
     try:
@@ -100,10 +125,9 @@ async def _shutdown_cleanup() -> None:
         await storage.close()
         logger.info("Storage connections closed")
     except Exception as e:
-        logger.warning(f"Storage close failed: {e}")
+        logger.warning("Storage close failed: %s", e)
 
-    logger.info("V2 API shutdown complete")
-
+    logger.info("Graceful shutdown complete — all layers torn down")
 
 def _safe_init(label: str, initializer: Callable[[], Any], level: str = "warning") -> None:
     """Run an initializer with try/except and log on failure."""
@@ -116,31 +140,37 @@ def _safe_init(label: str, initializer: Callable[[], Any], level: str = "warning
         else:
             logger.warning(msg)
 
-
 def _init_tracing() -> None:
     from ..core.tracing import init_tracing
     init_tracing()
-    logger.info("OpenTelemetry tracing initialized")
-
+    # Also initialize the new telemetry layer tracer so all new-layer
+    # modules (orchestration, execution, etc.) produce real spans.
+    try:
+        from ..infra.telemetry.tracer import init_tracing as init_layer_tracing
+        init_layer_tracing(service_name="oryon-ai", enabled=True)
+    except Exception as e:
+        logger.warning("Telemetry tracer init failed (new-layer tracing disabled): %s", e)
+    logger.info("OpenTelemetry tracing initialized (core + telemetry layer)")
 
 def _init_circuit_breakers() -> None:
-    from ..core.circuit_breaker import get_database_breaker, get_ml_breaker, get_redis_breaker
+    from ..core.circuit_breaker import (
+        get_database_breaker,
+        get_ml_breaker,
+        get_redis_breaker,
+    )
     get_database_breaker()
     get_redis_breaker()
     get_ml_breaker()
     logger.info("Circuit breakers initialized (database, redis, ml_model)")
 
-
 def _init_sentry_tracking() -> None:
     init_sentry()
     logger.info("Sentry error tracking initialized")
 
-
 def _init_database() -> None:
-    from ..database import init_db
+    from backend.db.database import init_db
     init_db()
     logger.info("Database initialized successfully")
-
 
 def _init_gpu_scheduler(app: FastAPI) -> None:
     from ..core.optimized.gpu_pipeline import get_gpu_scheduler
@@ -148,30 +178,37 @@ def _init_gpu_scheduler(app: FastAPI) -> None:
     app.state.gpu_scheduler = scheduler
     logger.info("GPU Pipeline Scheduler initialized (will start with warmup)")
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
-    Application lifespan manager - handles startup and shutdown.
+    Application lifespan manager — initializes all six architectural layers
+    in dependency order and tears them down in reverse.
 
-    FIXES:
-    - M6: Uses modern lifespan context manager
-    - C3: Sequential model loading with proper ordering
-    - C4: No blocking sleeps in async context
+    Startup order:
+      1. Core infra    (logging, tracing, sentry, database, memory coordinator)
+      2. Layer 6        (telemetry — already active via module-level setup)
+      3. Layer 4        (hardware — device detection, precision, memory)
+      4. Layer 3        (execution — runtime, worker pool, batcher)
+      5. Layer 5        (scalability — circuit breakers, health, cache)
+      6. Layer 2        (orchestration — dispatcher wired to runtime)
+      7. Legacy systems (agents, middleware orchestrator, GPU scheduler)
+
+    Shutdown order is the reverse.
     """
     import asyncio
 
     # ==================== STARTUP ====================
-    logger.info(f"Starting {settings.APP_NAME} v2.0.0")
-    logger.info(f"Environment: {settings.ENVIRONMENT}")
-    logger.info(f"Debug mode: {settings.DEBUG}")
+    logger.info("Starting %s v3.0.0 — research-lab architecture", settings.APP_NAME)
+    logger.info("Environment: %s", settings.ENVIRONMENT)
+    logger.info("Debug mode: %s", settings.DEBUG)
 
     if _POLICY_AVAILABLE:
         _safe_init("Policy banner", print_startup_banner)
 
+    # ── 1. Core Infrastructure ──
     _safe_init("Memory coordinator", _init_memory_coordinator)
     _safe_init("Tracing", _init_tracing)
-    _safe_init("Circuit breakers", _init_circuit_breakers)
+    _safe_init("Circuit breakers (legacy)", _init_circuit_breakers)
     _safe_init("Sentry", _init_sentry_tracking)
     _validate_jwt_secret()
     _safe_init("Database", _init_database, level="error")
@@ -181,71 +218,183 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Start memory coordinator background monitor
     if hasattr(app.state, "memory_coordinator"):
         app.state.memory_monitor_task = asyncio.create_task(
-            app.state.memory_coordinator.start_monitor(
-                interval=30.0
-            )  # Reduced frequency
+            app.state.memory_coordinator.start_monitor(interval=30.0)
         )
         logger.info("Memory coordinator monitor started (30s interval)")
 
-    # Background model warm-up - runs in background thread to avoid blocking
-    # This pre-initializes the AIEngine and loads the LLM model
+    # ── 2. Layer 4: Hardware Detection ──
+    try:
+        layers = _get_layer_singletons()
+
+        device_mgr = layers["device_manager"]()
+        device_mgr.detect()
+        app.state.device_manager = device_mgr
+        primary = device_mgr.primary_info
+        logger.info(
+            f"Layer 4 (Hardware): {primary.device_type.value} — "
+            f"{primary.total_memory_bytes / (1024**3):.1f}GB, "
+            f"fp16={'✓' if primary.supports_fp16 else '✗'}"
+        )
+
+        precision_mgr = layers["precision_manager"]()
+        app.state.precision_manager = precision_mgr
+
+        memory_mgr = layers["memory_manager"]()
+        app.state.memory_manager_v2 = memory_mgr
+        logger.info("Layer 4 (Hardware): precision + memory managers ready")
+    except Exception as e:
+        logger.warning("Layer 4 (Hardware) init degraded: %s", e)
+
+    # ── 3. Layer 3: Execution Runtime ──
+    try:
+        runtime = layers["runtime"]()
+        await runtime.initialize()
+        app.state.runtime = runtime
+        logger.info("Layer 3 (Execution): runtime + worker pool + batcher started")
+    except Exception as e:
+        logger.warning("Layer 3 (Execution) init degraded: %s", e)
+
+    # ── 4. Layer 5: Scalability ──
+    try:
+        health_checker = layers["health_checker"]()
+        health_checker.register("database", layers["check_database"])
+        health_checker.register("memory", layers["check_memory"])
+
+        # Register execution health check
+        async def _check_runtime():
+            from ..infra.health import HealthCheck, HealthStatus
+            rt = getattr(app.state, "runtime", None)
+            if rt and rt._initialized:
+                return HealthCheck(name="runtime", status=HealthStatus.HEALTHY)
+            return HealthCheck(
+                name="runtime",
+                status=HealthStatus.DEGRADED,
+                message="Runtime not initialized",
+            )
+
+        health_checker.register("runtime", _check_runtime)
+        app.state.health_checker = health_checker
+        logger.info("Layer 5 (Scalability): health checker with 3 probes registered")
+    except Exception as e:
+        logger.warning("Layer 5 (Scalability) init degraded: %s", e)
+
+    # ── 5. Layer 2: Orchestration Dispatcher ──
+    try:
+        dispatcher = layers["dispatcher"]()
+        execution_handler = getattr(app.state, "runtime", None)
+        await dispatcher.initialize(execution_handler=execution_handler)
+        app.state.dispatcher = dispatcher
+        logger.info("Layer 2 (Orchestration): dispatcher wired to execution runtime")
+    except Exception as e:
+        logger.warning("Layer 2 (Orchestration) init degraded: %s", e)
+
+    # Store dashboard factory
+    with suppress(Exception):
+        app.state.get_dashboard = layers["get_dashboard"]
+
+    # ── 6. Background Model Warmup ──
     if settings.ENVIRONMENT != "test":
 
         async def _background_warmup():
-            """Warmup in background - doesn't block server startup."""
-            await asyncio.sleep(2)  # Let server fully start first
+            """Warmup in background — doesn't block server startup."""
+            await asyncio.sleep(2)
             try:
                 logger.info("Starting background model warmup...")
-                # Initialize AIEngine (loads all optimized components)
-                from ..services.ai_core.engine import get_ai_engine
+                from ..services.chat.engine import get_ai_engine
 
                 engine = get_ai_engine()
                 engine._ensure_initialized()
-
-                # Pre-load LLM model
                 llm = engine._get_llm_client()
                 if llm:
                     logger.info("✓ AIEngine and LLM pre-warmed in background")
             except Exception as e:
-                logger.warning(f"Background warmup failed (will lazy-load): {e}")
+                logger.warning("Background warmup failed (will lazy-load): %s", e)
 
         app.state.warmup_task = asyncio.create_task(_background_warmup())
         logger.info("Background warmup scheduled (non-blocking)")
 
-    # ==================== AGENT SYSTEM ====================
+    # ── 7. Legacy Agent System ──
     _safe_init("Agent system", lambda: _init_agent_system(app))
     if hasattr(app.state, "agent_registry"):
         try:
             await app.state.agent_registry.start_all()
             logger.info("Multi-agent system started (6 agents)")
         except Exception as e:
-            logger.warning(f"Agent system start failed: {e}")
+            logger.warning("Agent system start failed: %s", e)
 
-    logger.info("V2 API startup complete - all systems operational")
+    # ── 8. Middleware Orchestrator ──
+    try:
+        from .middleware.orchestrator import initialize_middleware
 
-    yield  # Application runs here
+        registry = getattr(app.state, "agent_registry", None)
+        mw = await initialize_middleware(registry)
+        app.state.middleware_orchestrator = mw
+        logger.info("Middleware orchestrator initialized")
+    except Exception as e:
+        logger.warning("Middleware orchestrator init failed: %s", e)
 
-    # ==================== SHUTDOWN ====================
-    # Stop agents before other cleanup
+    logger.info(
+        "All layers operational — "
+        "API(L1) ← Orchestration(L2) ← Execution(L3) ← Hardware(L4) "
+        "← Scalability(L5) ← Telemetry(L6)"
+    )
+
+    yield  # ═══════════ Application runs here ═══════════
+
+    # ==================== SHUTDOWN (reverse order) ====================
+    logger.info("Beginning graceful shutdown...")
+
+    # Middleware orchestrator cleanup (flush evaluator, log stats)
+    if hasattr(app.state, "middleware_orchestrator") and app.state.middleware_orchestrator:
+        try:
+            mw = app.state.middleware_orchestrator
+            stats = await mw.get_stats()
+            logger.info(
+                f"Middleware shutdown — "
+                f"requests={stats.get('total_requests', 0)}, "
+                f"errors={stats.get('total_errors', 0)}, "
+                f"cache_hits={stats.get('total_cache_hits', 0)}"
+            )
+            # Reset singleton so next startup gets a fresh instance
+            import backend.api.middleware.orchestrator as _mw_mod
+
+            from .middleware.orchestrator import get_middleware as _get_mw_ref
+            _mw_mod._instance = None
+            app.state.middleware_orchestrator = None
+            logger.info("Middleware orchestrator shut down")
+        except Exception as e:
+            logger.warning("Middleware shutdown error: %s", e)
+
+    # Stop agents first
     if hasattr(app.state, "agent_registry"):
         try:
             await app.state.agent_registry.stop_all()
             logger.info("Multi-agent system stopped")
         except Exception as e:
-            logger.warning(f"Agent shutdown error: {e}")
+            logger.warning("Agent shutdown error: %s", e)
+
+    # Drain execution layer
+    if hasattr(app.state, "runtime") and app.state.runtime:
+        try:
+            await app.state.runtime.shutdown()
+            logger.info("Layer 3 (Execution): runtime shut down")
+        except Exception as e:
+            logger.warning("Runtime shutdown error: %s", e)
 
     await _shutdown_cleanup()
-
 
 # Initialize FastAPI app with lifespan
 app = FastAPI(
     title=settings.APP_NAME,
-    description="Production-grade multilingual education content processing with AI/ML pipeline - V2 Optimized API",
-    version="2.0.0",
+    description=(
+        "Research-lab-grade multilingual education AI — "
+        "six-layer architecture with hardware-aware execution"
+    ),
+    version="3.0.0",
     debug=settings.DEBUG,
     docs_url="/docs",
     redoc_url="/redoc",
-    lifespan=lifespan,  # FIX M6: Use lifespan context manager
+    lifespan=lifespan,
 )
 
 # ==================== MIDDLEWARE CONFIGURATION ====================
@@ -284,7 +433,7 @@ app.add_middleware(
 logger.info("Optimized middleware configured (GZip + CORS + UnifiedMiddleware)")
 
 # ==================== EXCEPTION HANDLERS ====================
-app.add_exception_handler(ShikshaSetuException, exception_handler)  # type: ignore[arg-type]
+app.add_exception_handler(OryonException, exception_handler)  # type: ignore[arg-type]
 app.add_exception_handler(Exception, generic_exception_handler)
 
 # Register validation error handlers for consistent error format
@@ -298,44 +447,62 @@ logger.info("V2 Modular API registered - all endpoints at /api/v2/*")
 
 # ==================== ROOT & METRICS ENDPOINTS ====================
 
-
 @app.get("/", include_in_schema=False)
 async def root():
     """Root endpoint with API info."""
-    # Include policy mode in root response
     policy_mode = "unknown"
     if _POLICY_AVAILABLE:
         try:
             engine = get_policy_engine()
             policy_mode = engine.mode.value
-        except Exception:
+        except (RuntimeError, ValueError, OSError):  # service call
             pass
 
     return {
         "name": settings.APP_NAME,
-        "version": "2.0.0",
+        "version": "3.0.0",
+        "architecture": "six-layer-research-grade",
         "api_version": "v2",
         "docs": "/docs",
         "health": "/health",
+        "observability": "/observability",
         "status": "operational",
         "policy_mode": policy_mode,
     }
 
-
 @app.get("/health", include_in_schema=False)
 async def root_health_check():
-    """Root-level health check for load balancers and orchestrators."""
-    return {"status": "healthy", "version": "2.0.0"}
+    """
+    Structured health check using Layer 5 HealthChecker.
 
+    Returns per-probe status for database, memory, runtime.
+    Falls back to simple OK if HealthChecker not available.
+    """
+    checker = getattr(app.state, "health_checker", None)
+    if checker:
+        health = await checker.check()
+        return health.to_dict()
+    return {"status": "healthy", "version": "3.0.0"}
 
 @app.get("/metrics", include_in_schema=False)
 async def metrics():
     """Prometheus metrics endpoint."""
     return metrics_endpoint()
 
+@app.get("/observability", include_in_schema=False)
+async def observability_dashboard():
+    """
+    Full observability dashboard — aggregates telemetry from all layers.
+
+    Returns real-time snapshot of: metrics, hardware, orchestration,
+    execution, cache, workers, circuit breakers, and profiling data.
+    """
+    get_dashboard = getattr(app.state, "get_dashboard", None)
+    if get_dashboard:
+        return await get_dashboard()
+    return {"error": "Observability dashboard not available", "status": "degraded"}
 
 # ==================== LIFECYCLE HELPERS ====================
-
 
 def _init_agent_system(app: FastAPI) -> None:
     """Initialize the multi-agent self-optimization system."""
@@ -361,8 +528,7 @@ def _init_agent_system(app: FastAPI) -> None:
 
     app.state.agent_registry = registry
     app.state.orchestrator_agent = registry._agents.get("orchestrator")
-    logger.info(f"Agent system initialized: {list(registry._agents.keys())}")
-
+    logger.info("Agent system initialized: %s", list(registry._agents.keys()))
 
 def _init_memory_coordinator():
     """Initialize global memory coordinator."""
@@ -389,10 +555,10 @@ def _init_memory_coordinator():
     )
     return memory_coordinator
 
-
 def _init_device_router_and_cache():
     """Initialize device router and unified cache."""
-    from ..cache import UnifiedCache
+    from backend.infra.cache import UnifiedCache
+
     from ..core.optimized import get_device_router
 
     # Use singleton - avoids duplicate initialization
@@ -406,115 +572,6 @@ def _init_device_router_and_cache():
     app.state.cache = UnifiedCache()
     logger.info("Unified multi-tier cache initialized")
 
-
-async def _warmup_llm_model(coordinator):
-    """Pre-load MLX LLM model.
-
-    FIX: Uses asyncio.to_thread() with ProcessPoolExecutor to avoid blocking the event loop.
-    MLX/PyTorch can block the GIL extensively, so we run in subprocess.
-    """
-    import asyncio
-    import time
-
-    start = time.perf_counter()
-
-    if coordinator:
-        acquired = await coordinator.acquire("llm")
-        if not acquired:
-            logger.warning("Could not acquire memory for LLM - skipping warmup")
-            return None
-
-    def _load_llm_sync():
-        from ..services.inference import get_inference_engine
-
-        return get_inference_engine(auto_load=True)
-
-    # Run blocking model load in thread pool (asyncio.to_thread for Python 3.11+)
-    engine = await asyncio.to_thread(_load_llm_sync)
-    app.state.inference_engine = engine
-
-    elapsed = time.perf_counter() - start
-    logger.info(f"✓ MLX model pre-loaded in {elapsed:.2f}s")
-    return engine
-
-
-async def _warmup_embedder(coordinator):
-    """Pre-load RAG embedding model with progressive warmup.
-
-    FIX: Uses asyncio run_in_executor to avoid blocking the event loop.
-    """
-    import asyncio
-    import time
-
-    start = time.perf_counter()
-
-    if coordinator:
-        acquired = await coordinator.acquire("embedder")
-        if not acquired:
-            logger.warning("Could not acquire memory for embedder - skipping warmup")
-            return None
-
-    def _load_embedder_sync():
-        from ..services.rag import get_embedder
-
-        embedder = get_embedder()
-        embedder._load_model()
-
-        # Progressive batch warmup
-        warmup_texts = ["warmup test"] * 64
-        for batch_size in [1, 8, 32, 64]:
-            batch = warmup_texts[:batch_size]
-            _ = embedder.encode(batch, batch_size=batch_size)
-        return embedder
-
-    # Run blocking model load in thread pool (asyncio.to_thread for Python 3.11+)
-    embedder = await asyncio.to_thread(_load_embedder_sync)
-    logger.debug("  Embedder warmup completed")
-
-    elapsed = time.perf_counter() - start
-    logger.info(f"✓ RAG embedder pre-loaded in {elapsed:.2f}s - ready for fast search")
-    return embedder
-
-
-async def _setup_gpu_scheduler(embedder):
-    """Initialize and start GPU Pipeline Scheduler with queues."""
-    from ..core.optimized.gpu_pipeline import get_gpu_scheduler
-
-    scheduler = get_gpu_scheduler()
-
-    if hasattr(app.state, "inference_engine") and app.state.inference_engine:
-        engine = app.state.inference_engine
-
-        def llm_executor(batch):
-            results = []
-            for prompt in batch:
-                result = engine.generate_sync(prompt, max_tokens=512)
-                results.append(result)
-            return results
-
-        scheduler.register_queue(
-            name="llm",
-            executor=llm_executor,
-            max_batch_size=4,
-            max_wait_ms=50.0,
-        )
-
-    if embedder is not None:
-
-        def embed_executor(batch):
-            return embedder.encode(batch)
-
-        scheduler.register_queue(
-            name="embedding",
-            executor=embed_executor,
-            max_batch_size=64,
-            max_wait_ms=10.0,
-        )
-
-    await scheduler.start_all()
-    logger.info("✓ GPU Pipeline Scheduler started with queues")
-
-
 def _validate_jwt_secret():
     """Validate JWT secret key configuration."""
     if not settings.SECRET_KEY or len(settings.SECRET_KEY) < 32:
@@ -526,14 +583,13 @@ def _validate_jwt_secret():
             raise RuntimeError(msg)
         logger.warning(msg)
 
-
 def _unload_models():
     """Gracefully unload all loaded models."""
     if hasattr(app.state, "inference_engine") and app.state.inference_engine:
         app.state.inference_engine.unload()
         logger.info("Inference engine unloaded")
 
-    from ..services.rag import get_embedder, get_reranker
+    from ..services.chat.rag import get_embedder, get_reranker
 
     embedder = get_embedder()
     if embedder.is_loaded:
@@ -545,31 +601,28 @@ def _unload_models():
         reranker.unload()
         logger.info("RAG reranker unloaded")
 
-    from ..services.tts.mms_tts_service import unload_mms_tts_service
+    from ..ml.speech.tts import unload_mms_tts_service
 
     unload_mms_tts_service()
     logger.info("TTS models unloaded")
 
     # Shutdown translation executor
-    from ..services.translate.engine import shutdown_translation_executor
+    from ..ml.translate.engine import shutdown_translation_executor
 
     shutdown_translation_executor(wait=True)
 
-
 def _cancel_warmup_task():
     """Cancel warmup task if running."""
-    if hasattr(app.state, "warmup_task") and app.state.warmup_task:
-        if not app.state.warmup_task.done():
-            app.state.warmup_task.cancel()
-            logger.info("Warmup task cancelled")
-
+    if (hasattr(app.state, "warmup_task") and app.state.warmup_task
+            and not app.state.warmup_task.done()):
+        app.state.warmup_task.cancel()
+        logger.info("Warmup task cancelled")
 
 async def _stop_gpu_scheduler():
     """Stop GPU Pipeline Scheduler."""
     if hasattr(app.state, "gpu_scheduler") and app.state.gpu_scheduler:
         await app.state.gpu_scheduler.stop_all()
         logger.info("GPU Pipeline Scheduler stopped")
-
 
 def _cleanup_memory_coordinator():
     """Cleanup memory coordinator and unload models."""
@@ -579,26 +632,24 @@ def _cleanup_memory_coordinator():
     coordinator = app.state.memory_coordinator
     loaded_models = list(coordinator._loaded_models.keys())
     if loaded_models:
-        logger.info(f"Unloading {len(loaded_models)} models: {loaded_models}")
+        logger.info("Unloading %s models: %s", len(loaded_models), loaded_models)
 
     try:
         _unload_models()
     except Exception as e:
-        logger.warning(f"Model unload failed: {e}")
+        logger.warning("Model unload failed: %s", e)
 
     coordinator.force_cleanup()
-    logger.info(f"Final memory stats: {coordinator.get_memory_stats()}")
-
+    logger.info("Final memory stats: %s", coordinator.get_memory_stats())
 
 def _log_cache_stats():
     """Log cache statistics."""
     if hasattr(app.state, "cache") and app.state.cache:
         try:
             stats = app.state.cache.get_stats()
-            logger.info(f"Cache stats at shutdown: {stats}")
+            logger.info("Cache stats at shutdown: %s", stats)
         except Exception:
             pass
-
 
 # Export
 __all__ = ["app"]

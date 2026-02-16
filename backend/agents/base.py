@@ -8,21 +8,22 @@ and the registry for agent lifecycle management.
 """
 
 import asyncio
+import contextlib
 import logging
 import time
 import uuid
 from abc import ABC, abstractmethod
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, TypeVar
+from enum import Enum, StrEnum
+from typing import Any, TypeVar
 
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
-
-class AgentStatus(str, Enum):
+class AgentStatus(StrEnum):
     """Agent lifecycle states."""
     IDLE = "idle"
     RUNNING = "running"
@@ -30,8 +31,7 @@ class AgentStatus(str, Enum):
     ERROR = "error"
     STOPPED = "stopped"
 
-
-class MessageType(str, Enum):
+class MessageType(StrEnum):
     """Standard message types for inter-agent communication."""
     REQUEST = "request"
     RESPONSE = "response"
@@ -39,7 +39,6 @@ class MessageType(str, Enum):
     METRIC = "metric"
     COMMAND = "command"
     ERROR = "error"
-
 
 @dataclass
 class AgentMessage:
@@ -65,7 +64,6 @@ class AgentMessage:
             payload=payload,
             correlation_id=self.correlation_id,
         )
-
 
 class BaseAgent(ABC):
     """
@@ -110,18 +108,16 @@ class BaseAgent(ABC):
         self.status = AgentStatus.RUNNING
         self._started_at = time.time()
         self._task = asyncio.create_task(self._run_loop(), name=f"agent-{self.name}")
-        logger.info(f"Agent '{self.name}' started")
+        logger.info("Agent '%s' started", self.name)
 
     async def stop(self) -> None:
         """Gracefully stop the agent."""
         self.status = AgentStatus.STOPPED
         if self._task:
             self._task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._task
-            except asyncio.CancelledError:  # NOSONAR
-                pass  # Expected after task.cancel() during shutdown
-        logger.info(f"Agent '{self.name}' stopped (processed={self._processed_count}, errors={self._error_count})")
+        logger.info("Agent '%s' stopped (processed=%s, errors=%s)", self.name, self._processed_count, self._error_count)
 
     async def send(self, message: AgentMessage) -> None:
         """Send a message to this agent's mailbox."""
@@ -129,7 +125,7 @@ class BaseAgent(ABC):
             self._mailbox.put_nowait(message)
             await asyncio.sleep(0)  # yield to event loop
         except asyncio.QueueFull:
-            logger.warning(f"Agent '{self.name}' mailbox full, dropping message {message.correlation_id}")
+            logger.warning("Agent '%s' mailbox full, dropping message %s", self.name, message.correlation_id)
 
     async def _run_loop(self) -> None:
         """Main message processing loop."""
@@ -154,14 +150,14 @@ class BaseAgent(ABC):
                     if reply:
                         await self._route_reply(reply)
 
-                except Exception as e:
+                except Exception as e:  # top-level handler
                     self._error_count += 1
-                    logger.error(f"Agent '{self.name}' error processing message: {e}", exc_info=True)
+                    logger.error("Agent '%s' error processing message: %s", self.name, e, exc_info=True)
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 continue  # Just check status and loop
             except asyncio.CancelledError:
-                logger.debug(f"Agent '{self.name}' loop cancelled")
+                logger.debug("Agent '%s' loop cancelled", self.name)
                 raise  # re-raise CancelledError per sonar
 
     async def _route_reply(self, reply: AgentMessage) -> None:
@@ -187,7 +183,6 @@ class BaseAgent(ABC):
             "error_rate": round(self._error_count / max(1, self._processed_count), 4),
         }
 
-
 class AgentRegistry:
     """
     Registry for all active agents. Handles message routing.
@@ -195,7 +190,7 @@ class AgentRegistry:
     Singleton — AgentRegistry() always returns the same instance.
     """
 
-    _instance: Optional["AgentRegistry"] = None
+    _instance: "AgentRegistry" | None = None
 
     def __new__(cls):
         if cls._instance is None:
@@ -211,7 +206,7 @@ class AgentRegistry:
             self._initialized = True
 
     @classmethod
-    def get_instance(cls) -> Optional["AgentRegistry"]:
+    def get_instance(cls) -> "AgentRegistry" | None:
         """Get the singleton registry instance (None if not yet created)."""
         return cls._instance
 
@@ -230,7 +225,7 @@ class AgentRegistry:
     def register(self, agent: BaseAgent) -> None:
         """Register an agent."""
         self._agents[agent.name] = agent
-        logger.info(f"Agent '{agent.name}' registered")
+        logger.info("Agent '%s' registered", agent.name)
 
     def unregister(self, name: str) -> None:
         """Unregister an agent."""
@@ -260,7 +255,7 @@ class AgentRegistry:
             if target_agent:
                 await target_agent.send(message)
             else:
-                logger.warning(f"No agent '{message.recipient}' found for message from '{message.sender}'")
+                logger.warning("No agent '%s' found for message from '%s'", message.recipient, message.sender)
 
     async def start_all(self) -> None:
         """Start all registered agents."""

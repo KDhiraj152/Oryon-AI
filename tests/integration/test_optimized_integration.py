@@ -118,7 +118,7 @@ class OptimizedPipelineTests:
         """Test multi-tier caching."""
         start = time.perf_counter()
         try:
-            from backend.cache.unified import UnifiedCache
+            from backend.infra.cache.unified import UnifiedCache
 
             cache = UnifiedCache()
 
@@ -206,7 +206,7 @@ class OptimizedPipelineTests:
         """Test cultural context service."""
         start = time.perf_counter()
         try:
-            from backend.services.cultural_context import (
+            from backend.services.content.cultural_context import (
                 Region,
                 UnifiedCulturalContextService,
             )
@@ -241,7 +241,7 @@ class OptimizedPipelineTests:
         """Test semantic accuracy evaluator."""
         start = time.perf_counter()
         try:
-            from backend.services.evaluation import (
+            from backend.ml.evaluation import (
                 EvaluationConfig,
                 SemanticAccuracyEvaluator,
             )

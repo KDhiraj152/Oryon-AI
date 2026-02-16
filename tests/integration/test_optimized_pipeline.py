@@ -64,7 +64,7 @@ class TestMultiTierCache:
     @pytest.mark.asyncio
     async def test_cache_set_get(self):
         """Test basic cache operations."""
-        from backend.cache.unified import UnifiedCache
+        from backend.infra.cache.unified import UnifiedCache
 
         cache = UnifiedCache()
 
@@ -83,7 +83,7 @@ class TestMultiTierCache:
     @pytest.mark.asyncio
     async def test_cache_tier_promotion(self):
         """Test that frequently accessed items get promoted."""
-        from backend.cache.unified import UnifiedCache
+        from backend.infra.cache.unified import UnifiedCache
 
         cache = UnifiedCache()
 
@@ -104,7 +104,7 @@ class TestMultiTierCache:
     @pytest.mark.asyncio
     async def test_cache_stats(self):
         """Test cache statistics."""
-        from backend.cache.unified import UnifiedCache
+        from backend.infra.cache.unified import UnifiedCache
 
         cache = UnifiedCache()
 
@@ -125,7 +125,7 @@ class TestUnifiedInferenceEngine:
 
     def test_engine_initialization(self):
         """Test engine initializes correctly."""
-        from backend.services.inference.unified_engine import UnifiedInferenceEngine
+        from backend.ml.inference.unified_engine import UnifiedInferenceEngine
 
         engine = UnifiedInferenceEngine()
 
@@ -135,7 +135,7 @@ class TestUnifiedInferenceEngine:
 
     def test_backend_selection(self):
         """Test backend selection based on task."""
-        from backend.services.inference.unified_engine import UnifiedInferenceEngine
+        from backend.ml.inference.unified_engine import UnifiedInferenceEngine
 
         engine = UnifiedInferenceEngine()
 
@@ -155,7 +155,7 @@ class TestUnifiedPipeline:
     @pytest.mark.asyncio
     async def test_pipeline_initialization(self):
         """Test pipeline service initializes."""
-        from backend.services.pipeline.unified_pipeline import UnifiedPipelineService
+        from backend.ml.pipeline.unified_pipeline import UnifiedPipelineService
 
         pipeline = UnifiedPipelineService()
         assert pipeline  # Check pipeline was created successfully
@@ -163,7 +163,7 @@ class TestUnifiedPipeline:
     @pytest.mark.asyncio
     async def test_embedding_generation(self):
         """Test embedding generation through pipeline."""
-        from backend.services.pipeline.unified_pipeline import UnifiedPipelineService
+        from backend.ml.pipeline.unified_pipeline import UnifiedPipelineService
 
         pipeline = UnifiedPipelineService()
 
@@ -190,7 +190,7 @@ class TestPerformanceBaselines:
     @pytest.mark.asyncio
     async def test_cache_latency(self):
         """Test cache operation latency."""
-        from backend.cache.unified import UnifiedCache
+        from backend.infra.cache.unified import UnifiedCache
 
         cache = UnifiedCache()
 
@@ -249,7 +249,7 @@ def test_quick_validation():
 
     # Unified cache
     try:
-        from backend.cache.unified import EmbeddingCache, ResponseCache, UnifiedCache
+        from backend.infra.cache.unified import EmbeddingCache, ResponseCache, UnifiedCache
 
         print("  ✓ Unified cache modules")
     except ImportError as e:
@@ -257,7 +257,7 @@ def test_quick_validation():
 
     # Inference engine
     try:
-        from backend.services.inference import UnifiedInferenceEngine
+        from backend.ml.inference import UnifiedInferenceEngine
 
         print("  ✓ Inference engine")
     except ImportError as e:
@@ -265,7 +265,7 @@ def test_quick_validation():
 
     # Unified pipeline
     try:
-        from backend.services.pipeline import UnifiedPipelineService
+        from backend.ml.pipeline import UnifiedPipelineService
 
         print("  ✓ Unified pipeline")
     except ImportError as e:

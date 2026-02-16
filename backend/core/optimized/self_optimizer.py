@@ -30,15 +30,15 @@ from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, ClassVar
+
+from backend.utils.lock_factory import create_lock
 
 logger = logging.getLogger(__name__)
-
 
 # ============================================================================
 # QUERY INTENT CLASSIFICATION
 # ============================================================================
-
 
 class QueryIntent:
     """Classifications for query types to optimize retrieval strategy."""
@@ -50,7 +50,6 @@ class QueryIntent:
     CREATIVE = "creative"  # Open-ended generation
     CONVERSATIONAL = "conversational"  # Chat/follow-up
 
-
 class QueryClassifier:
     """
     Classifies queries to select optimal retrieval strategy.
@@ -58,7 +57,7 @@ class QueryClassifier:
     Uses keyword patterns and query structure analysis.
     """
 
-    INTENT_PATTERNS = {
+    INTENT_PATTERNS: ClassVar[dict] = {
         QueryIntent.FACTUAL: [
             "what is",
             "who is",
@@ -117,7 +116,7 @@ class QueryClassifier:
     }
 
     # Strategy configs per intent
-    INTENT_STRATEGIES = {
+    INTENT_STRATEGIES: ClassVar[dict] = {
         QueryIntent.FACTUAL: {
             "retrieval_top_k": 10,
             "rerank_top_k": 3,
@@ -183,11 +182,9 @@ class QueryClassifier:
 
         return (best_intent, confidence, self.INTENT_STRATEGIES.get(best_intent, {}))
 
-
 # ============================================================================
 # RETRIEVAL LOOP OPTIMIZER
 # ============================================================================
-
 
 @dataclass
 class RetrievalAttempt:
@@ -200,7 +197,6 @@ class RetrievalAttempt:
     latency_ms: float = 0.0
     strategy_used: str = "default"
     iteration: int = 0
-
 
 class SelfOptimizingRetrievalLoop:
     """
@@ -215,7 +211,7 @@ class SelfOptimizingRetrievalLoop:
 
     MAX_ITERATIONS = 3
     MIN_RELEVANCE_THRESHOLD = 0.6
-    REFORMULATION_TEMPLATES = [
+    REFORMULATION_TEMPLATES: ClassVar[list] = [
         "Rephrase: {query}",
         "Related to: {query}",
         "Explain: {query}",
@@ -389,7 +385,6 @@ class SelfOptimizingRetrievalLoop:
                 / len(attempts_list),
             }
 
-
 @dataclass
 class OptimizationMetrics:
     """Metrics collected for optimization decisions."""
@@ -419,7 +414,6 @@ class OptimizationMetrics:
     chunks_after_rerank: int = 0
 
     timestamp: datetime = field(default_factory=datetime.now)
-
 
 @dataclass
 class OptimizedParameters:
@@ -463,7 +457,6 @@ class OptimizedParameters:
             "max_context_length": self.max_context_length,
         }
 
-
 class SelfOptimizer:
     """
     Self-optimizing parameter tuner for the RAG pipeline.
@@ -482,7 +475,7 @@ class SelfOptimizer:
     """
 
     # Parameter bounds for safe optimization
-    PARAM_BOUNDS = {
+    PARAM_BOUNDS: ClassVar[dict] = {
         "chunk_size": (256, 1024),
         "chunk_overlap": (25, 100),
         "retrieval_top_k": (5, 50),
@@ -497,7 +490,7 @@ class SelfOptimizer:
     }
 
     # Target latencies (ms)
-    TARGET_LATENCIES = {
+    TARGET_LATENCIES: ClassVar[dict] = {
         "embedding": 50,
         "retrieval": 100,
         "rerank": 150,
@@ -506,7 +499,7 @@ class SelfOptimizer:
     }
 
     # Quality thresholds
-    QUALITY_THRESHOLDS = {
+    QUALITY_THRESHOLDS: ClassVar[dict] = {
         "retrieval_precision": 0.7,
         "rerank_improvement": 0.1,  # Reranking should improve by at least 10%
         "generation_quality": 0.75,
@@ -633,7 +626,7 @@ class SelfOptimizer:
         if optimizations:
             self._apply_optimizations(optimizations)
             self._last_optimization_time = datetime.now()
-            logger.info(f"Applied optimizations: {optimizations}")
+            logger.info("Applied optimizations: %s", optimizations)
 
     def _analyze_performance(self) -> dict[str, Any]:
         """Analyze recent performance metrics."""
@@ -851,13 +844,11 @@ class SelfOptimizer:
         """Update target latency for a component."""
         if component in self.TARGET_LATENCIES:
             self.TARGET_LATENCIES[component] = int(target_ms)
-            logger.info(f"Updated target latency for {component}: {target_ms}ms")
-
+            logger.info("Updated target latency for %s: %sms", component, target_ms)
 
 # ============================================================================
 # FEEDBACK-DRIVEN LEARNING
 # ============================================================================
-
 
 @dataclass
 class UserFeedback:
@@ -868,7 +859,6 @@ class UserFeedback:
     feedback_type: str  # "helpful", "accurate", "complete", "fast"
     timestamp: datetime = field(default_factory=datetime.now)
     metadata: dict[str, Any] = field(default_factory=dict)
-
 
 class FeedbackLearner:
     """
@@ -960,16 +950,14 @@ class FeedbackLearner:
                 },
             }
 
-
 # ============================================================================
 # SINGLETON INSTANCES
 # ============================================================================
 
 _optimizer_instance: SelfOptimizer | None = None
-_optimizer_lock = threading.Lock()
+_optimizer_lock = create_lock()
 _retrieval_loop: SelfOptimizingRetrievalLoop | None = None
 _feedback_learner: FeedbackLearner | None = None
-
 
 def get_self_optimizer(
     history_window: int = 100,
@@ -989,7 +977,6 @@ def get_self_optimizer(
             logger.info("Created SelfOptimizer singleton")
         return _optimizer_instance
 
-
 def get_retrieval_loop(
     retriever: Callable | None = None,
     reranker: Callable | None = None,
@@ -1006,7 +993,6 @@ def get_retrieval_loop(
             logger.info("Created SelfOptimizingRetrievalLoop singleton")
         return _retrieval_loop
 
-
 def get_feedback_learner() -> FeedbackLearner:
     """Get or create the global feedback learner instance."""
     global _feedback_learner
@@ -1017,7 +1003,6 @@ def get_feedback_learner() -> FeedbackLearner:
             logger.info("Created FeedbackLearner singleton")
         return _feedback_learner
 
-
 def reset_optimizer() -> None:
     """Reset the optimizer singleton (for testing)."""
     global _optimizer_instance, _retrieval_loop, _feedback_learner
@@ -1025,7 +1010,6 @@ def reset_optimizer() -> None:
         _optimizer_instance = None
         _retrieval_loop = None
         _feedback_learner = None
-
 
 __all__ = [
     "FeedbackLearner",

@@ -15,7 +15,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 import pytest
 
 # Translation Service Tests
-from backend.services.translate import TranslationService
+from backend.ml.translate import TranslationService
 
 
 class TestTranslationService:
@@ -29,7 +29,7 @@ class TestTranslationService:
     @pytest.fixture
     def mock_translation_engine(self):
         """Mock TranslationEngine."""
-        with patch("backend.services.translate.TranslationEngine") as mock:
+        with patch("backend.ml.translate.TranslationEngine") as mock:
             instance = mock.return_value
             instance.translate.return_value = "translated text"
             yield instance
@@ -211,7 +211,7 @@ class TestAsyncBatchProcessor:
 
 
 # Content Validator Tests
-from backend.services.content_validation import ContentValidationService
+from backend.services.content.content_validation import ContentValidationService
 
 
 class TestCurriculumValidator:
@@ -237,7 +237,7 @@ class TestCurriculumValidator:
 
     def test_subjects_defined(self, validator):
         """Test ContentValidator is initialized."""
-        from backend.services.validate.content_domain import ContentValidator
+        from backend.services.content.validate.content_domain import ContentValidator
 
         assert isinstance(validator.validator, ContentValidator)
 
@@ -259,7 +259,7 @@ class TestUnifiedCache:
     @pytest.fixture
     def cache(self):
         """Get unified cache instance."""
-        from backend.cache import get_unified_cache
+        from backend.infra.cache import get_unified_cache
 
         return get_unified_cache()
 
@@ -281,7 +281,7 @@ class TestEmbeddingCache:
     @pytest.fixture
     def embedding_cache(self):
         """Get embedding cache instance."""
-        from backend.cache.embedding_cache import get_embedding_cache
+        from backend.infra.cache.embedding_cache import get_embedding_cache
 
         return get_embedding_cache()
 

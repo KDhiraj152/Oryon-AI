@@ -15,7 +15,7 @@ Features:
 
 from collections.abc import Callable
 from datetime import UTC, datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastapi import Request, Response
 from fastapi.exceptions import RequestValidationError
@@ -26,7 +26,6 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from ..utils.logging import get_logger
 
 logger = get_logger(__name__)
-
 
 class ValidationErrorDetail:
     """Structured validation error detail."""
@@ -57,7 +56,6 @@ class ValidationErrorDetail:
             result["constraint"] = self.constraint
         return result
 
-
 class ValidationErrorResponse:
     """Standardized validation error response."""
 
@@ -81,7 +79,6 @@ class ValidationErrorResponse:
             "details": [e.to_dict() for e in self.errors],
             "error_count": len(self.errors),
         }
-
 
 def parse_pydantic_errors(errors: list[dict[str, Any]]) -> list[ValidationErrorDetail]:
     """Parse Pydantic validation errors into structured format."""
@@ -131,7 +128,6 @@ def parse_pydantic_errors(errors: list[dict[str, Any]]) -> list[ValidationErrorD
 
     return details
 
-
 def validation_exception_handler(
     request: Request, exc: RequestValidationError
 ) -> JSONResponse:
@@ -165,7 +161,6 @@ def validation_exception_handler(
 
     return JSONResponse(status_code=422, content=response.to_dict())
 
-
 def pydantic_validation_handler(request: Request, exc: ValidationError) -> JSONResponse:
     """
     Handle Pydantic validation errors (from manual validation).
@@ -181,7 +176,6 @@ def pydantic_validation_handler(request: Request, exc: ValidationError) -> JSONR
     )
 
     return JSONResponse(status_code=422, content=response.to_dict())
-
 
 class RequestValidationMiddleware(BaseHTTPMiddleware):
     """
@@ -226,7 +220,6 @@ class RequestValidationMiddleware(BaseHTTPMiddleware):
             return 0.0
         return self._validation_errors / self._total_requests
 
-
 def register_validation_handlers(app) -> None:
     """
     Register validation exception handlers with FastAPI app.
@@ -240,7 +233,6 @@ def register_validation_handlers(app) -> None:
 
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
     app.add_exception_handler(ValidationError, pydantic_validation_handler)
-
 
 # Export
 __all__ = [

@@ -11,7 +11,7 @@
 
 ## Deployment Options
 
-Shiksha Setu supports multiple deployment configurations:
+Oryon AI supports multiple deployment configurations:
 
 | Mode | Use Case | Hardware | Complexity |
 |------|----------|----------|------------|
@@ -35,8 +35,8 @@ Shiksha Setu supports multiple deployment configurations:
 
 ```bash
 # Clone repository
-git clone https://github.com/kdhiraj/shiksha-setu.git
-cd shiksha-setu
+git clone https://github.com/kdhiraj/oryon-ai.git
+cd oryon-ai
 
 # Run setup script
 ./setup.sh
@@ -69,7 +69,7 @@ ENVIRONMENT=development
 DEBUG=true
 
 # Database
-DATABASE_URL=postgresql://shiksha:password@localhost:5432/shiksha_setu
+DATABASE_URL=postgresql://oryon:password@localhost:5432/oryon
 
 # Redis
 REDIS_URL=redis://localhost:6379/0
@@ -94,7 +94,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES=60
 
 ### Docker Compose (Recommended)
 
-The `docker-compose.yml` provides a complete production stack:
+The `deploy/docker-compose.yml` provides a complete production stack:
 
 ```yaml
 version: '3.8'
@@ -103,11 +103,11 @@ services:
   backend:
     build:
       context: .
-      dockerfile: infrastructure/docker/Dockerfile.backend
+      dockerfile: deploy/docker/Dockerfile.backend
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://shiksha:password@postgres:5432/shiksha_setu
+      - DATABASE_URL=postgresql://oryon:password@postgres:5432/oryon
       - REDIS_URL=redis://redis:6379/0
       - DEVICE=auto
     volumes:
@@ -127,7 +127,7 @@ services:
   frontend:
     build:
       context: .
-      dockerfile: infrastructure/docker/Dockerfile.frontend
+      dockerfile: deploy/docker/Dockerfile.frontend
     ports:
       - "3000:3000"
     depends_on:
@@ -138,9 +138,9 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_USER: shiksha
+      POSTGRES_USER: oryon
       POSTGRES_PASSWORD: password
-      POSTGRES_DB: shiksha_setu
+      POSTGRES_DB: oryon
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
@@ -157,8 +157,8 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf
-      - ./infrastructure/nginx/ssl:/etc/nginx/ssl
+      - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./deploy/nginx/ssl:/etc/nginx/ssl
     depends_on:
       - backend
       - frontend
@@ -187,7 +187,7 @@ docker compose down
 ### Backend Dockerfile
 
 ```dockerfile
-# infrastructure/docker/Dockerfile.backend
+# deploy/docker/Dockerfile.backend
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -205,7 +205,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application
 COPY backend/ ./backend/
-COPY alembic/ ./alembic/
+COPY config/alembic/ ./config/alembic/
 COPY alembic.ini .
 
 # Create storage directories
@@ -222,7 +222,7 @@ CMD ["uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
 ### Production Configuration
 
 ```nginx
-# infrastructure/nginx/nginx.conf
+# deploy/nginx/nginx.conf
 upstream backend {
     server backend:8000;
 }
@@ -233,13 +233,13 @@ upstream frontend {
 
 server {
     listen 80;
-    server_name shiksha-setu.local;
+    server_name oryon-ai.local;
     return 301 https://$server_name$request_uri;
 }
 
 server {
     listen 443 ssl http2;
-    server_name shiksha-setu.local;
+    server_name oryon-ai.local;
 
     ssl_certificate /etc/nginx/ssl/cert.pem;
     ssl_certificate_key /etc/nginx/ssl/key.pem;
@@ -304,13 +304,13 @@ server {
 ### Prometheus Configuration
 
 ```yaml
-# infrastructure/monitoring/prometheus.yml
+# deploy/monitoring/prometheus.yml
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
 scrape_configs:
-  - job_name: 'shiksha-backend'
+  - job_name: 'oryon-backend'
     static_configs:
       - targets: ['backend:8000']
     metrics_path: /api/v2/metrics
@@ -347,7 +347,7 @@ Key metrics to monitor:
 #!/bin/bash
 set -e
 
-echo "Starting Shiksha Setu..."
+echo "Starting Oryon AI..."
 
 # Check prerequisites
 command -v python3 >/dev/null 2>&1 || { echo "Python 3 required"; exit 1; }
@@ -390,7 +390,7 @@ wait $BACKEND_PID $FRONTEND_PID
 ```bash
 #!/bin/bash
 
-echo "Stopping Shiksha Setu..."
+echo "Stopping Oryon AI..."
 
 # Kill backend
 pkill -f "uvicorn backend.api.main:app" || true
@@ -412,7 +412,7 @@ echo "Services stopped"
 [alembic]
 script_location = alembic
 prepend_sys_path = .
-sqlalchemy.url = postgresql://shiksha:password@localhost:5432/shiksha_setu
+sqlalchemy.url = postgresql://oryon:password@localhost:5432/oryon
 
 [loggers]
 keys = root,sqlalchemy,alembic
@@ -521,10 +521,10 @@ save ""  # Disable persistence for cache-only use
 
 ```bash
 # Full backup
-pg_dump -Fc shiksha_setu > backup_$(date +%Y%m%d).dump
+pg_dump -Fc oryon > backup_$(date +%Y%m%d).dump
 
 # Restore
-pg_restore -d shiksha_setu backup_20251205.dump
+pg_restore -d oryon backup_20251205.dump
 ```
 
 ### Model Backup
@@ -552,7 +552,7 @@ tar -czvf models_backup.tar.gz data/models/
 
 ```
 logs/
-├── shiksha_setu.log    # Application logs
+├── oryon.log    # Application logs
 ├── uvicorn.log         # Server logs
 ├── alembic.log         # Migration logs
 └── error.log           # Error-only logs

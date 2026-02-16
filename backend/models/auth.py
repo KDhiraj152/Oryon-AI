@@ -8,13 +8,12 @@ from datetime import datetime
 from sqlalchemy import TIMESTAMP, Boolean, Column, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 
-from ..database import Base
+from backend.db.database import Base
 
 
 def utcnow():
     """Get current UTC time as naive datetime (for TIMESTAMP WITHOUT TIME ZONE)."""
     return datetime.utcnow()
-
 
 class User(Base):
     """User model for authentication and authorization."""
@@ -36,7 +35,6 @@ class User(Base):
     updated_at = Column(TIMESTAMP, default=utcnow, onupdate=utcnow)
     last_login = Column(TIMESTAMP)
 
-
 class APIKey(Base):
     """API key model for programmatic access."""
 
@@ -52,7 +50,6 @@ class APIKey(Base):
     created_at = Column(TIMESTAMP, default=utcnow, nullable=False)
     expires_at = Column(TIMESTAMP)
     last_used = Column(TIMESTAMP)
-
 
 class TokenBlacklist(Base):
     """Blacklisted tokens (logout, rotation, compromise)."""
@@ -74,7 +71,6 @@ class TokenBlacklist(Base):
 
     def __repr__(self):
         return f"<TokenBlacklist(jti={self.token_jti}, reason={self.reason})>"
-
 
 class RefreshToken(Base):
     """Store active refresh tokens for rotation tracking."""

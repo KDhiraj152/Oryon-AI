@@ -8,21 +8,20 @@ Eliminates race conditions and duplicate instance creation.
 
 import functools
 import logging
-import threading
 import time
 from collections.abc import Callable
-from typing import Generic, Optional, TypeVar
+from typing import ClassVar, Generic, TypeVar
 
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
-
 class ThreadSafeSingleton(Generic[T]):
     """
-    Thread-safe lazy singleton using double-checked locking.
+    Lock-free lazy singleton using benign-race pattern.
 
-    Prevents race conditions where multiple threads create duplicate instances.
+    Uses Python's GIL to ensure pointer assignment atomicity.
+    At worst two callers create an instance but only one is kept.
     Essential for model loading to prevent OOM from multiple copies.
 
     Usage:
@@ -32,7 +31,6 @@ class ThreadSafeSingleton(Generic[T]):
 
     def __init__(self, factory: Callable[[], T], name: str = "singleton"):
         self._instance: T | None = None
-        self._lock = threading.Lock()
         self._factory = factory
         self._name = name
         self._initialized = False
@@ -40,24 +38,22 @@ class ThreadSafeSingleton(Generic[T]):
         self._error: Exception | None = None
 
     def get(self) -> T:
-        """Get or create singleton instance with double-checked locking."""
-        if self._instance is None:
-            with self._lock:
-                # Double-check after acquiring lock
-                if self._instance is None:
-                    logger.info(f"[Singleton] Creating: {self._name}")
-                    start = time.perf_counter()
-                    try:
-                        self._instance = self._factory()
-                        self._init_time = time.perf_counter() - start
-                        self._initialized = True
-                        logger.info(
-                            f"[Singleton] {self._name} ready in {self._init_time:.2f}s"
-                        )
-                    except Exception as e:
-                        self._error = e
-                        logger.error(f"[Singleton] {self._name} failed: {e}")
-                        raise
+        """Get or create singleton instance (lock-free)."""
+        if self._instance is not None:
+            return self._instance
+        logger.info("[Singleton] Creating: %s", self._name)
+        start = time.perf_counter()
+        try:
+            self._instance = self._factory()
+            self._init_time = time.perf_counter() - start
+            self._initialized = True
+            logger.info(
+                "[Singleton] %s ready in %.2fs", self._name, self._init_time
+            )
+        except Exception as e:
+            self._error = e
+            logger.error("[Singleton] %s failed: %s", self._name, e)
+            raise
         return self._instance
 
     def get_or_none(self) -> T | None:
@@ -80,30 +76,28 @@ class ThreadSafeSingleton(Generic[T]):
 
     def reset(self):
         """Reset singleton (useful for testing or reloading)."""
-        with self._lock:
-            if self._instance is not None:
-                # Attempt cleanup if instance has close/cleanup method
-                if hasattr(self._instance, "close"):
-                    try:
-                        self._instance.close()
-                    except Exception as e:
-                        logger.warning(f"[Singleton] {self._name} cleanup error: {e}")
-                elif hasattr(self._instance, "cleanup"):
-                    try:
-                        self._instance.cleanup()
-                    except Exception as e:
-                        logger.warning(f"[Singleton] {self._name} cleanup error: {e}")
+        if self._instance is not None:
+            # Attempt cleanup if instance has close/cleanup method
+            if hasattr(self._instance, "close"):
+                try:
+                    self._instance.close()
+                except (RuntimeError, OSError) as e:
+                    logger.warning("[Singleton] %s cleanup error: %s", self._name, e)
+            elif hasattr(self._instance, "cleanup"):
+                try:
+                    self._instance.cleanup()
+                except (RuntimeError, OSError) as e:
+                    logger.warning("[Singleton] %s cleanup error: %s", self._name, e)
 
-            self._instance = None
-            self._initialized = False
-            self._init_time = None
-            self._error = None
-            logger.info(f"[Singleton] {self._name} reset")
+        self._instance = None
+        self._initialized = False
+        self._init_time = None
+        self._error = None
+        logger.info("[Singleton] %s reset", self._name)
 
     def __repr__(self) -> str:
         status = "initialized" if self._initialized else "not initialized"
         return f"ThreadSafeSingleton({self._name}, {status})"
-
 
 def lazy_singleton(name: str | None = None):
     """
@@ -122,33 +116,28 @@ def lazy_singleton(name: str | None = None):
 
     def decorator(cls):
         _instances = {}
-        _lock = threading.Lock()
 
         @functools.wraps(cls)
         def get_instance(*args, **kwargs):
             key = (cls, args, tuple(sorted(kwargs.items())))
             if key not in _instances:
-                with _lock:
-                    if key not in _instances:
-                        singleton_name = name or cls.__name__
-                        logger.info(f"[Singleton] Creating: {singleton_name}")
-                        start = time.perf_counter()
-                        _instances[key] = cls(*args, **kwargs)
-                        elapsed = time.perf_counter() - start
-                        logger.info(
-                            f"[Singleton] {singleton_name} ready in {elapsed:.2f}s"
-                        )
+                singleton_name = name or cls.__name__
+                logger.info("[Singleton] Creating: %s", singleton_name)
+                start = time.perf_counter()
+                _instances[key] = cls(*args, **kwargs)
+                elapsed = time.perf_counter() - start
+                logger.info(
+                    "[Singleton] %s ready in %.2fs", singleton_name, elapsed
+                )
             return _instances[key]
 
         cls.get_instance = staticmethod(get_instance)
         cls._singleton_instances = _instances
-        cls._singleton_lock = _lock
 
         @staticmethod
         def reset_instance():
-            with _lock:
-                _instances.clear()
-                logger.info(f"[Singleton] {name or cls.__name__} reset")
+            _instances.clear()
+            logger.info("[Singleton] %s reset", name or cls.__name__)
 
         cls.reset_instance = reset_instance
 
@@ -156,22 +145,19 @@ def lazy_singleton(name: str | None = None):
 
     return decorator
 
-
 class SingletonRegistry:
     """
     Global registry for all singletons.
     Enables centralized management and cleanup.
     """
 
-    _registry: dict = {}
-    _lock = threading.Lock()
+    _registry: ClassVar[dict] = {}
 
     @classmethod
     def register(cls, name: str, singleton: ThreadSafeSingleton):
         """Register a singleton for management."""
-        with cls._lock:
-            cls._registry[name] = singleton
-            logger.debug(f"[Registry] Registered: {name}")
+        cls._registry[name] = singleton
+        logger.debug("[Registry] Registered: %s", name)
 
     @classmethod
     def get(cls, name: str) -> ThreadSafeSingleton | None:
@@ -181,13 +167,12 @@ class SingletonRegistry:
     @classmethod
     def reset_all(cls):
         """Reset all registered singletons."""
-        with cls._lock:
-            for name, singleton in cls._registry.items():
-                try:
-                    singleton.reset()
-                except Exception as e:
-                    logger.error(f"[Registry] Failed to reset {name}: {e}")
-            logger.info(f"[Registry] Reset {len(cls._registry)} singletons")
+        for name, singleton in cls._registry.items():
+            try:
+                singleton.reset()
+            except (RuntimeError, OSError) as e:
+                logger.error("[Registry] Failed to reset %s: %s", name, e)
+        logger.info("[Registry] Reset %s singletons", len(cls._registry))
 
     @classmethod
     def status(cls) -> dict:

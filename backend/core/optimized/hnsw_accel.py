@@ -21,9 +21,11 @@ import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any
 
 import numpy as np
+
+from backend.utils.lock_factory import create_lock
 
 from .simd_ops import (
     cosine_similarity_batch,
@@ -47,11 +49,9 @@ except ImportError:
     _HAS_MPS = False
     _HAS_CUDA = False
 
-
 # ============================================================================
 # CONFIGURATION
 # ============================================================================
-
 
 @dataclass
 class HNSWConfig:
@@ -79,7 +79,6 @@ class HNSWConfig:
     # Threading
     num_threads: int = 4  # Parallel search threads
 
-
 @dataclass
 class HNSWStats:
     """Performance statistics for HNSW operations."""
@@ -100,11 +99,9 @@ class HNSWStats:
             / max(1, self.total_distance_computations),
         }
 
-
 # ============================================================================
 # GPU-ACCELERATED DISTANCE COMPUTATION
 # ============================================================================
-
 
 class GPUDistanceComputer:
     """
@@ -120,6 +117,7 @@ class GPUDistanceComputer:
         device: str | None = None,
     ):
         self.metric = metric
+        self.device: Any = None
 
         # Auto-detect device
         if device is None:
@@ -142,7 +140,7 @@ class GPUDistanceComputer:
         # Pre-compile kernels
         self._compiled = False
 
-        logger.info(f"GPUDistanceComputer initialized on {self.device_type}")
+        logger.info("GPUDistanceComputer initialized on %s", self.device_type)
 
     def _ensure_compiled(self):
         """Lazy compilation of GPU kernels."""
@@ -158,8 +156,8 @@ class GPUDistanceComputer:
             elif self.device_type == "cuda":
                 torch.cuda.synchronize()
             self._compiled = True
-        except Exception as e:
-            logger.warning(f"GPU warmup failed: {e}")
+        except (RuntimeError, OSError) as e:
+            logger.warning("GPU warmup failed: %s", e)
             self.device = None
             self.device_type = "cpu"
 
@@ -218,8 +216,8 @@ class GPUDistanceComputer:
 
             return distances.cpu().numpy()
 
-        except Exception as e:
-            logger.debug(f"GPU distance failed, falling back to CPU: {e}")
+        except (RuntimeError, OSError) as e:
+            logger.debug("GPU distance failed, falling back to CPU: %s", e)
             return self._compute_cpu(query, candidates)
 
     def _compute_cpu(
@@ -237,7 +235,7 @@ class GPUDistanceComputer:
         elif self.metric == "l2":
             return l2_distance_batch(query, candidates)
         else:  # inner product
-            return -np.dot(candidates, query)
+            return np.asarray(-np.dot(candidates, query))
 
     def compute_batch_distances(
         self,
@@ -288,8 +286,8 @@ class GPUDistanceComputer:
 
             return distances.cpu().numpy()
 
-        except Exception as e:
-            logger.debug(f"Batch GPU distance failed: {e}")
+        except (RuntimeError, OSError) as e:
+            logger.debug("Batch GPU distance failed: %s", e)
             return self._compute_batch_cpu(queries, candidates)
 
     def _compute_batch_cpu(
@@ -309,15 +307,14 @@ class GPUDistanceComputer:
             q_sq = np.sum(queries**2, axis=1, keepdims=True)
             c_sq = np.sum(candidates**2, axis=1, keepdims=True)
             cross = np.dot(queries, candidates.T)
-            return np.sqrt(np.maximum(q_sq + c_sq.T - 2 * cross, 0))
+            result_l2 = np.asarray(np.sqrt(np.maximum(q_sq + c_sq.T - 2 * cross, 0)))
+            return result_l2
         else:
-            return -np.dot(queries, candidates.T)
-
+            return np.asarray(-np.dot(queries, candidates.T))
 
 # ============================================================================
 # OPTIMIZED HNSW SEARCH
 # ============================================================================
-
 
 class OptimizedHNSWSearcher:
     """
@@ -354,7 +351,7 @@ class OptimizedHNSWSearcher:
         self.dim = vectors.shape[1]
 
         # Initialize GPU distance computer
-        device = None if not self.config.use_gpu else None  # Auto-detect
+        device = None  # Auto-detect
         self.distance_computer = GPUDistanceComputer(
             metric=self.config.metric,
             device=device,
@@ -485,14 +482,12 @@ class OptimizedHNSWSearcher:
         """Get search statistics."""
         return self.stats.to_dict()
 
-
 # ============================================================================
 # SINGLETON ACCESSOR
 # ============================================================================
 
 _hnsw_searcher: OptimizedHNSWSearcher | None = None
-_hnsw_lock = threading.Lock()
-
+_hnsw_lock = create_lock()
 
 def get_hnsw_searcher(
     vectors: np.ndarray | None = None,
