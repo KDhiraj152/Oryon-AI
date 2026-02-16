@@ -1,1 +1,11 @@
-config/pyrightconfig.json
+{
+  "pythonVersion": "3.12",
+  "executionEnvironments": [
+    {
+      "root": ".",
+      "extraPaths": ["."]
+    }
+  ],
+  "reportMissingImports": "warning",
+  "reportMissingModuleSource": "none"
+}

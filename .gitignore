@@ -51,6 +51,9 @@ id_rsa*
 *.swo
 *~
 
+# IDE-specific files with secrets
+.vscode/mcp.json
+
 # OS Files
 .DS_Store
 .DS_Store?
@@ -90,6 +93,7 @@ frontend/out/
 # Storage (Keep structure, not files)
 storage/uploads/*
 storage/cache/*
+storage/cache/*.db
 storage/audio/*
 storage/captions/*
 storage/models/*
@@ -135,3 +139,4 @@ frontend/package-lock.json
 .supabase/
 .projectx/
 .mypy_cache/
+.ruff_cache/
