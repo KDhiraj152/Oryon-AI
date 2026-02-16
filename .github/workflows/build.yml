@@ -87,7 +87,7 @@ jobs:
       uses: docker/build-push-action@v5
       with:
         context: .
-        file: ./infrastructure/docker/Dockerfile.backend
+        file: ./deploy/docker/Dockerfile.backend
         push: ${{ needs.preflight.outputs.should_push == 'true' }}
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
@@ -167,7 +167,7 @@ jobs:
       uses: docker/build-push-action@v5
       with:
         context: .
-        file: ./infrastructure/docker/Dockerfile.frontend
+        file: ./deploy/docker/Dockerfile.frontend
         push: ${{ needs.preflight.outputs.should_push == 'true' }}
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}

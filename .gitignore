@@ -1,5 +1,5 @@
 # ============================================
-# ShikshaSetu .gitignore
+# Oryon AI .gitignore
 # ============================================
 
 # Python
@@ -64,7 +64,6 @@ logs/*.pid
 !logs/.gitkeep
 
 # Runtime artifacts
-*.lock
 *.pid
 .env.local
 
@@ -87,9 +86,6 @@ frontend/dist/
 frontend/build/
 frontend/.next/
 frontend/out/
-package-lock.json
-yarn.lock
-pnpm-lock.yaml
 
 # Storage (Keep structure, not files)
 storage/uploads/*

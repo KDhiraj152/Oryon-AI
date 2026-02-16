@@ -114,7 +114,7 @@ jobs:
       - name: Install security tools
         run: |
           pip install --upgrade pip
-          pip install bandit safety pip-audit semgrep
+          pip install bandit safety pip-audit
 
       - name: Run bandit (SAST)
         run: |
@@ -135,7 +135,7 @@ jobs:
         continue-on-error: true
 
       - name: Run semgrep (advanced SAST)
-        uses: returntocorp/semgrep-action@v1
+        uses: semgrep/semgrep-action@v1
         with:
           config: >-
             p/python
@@ -322,7 +322,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./infrastructure/docker/Dockerfile.backend
+          file: ./deploy/docker/Dockerfile.backend
           push: false
           tags: oryon/backend:test
           cache-from: type=gha
@@ -334,7 +334,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./infrastructure/docker/Dockerfile.frontend
+          file: ./deploy/docker/Dockerfile.frontend
           push: false
           tags: oryon/frontend:test
           cache-from: type=gha
