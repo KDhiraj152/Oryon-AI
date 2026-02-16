@@ -4,6 +4,7 @@ Content models.
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import (
     ARRAY,
@@ -19,13 +20,12 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 
-from ..database import Base
+from backend.db.database import Base
 
 
 def utcnow():
     """Get current UTC time as naive datetime (for TIMESTAMP WITHOUT TIME ZONE)."""
     return datetime.utcnow()
-
 
 class ProcessedContent(Base):
     """Stores processed content with translations and audio."""
@@ -54,7 +54,6 @@ class ProcessedContent(Base):
         Index("idx_subject_created", "subject", "created_at"),
     )
 
-
 class ContentStandard(Base):
     """Reference database for content domain standards."""
 
@@ -65,9 +64,8 @@ class ContentStandard(Base):
     subject = Column(String(100), nullable=False, index=True)
     topic = Column(String(200), nullable=False)
     description = Column(Text)  # Added for test compatibility
-    learning_objectives = Column(ARRAY(Text))
-    keywords = Column(ARRAY(Text))
-
+    learning_objectives: Any = Column(ARRAY(Text))
+    keywords: Any = Column(ARRAY(Text))
 
 class ContentTranslation(Base):
     """Normalized table for content translations (extracted from ProcessedContent metadata)."""
@@ -86,7 +84,6 @@ class ContentTranslation(Base):
     translation_model = Column(String(100))
     translation_quality_score = Column(Float)
     created_at = Column(TIMESTAMP, default=utcnow)
-
 
 class ContentAudio(Base):
     """Normalized table for audio files (extracted from ProcessedContent)."""
@@ -108,7 +105,6 @@ class ContentAudio(Base):
     accuracy_score = Column(Float)
     created_at = Column(TIMESTAMP, default=utcnow)
 
-
 class ContentValidation(Base):
     """Normalized table for validation results (content_domain, script, factual)."""
 
@@ -129,7 +125,6 @@ class ContentValidation(Base):
     issues_found = Column(JSONB)  # Structured validation issues
     validated_at = Column(TIMESTAMP, default=utcnow)
 
-
 class Feedback(Base):
     """User feedback for content quality."""
 
@@ -149,7 +144,6 @@ class Feedback(Base):
     feedback_text = Column(Text)
     issue_type = Column(String(100))  # e.g., 'translation', 'audio', 'simplification'
     created_at = Column(TIMESTAMP, default=utcnow, index=True)
-
 
 class PipelineLog(Base):
     """Logs for pipeline processing stages and performance metrics."""

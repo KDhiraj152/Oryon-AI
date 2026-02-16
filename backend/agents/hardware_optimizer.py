@@ -23,7 +23,6 @@ from .base import AgentMessage, BaseAgent, MessageType
 
 logger = logging.getLogger(__name__)
 
-
 @dataclass
 class HardwareConfig:
     """Current hardware configuration state."""
@@ -38,8 +37,7 @@ class HardwareConfig:
     model_eviction_threshold_pct: float = 85.0
 
     def to_dict(self) -> dict[str, Any]:
-        return {k: v for k, v in self.__dict__.items()}
-
+        return dict(self.__dict__.items())
 
 @dataclass
 class OptimizationAction:
@@ -53,7 +51,6 @@ class OptimizationAction:
     timestamp: float = field(default_factory=time.time)
     applied: bool = False
     result: str = ""
-
 
 class HardwareOptimizerAgent(BaseAgent):
     """
@@ -83,9 +80,9 @@ class HardwareOptimizerAgent(BaseAgent):
             self.config.embedding_batch_size = settings.EMBEDDING_BATCH_SIZE
             self.config.ml_thread_count = settings.THREADPOOL_MAX_WORKERS
             self.config.io_thread_count = settings.ASYNC_POOL_SIZE
-        except Exception:
+        except (ImportError, AttributeError):
             pass
-        logger.info(f"HardwareOptimizer initialized: {self.config.to_dict()}")
+        logger.info("HardwareOptimizer initialized: %s", self.config.to_dict())
 
     async def handle_message(self, message: AgentMessage) -> AgentMessage | None:
         """Process resource metrics and optimization requests."""
@@ -171,12 +168,14 @@ class HardwareOptimizerAgent(BaseAgent):
 
             # Trigger model eviction
             try:
-                from backend.core.optimized.memory_coordinator import get_memory_coordinator
+                from backend.core.optimized.memory_coordinator import (
+                    get_memory_coordinator,
+                )
                 coordinator = get_memory_coordinator()
-                coordinator.emergency_evict()
-                logger.warning(f"Emergency eviction triggered at {ram_pct:.0f}% RAM")
-            except Exception as e:
-                logger.error(f"Emergency eviction failed: {e}")
+                coordinator.emergency_evict()  # type: ignore[attr-defined]
+                logger.warning("Emergency eviction triggered at %.0f% RAM", ram_pct)
+            except (ImportError, RuntimeError) as e:
+                logger.error("Emergency eviction failed: %s", e)
 
         elif level == "critical":
             # Moderate: reduce batch sizes by half
@@ -198,7 +197,7 @@ class HardwareOptimizerAgent(BaseAgent):
 
     def _analyze_and_propose(self, snapshots: list[dict]) -> list[OptimizationAction]:
         """Analyze resource trends and propose optimizations."""
-        proposals = []
+        proposals: list[OptimizationAction] = []
 
         if not snapshots:
             return proposals
@@ -206,7 +205,7 @@ class HardwareOptimizerAgent(BaseAgent):
         # Average metrics over the window
         avg_ram = sum(s.get("ram_percent", 0) for s in snapshots) / len(snapshots)
         avg_p95 = sum(s.get("p95_latency_ms", 0) for s in snapshots) / len(snapshots)
-        avg_rps = sum(s.get("requests_per_second", 0) for s in snapshots) / len(snapshots)
+        sum(s.get("requests_per_second", 0) for s in snapshots) / len(snapshots)
 
         # Strategy 1: If memory is low and latency is fine, increase batch sizes
         if avg_ram < 60 and avg_p95 < 2000:
@@ -221,28 +220,26 @@ class HardwareOptimizerAgent(BaseAgent):
                 ))
 
         # Strategy 2: If latency is high but memory is available, check if batch too large
-        elif avg_p95 > 3000 and avg_ram < 80:
-            if self.config.embedding_batch_size > 16:
-                proposals.append(OptimizationAction(
-                    action_type="reduce_batch",
-                    parameter="embedding_batch_size",
-                    old_value=self.config.embedding_batch_size,
-                    new_value=max(16, self.config.embedding_batch_size - 16),
-                    reason=f"High latency ({avg_p95:.0f}ms) — reducing batch to lower per-request latency",
-                    expected_impact="Reduce P95 latency",
-                ))
+        elif avg_p95 > 3000 and avg_ram < 80 and self.config.embedding_batch_size > 16:
+            proposals.append(OptimizationAction(
+                action_type="reduce_batch",
+                parameter="embedding_batch_size",
+                old_value=self.config.embedding_batch_size,
+                new_value=max(16, self.config.embedding_batch_size - 16),
+                reason=f"High latency ({avg_p95:.0f}ms) — reducing batch to lower per-request latency",
+                expected_impact="Reduce P95 latency",
+            ))
 
         # Strategy 3: Memory pressure — reduce footprint
-        if avg_ram > 80:
-            if self.config.embedding_batch_size > 32:
-                proposals.append(OptimizationAction(
-                    action_type="reduce_batch",
-                    parameter="embedding_batch_size",
-                    old_value=self.config.embedding_batch_size,
-                    new_value=32,
-                    reason=f"High memory ({avg_ram:.0f}%) — reducing batch size",
-                    expected_impact="Free ~100MB of inference buffers",
-                ))
+        if avg_ram > 80 and self.config.embedding_batch_size > 32:
+            proposals.append(OptimizationAction(
+                action_type="reduce_batch",
+                parameter="embedding_batch_size",
+                old_value=self.config.embedding_batch_size,
+                new_value=32,
+                reason=f"High memory ({avg_ram:.0f}%) — reducing batch size",
+                expected_impact="Free ~100MB of inference buffers",
+            ))
 
         return proposals
 
@@ -255,7 +252,7 @@ class HardwareOptimizerAgent(BaseAgent):
                 try:
                     from backend.core.config import settings
                     settings.EMBEDDING_BATCH_SIZE = action.new_value
-                except Exception:
+                except (ImportError, AttributeError):
                     pass
 
             elif action.parameter == "reranking_batch_size":
@@ -270,6 +267,6 @@ class HardwareOptimizerAgent(BaseAgent):
                 f"Applied optimization: {action.parameter} "
                 f"{action.old_value} → {action.new_value} ({action.reason})"
             )
-        except Exception as e:
+        except (RuntimeError, ValueError, AttributeError) as e:
             action.result = f"failed: {e}"
-            logger.error(f"Optimization failed: {action.parameter} — {e}")
+            logger.error("Optimization failed: %s — %s", action.parameter, e)

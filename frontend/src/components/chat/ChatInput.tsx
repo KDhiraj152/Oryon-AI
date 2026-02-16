@@ -1,53 +1,9 @@
 import { useState, useRef, useEffect, useCallback, KeyboardEvent, memo } from 'react';
-import { Paperclip, X, Image, FileText, Globe, Check, ArrowUp, Mic, Loader2 } from 'lucide-react';
+import { Paperclip, X, Globe, Check, ArrowUp, Mic, Loader2 } from 'lucide-react';
 import { useThemeStore, useAuthStore } from '../../store';
-import { audio as audioApi } from '../../api';
-
-const SUPPORTED_LANGUAGES = [
-  { code: 'auto', name: 'Auto Detect', native: 'Auto' },
-  { code: 'en', name: 'English', native: 'English' },
-  { code: 'hi', name: 'Hindi', native: 'हिन्दी' },
-  { code: 'bn', name: 'Bengali', native: 'বাংলা' },
-  { code: 'te', name: 'Telugu', native: 'తెలుగు' },
-  { code: 'ta', name: 'Tamil', native: 'தமிழ்' },
-  { code: 'mr', name: 'Marathi', native: 'मराठी' },
-  { code: 'gu', name: 'Gujarati', native: 'ગુજરાતી' },
-  { code: 'kn', name: 'Kannada', native: 'ಕನ್ನಡ' },
-  { code: 'ml', name: 'Malayalam', native: 'മലയാളം' },
-  { code: 'pa', name: 'Punjabi', native: 'ਪੰਜਾਬੀ' },
-  { code: 'or', name: 'Odia', native: 'ଓଡ଼ିଆ' },
-];
-
-// File extension to icon mapping
-const AUDIO_EXTENSIONS = new Set(['.mp3', '.wav', '.m4a', '.ogg', '.flac']);
-const VIDEO_EXTENSIONS = new Set(['.mp4', '.webm', '.mov', '.avi', '.mkv']);
-const SPREADSHEET_EXTENSIONS = new Set(['.csv', '.xls', '.xlsx']);
-
-function getFileExtension(filename: string): string {
-  return filename.toLowerCase().slice(filename.lastIndexOf('.'));
-}
-
-// Memoized file icon component
-const FileIcon = memo(function FileIcon({ file }: { file: File }) {
-  const ext = getFileExtension(file.name);
-
-  if (file.type.startsWith('image/')) {
-    return <Image className="w-4 h-4 text-blue-500" />;
-  }
-  if (file.type.startsWith('audio/') || AUDIO_EXTENSIONS.has(ext)) {
-    return <Mic className="w-4 h-4 text-purple-500" />;
-  }
-  if (file.type.startsWith('video/') || VIDEO_EXTENSIONS.has(ext)) {
-    return <FileText className="w-4 h-4 text-red-500" />;
-  }
-  if (ext === '.pdf') {
-    return <FileText className="w-4 h-4 text-red-600" />;
-  }
-  if (SPREADSHEET_EXTENSIONS.has(ext)) {
-    return <FileText className="w-4 h-4 text-green-600" />;
-  }
-  return <FileText className="w-4 h-4" />;
-});
+import { SUPPORTED_LANGUAGES } from './chatInputConstants';
+import { FileIcon } from './FileIcon';
+import { useVoiceRecording } from './useVoiceRecording';
 
 interface ChatInputProps {
   readonly onSend: (message: string, files?: File[], language?: string) => void;
@@ -69,17 +25,25 @@ const ChatInput = memo(function ChatInput({
   const [message, setMessage] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [showLanguageMenu, setShowLanguageMenu] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-  const [isTranscribing, setIsTranscribing] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const languageMenuRef = useRef<HTMLDivElement>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
   const { resolvedTheme } = useThemeStore();
   const { isAuthenticated } = useAuthStore();
   const isDark = resolvedTheme === 'dark';
+
+  const handleTranscription = useCallback((text: string) => {
+    setMessage(prev => prev + (prev ? ' ' : '') + text);
+    textareaRef.current?.focus();
+  }, []);
+
+  const { isRecording, isTranscribing, startRecording, stopRecording } = useVoiceRecording({
+    selectedLanguage,
+    isAuthenticated,
+    onTranscription: handleTranscription,
+    onError,
+  });
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -177,70 +141,6 @@ const ChatInput = memo(function ChatInput({
 
   const removeFile = (index: number) => {
     setFiles(prev => prev.filter((_, i) => i !== index));
-  };
-
-  // Voice Recording Functions
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
-      });
-
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-
-      mediaRecorder.onstop = async () => {
-        for (const track of stream.getTracks()) {
-          track.stop();
-        }
-
-        if (audioChunksRef.current.length === 0) return;
-
-        const audioBlob = new Blob(audioChunksRef.current, {
-          type: mediaRecorder.mimeType
-        });
-
-        // Transcribe audio using V2 STT API (Whisper V3 Turbo)
-        // Use guest endpoint for unauthenticated users
-        setIsTranscribing(true);
-        try {
-          const langCode = selectedLanguage === 'auto' ? 'auto' : selectedLanguage;
-          const result = isAuthenticated
-            ? await audioApi.speechToText(audioBlob, langCode)
-            : await audioApi.speechToTextGuest(audioBlob, langCode);
-
-          if (result.text) {
-            setMessage(prev => prev + (prev ? ' ' : '') + result.text);
-            textareaRef.current?.focus();
-          }
-        } catch (error) {
-          console.error('Transcription failed:', error);
-          onError?.('Voice transcription failed. Please try again or type your message.');
-        } finally {
-          setIsTranscribing(false);
-        }
-      };
-
-      mediaRecorder.start();
-      setIsRecording(true);
-    } catch (error) {
-      console.error('Failed to start recording:', error);
-      onError?.('Microphone access denied. Please enable microphone permissions.');
-    }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
-    }
-    setIsRecording(false);
   };
 
   return (

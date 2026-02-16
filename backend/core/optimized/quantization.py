@@ -13,13 +13,12 @@ while CUDA benefits from aggressive quantization.
 
 import logging
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Dict, Optional
+from enum import Enum, StrEnum
+from typing import Any, ClassVar
 
 logger = logging.getLogger(__name__)
 
-
-class QuantizationType(str, Enum):
+class QuantizationType(StrEnum):
     """Available quantization types."""
 
     FP32 = "fp32"
@@ -31,8 +30,7 @@ class QuantizationType(str, Enum):
     GPTQ = "gptq"  # GPT Quantization
     GGUF = "gguf"  # llama.cpp format
 
-
-class QuantizationBackend(str, Enum):
+class QuantizationBackend(StrEnum):
     """Quantization backends."""
 
     NATIVE = "native"  # PyTorch native
@@ -41,7 +39,6 @@ class QuantizationBackend(str, Enum):
     ONNX = "onnx"  # ONNX Runtime
     COREML = "coreml"  # Apple Core ML
     LLAMA_CPP = "llama_cpp"  # llama.cpp
-
 
 @dataclass
 class QuantConfig:
@@ -145,7 +142,6 @@ class QuantConfig:
             else "float32",
         }
 
-
 class QuantizationStrategy:
     """
     Platform-aware quantization strategy selector.
@@ -163,7 +159,7 @@ class QuantizationStrategy:
     LARGE_MODEL_THRESHOLD = 14.0  # >7B needs aggressive quantization
 
     # Memory requirements per billion parameters (GB)
-    MEMORY_PER_BILLION = {
+    MEMORY_PER_BILLION: ClassVar[dict] = {
         QuantizationType.FP32: 4.0,
         QuantizationType.FP16: 2.0,
         QuantizationType.BF16: 2.0,

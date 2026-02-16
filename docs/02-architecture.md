@@ -11,7 +11,7 @@
 
 ## System Overview
 
-The Shiksha Setu architecture is designed to handle the complexity of running multiple AI models while remaining responsive and resource-efficient. Every component is deliberately positioned to minimize latency and maximize throughput on consumer hardware.
+The Oryon AI architecture is designed to handle the complexity of running multiple AI models while remaining responsive and resource-efficient. Every component is deliberately positioned to minimize latency and maximize throughput on consumer hardware.
 
 The following diagram represents the complete data flow—from user interaction to final response delivery.
 
@@ -217,7 +217,7 @@ The following diagram represents the complete data flow—from user interaction 
 
 ## Data Flow Traces
 
-This section traces the complete data flow through Shiksha Setu for the primary use cases: Question-Answering, Voice Interaction, and Document Processing. Each trace shows the exact path data takes from user input to final response.
+This section traces the complete data flow through Oryon AI for the primary use cases: Question-Answering, Voice Interaction, and Document Processing. Each trace shows the exact path data takes from user input to final response.
 
 ---
 

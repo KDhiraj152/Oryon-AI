@@ -29,7 +29,7 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
 # Create Celery app
 celery_app = Celery(
-    "shiksha_setu",
+    "oryon",
     broker=REDIS_URL,
     backend=REDIS_URL,
     include=[
@@ -166,11 +166,9 @@ celery_app.conf.update(
     enable_utc=True,
 )
 
-
 # =============================================================================
 # Worker Specialization Classes
 # =============================================================================
-
 
 class WorkerType:
     """Worker type identifiers."""
@@ -182,7 +180,6 @@ class WorkerType:
     RAG = "rag"
     DEFAULT = "default"
 
-
 # Model memory requirements (GB)
 MODEL_MEMORY = {
     WorkerType.SIMPLIFY: 4.6,  # Qwen3-8B 4-bit MLX
@@ -191,7 +188,6 @@ MODEL_MEMORY = {
     WorkerType.EMBEDDING: 2.5,  # BGE-M3
     WorkerType.RAG: 3.5,  # BGE-M3 + Reranker
 }
-
 
 def get_worker_queues(worker_type: str) -> list:
     """
@@ -221,7 +217,6 @@ def get_worker_queues(worker_type: str) -> list:
     else:
         return base_queues
 
-
 def get_worker_memory_limit(worker_type: str) -> int:
     """
     Get memory limit for worker type in MB.
@@ -235,7 +230,6 @@ def get_worker_memory_limit(worker_type: str) -> int:
     base_gb = MODEL_MEMORY.get(worker_type, 1.0)
     overhead_gb = 1.5  # Python overhead, OS, etc.
     return int((base_gb + overhead_gb) * 1024)
-
 
 # =============================================================================
 # Worker Startup Commands
@@ -289,7 +283,6 @@ celery -A backend.tasks.celery_config worker \
 # celery -A backend.tasks.celery_config worker --queues=simplify,default --concurrency=1 -n simplify2@%h &
 """
 
-
 # =============================================================================
 # Worker Signals for Model Lifecycle
 # =============================================================================
@@ -306,7 +299,7 @@ def on_worker_init(sender=None, **kwargs):
     """
     queues = sender.app.amqp.queues.consume_from.keys() if sender else []
 
-    logger.info(f"Worker initializing with queues: {list(queues)}")
+    logger.info("Worker initializing with queues: %s", list(queues))
 
     # Determine worker type from queues
     worker_type = WorkerType.DEFAULT
@@ -321,12 +314,11 @@ def on_worker_init(sender=None, **kwargs):
             worker_type = q
             break
 
-    logger.info(f"Worker type: {worker_type}")
+    logger.info("Worker type: %s", worker_type)
 
     # Pre-load model based on worker type
     # This is done lazily in tasks, but we can pre-warm here
     # model_lifecycle.pre_warm(worker_type)
-
 
 @worker_shutdown.connect
 def on_worker_shutdown(sender=None, **kwargs):
@@ -336,22 +328,19 @@ def on_worker_shutdown(sender=None, **kwargs):
     # Unload models
     # model_lifecycle.unload_all()
 
-
 @task_prerun.connect
 def on_task_prerun(
     sender=None, task_id=None, task=None, args=None, kwargs=None, **extra
 ):
     """Log task start."""
-    logger.debug(f"Task {task.name} starting: {task_id}")
-
+    logger.debug("Task %s starting: %s", task.name, task_id)
 
 @task_postrun.connect
 def on_task_postrun(
     sender=None, task_id=None, task=None, retval=None, state=None, **extra
 ):
     """Log task completion."""
-    logger.debug(f"Task {task.name} completed: {task_id} ({state})")
-
+    logger.debug("Task %s completed: %s (%s)", task.name, task_id, state)
 
 # =============================================================================
 # Flower Monitoring Configuration

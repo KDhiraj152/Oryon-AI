@@ -1,12 +1,12 @@
 #!/bin/bash
 # Optimal Model Stack Installation Script
-# ShikshaSetu - AI/ML Model Optimization
+# Oryon - AI/ML Model Optimization
 # Date: 28 November 2025
 
 set -e  # Exit on error
 
 echo "=================================================="
-echo "ShikshaSetu Optimal Model Stack Installation"
+echo "Oryon Optimal Model Stack Installation"
 echo "=================================================="
 echo ""
 
@@ -84,8 +84,8 @@ echo ""
 
 # Step 6: Run database migration
 echo -e "${YELLOW}[6/6] Running database migration...${NC}"
-if [ -f "alembic.ini" ]; then
-    alembic upgrade head
+if [ -f "config/alembic.ini" ]; then
+    alembic -c config/alembic.ini upgrade head
     echo -e "${GREEN}✓ Database migration completed${NC}"
 else
     echo -e "${YELLOW}⚠ Alembic not configured, skipping migration${NC}"

@@ -3,9 +3,9 @@
 import logging
 import os
 import secrets
-from enum import Enum
+from enum import Enum, StrEnum
 from pathlib import Path
-from typing import Any, List, Literal
+from typing import Any, ClassVar, Literal
 
 # Load .env file BEFORE any settings are read
 # This ensures environment variables are available when Settings() is instantiated
@@ -19,17 +19,14 @@ try:
 except ImportError:
     pass  # python-dotenv not installed, rely on system env vars
 
-
 DeploymentTier = Literal["local", "production"]
 
-
-class ModelBackend(str, Enum):
+class ModelBackend(StrEnum):
     """Model inference backends."""
 
     TRANSFORMERS = "transformers"
     VLLM = "vllm"
     TGI = "tgi"
-
 
 class Settings:
     """Application settings with optimal 2025 model stack."""
@@ -37,7 +34,7 @@ class Settings:
     # =================================================================
     # APPLICATION
     # =================================================================
-    APP_NAME: str = "ShikshaSetu AI Platform API"
+    APP_NAME: str = "Oryon AI Platform API"
     APP_VERSION: str = "4.0.0"
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "production")
     DEBUG: bool = os.getenv("DEBUG", "true").lower() == "true"  # Enabled until stable
@@ -65,7 +62,7 @@ class Settings:
     UPLOAD_DIR: Path = Path(os.getenv("UPLOAD_DIR", "data/uploads"))
     LOG_DIR: Path = Path(os.getenv("LOG_DIR", "logs"))
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
-    LOG_FILE: str = os.getenv("LOG_FILE", "shiksha_setu.log")
+    LOG_FILE: str = os.getenv("LOG_FILE", "oryon.log")
 
     # =================================================================
     # OPTIMAL MODEL STACK (2026) — M4 16GB: 4-bit LLM + FP16 rest
@@ -93,7 +90,7 @@ class Settings:
     )  # Increased for Indian scripts
 
     # Supported Indian languages
-    SUPPORTED_LANGUAGES: list[str] = [
+    SUPPORTED_LANGUAGES: ClassVar[list[str]] = [
         "Hindi",
         "Tamil",
         "Telugu",
@@ -240,14 +237,14 @@ class Settings:
     AWS_ACCESS_KEY_ID: str = os.getenv("AWS_ACCESS_KEY_ID", "")
     AWS_SECRET_ACCESS_KEY: str = os.getenv("AWS_SECRET_ACCESS_KEY", "")
     AWS_REGION: str = os.getenv("AWS_REGION", "us-east-1")
-    S3_BUCKET_NAME: str = os.getenv("S3_BUCKET_NAME", "shiksha-setu-uploads")
+    S3_BUCKET_NAME: str = os.getenv("S3_BUCKET_NAME", "oryon-ai-uploads")
 
     # =================================================================
     # DATABASE
     # =================================================================
     DATABASE_URL: str = os.getenv(
         "DATABASE_URL",
-        "postgresql://localhost:5432/shiksha_setu",  # Set credentials via env
+        "postgresql://localhost:5432/oryon",  # Set credentials via env
     )
     DB_POOL_SIZE: int = int(os.getenv("DB_POOL_SIZE", "10"))
     DB_MAX_OVERFLOW: int = int(os.getenv("DB_MAX_OVERFLOW", "20"))
@@ -279,14 +276,14 @@ class Settings:
     # to a comma-separated list of allowed origins (e.g., https://example.com)
     # Default localhost origins are for development only.
     # =================================================================
-    ALLOWED_ORIGINS: list[str] = [
+    ALLOWED_ORIGINS: ClassVar[list[str]] = [
         "http://localhost:3000",
         "http://localhost:5173",
         "http://localhost:8080",
     ]
     ALLOW_CREDENTIALS: bool = True
-    ALLOWED_METHODS: list[str] = ["*"]
-    ALLOWED_HEADERS: list[str] = ["*"]
+    ALLOWED_METHODS: ClassVar[list[str]] = ["*"]
+    ALLOWED_HEADERS: ClassVar[list[str]] = ["*"]
 
     # =================================================================
     # SERVICE TIMEOUTS (seconds) — centralized, config-driven
@@ -330,7 +327,7 @@ class Settings:
     )
 
     # Mature content topics that require age consent (optional safeguard)
-    MATURE_CONTENT_TOPICS: list[str] = [
+    MATURE_CONTENT_TOPICS: ClassVar[list[str]] = [
         "explicit violence",
         "adult content",
         "substance abuse",
@@ -370,7 +367,7 @@ class Settings:
                 parsed = [o.strip() for o in allowed_env.split(",") if o.strip()]
                 if parsed:
                     self.ALLOWED_ORIGINS = parsed
-            except Exception:
+            except (OSError, ValueError):
                 pass
 
         # Create directories
@@ -545,10 +542,8 @@ class Settings:
 
         return features
 
-
 # Global settings instance
 settings = Settings()
-
 
 def get_settings() -> Settings:
     """Get the global settings instance."""

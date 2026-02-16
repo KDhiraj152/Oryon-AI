@@ -1,11 +1,11 @@
 #!/bin/bash
-# Quick Demo Startup Script for ShikshaSetu
+# Quick Demo Startup Script for Oryon
 # This script starts all services needed for a working demo
 
 set -e
 
 echo "=========================================="
-echo "ShikshaSetu Demo Startup"
+echo "Oryon Demo Startup"
 echo "=========================================="
 
 # Colors
@@ -20,7 +20,7 @@ if [ ! -f .env ]; then
     DEV_DB_PASS=$(openssl rand -base64 16 | tr -dc 'a-zA-Z0-9' | head -c 16)
     cat > .env << EOF
 # Database - auto-generated development credentials
-DATABASE_URL=postgresql://shiksha_user:${DEV_DB_PASS}@localhost:5432/shiksha_setu
+DATABASE_URL=postgresql://oryon_user:${DEV_DB_PASS}@localhost:5432/oryon
 
 # Redis & Celery
 REDIS_URL=redis://localhost:6379/0
@@ -60,10 +60,10 @@ if pg_isready -h localhost -p 5432 > /dev/null 2>&1; then
 else
     echo -e "${YELLOW}⚠ PostgreSQL not running. Starting with Docker...${NC}"
     docker run -d \
-        --name shiksha-postgres \
-        -e POSTGRES_USER=shiksha_user \
-        -e POSTGRES_PASSWORD=shiksha_pass \
-        -e POSTGRES_DB=shiksha_setu \
+        --name oryon-postgres \
+        -e POSTGRES_USER=oryon_user \
+        -e POSTGRES_PASSWORD=oryon_pass \
+        -e POSTGRES_DB=oryon \
         -p 5432:5432 \
         pgvector/pgvector:pg16 || echo "PostgreSQL container already exists"
     sleep 3
@@ -75,7 +75,7 @@ if redis-cli ping > /dev/null 2>&1; then
 else
     echo -e "${YELLOW}⚠ Redis not running. Starting with Docker...${NC}"
     docker run -d \
-        --name shiksha-redis \
+        --name oryon-redis \
         -p 6379:6379 \
         redis:7-alpine || echo "Redis container already exists"
     sleep 2
@@ -103,7 +103,7 @@ with get_db_session() as db:
         demo_user = User(
             id=uuid.uuid4(),
             username='demo',
-            email='demo@shiksha.edu',
+            email='demo@oryon.edu',
             hashed_password=get_password_hash('demo123'),
             full_name='Demo User',
             is_active=True

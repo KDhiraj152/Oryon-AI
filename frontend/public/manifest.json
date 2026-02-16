@@ -1,7 +1,7 @@
 {
-  "name": "Shiksha Setu - AI Study Companion",
-  "short_name": "Shiksha Setu",
-  "description": "The AI study companion that speaks 22 Indian languages. Ask questions, upload notes, and understand everything.",
+  "name": "Oryon AI - ML Orchestration Engine",
+  "short_name": "Oryon AI",
+  "description": "A modular intelligence and workflow orchestration engine. Self-hosted ML inference, RAG, voice I/O, and document analysis.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0a0a0a",

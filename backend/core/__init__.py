@@ -1,8 +1,8 @@
 """
-ShikshaSetu Core Module
+Oryon Core Module
 ========================
 
-Central configuration and utilities for the ShikshaSetu platform.
+Central configuration and utilities for the Oryon platform.
 
 Structure:
 - config.py: Application settings and environment configuration
@@ -15,10 +15,10 @@ Structure:
 - correlation.py: Request correlation ID logging
 - circuit_breaker.py: Circuit breaker pattern for resilience
 - tracing.py: OpenTelemetry distributed tracing
-- optimized/: Apple Silicon M4 optimizations (DeviceRouter, RateLimiter, etc.)
+- optimized/: Apple Silicon M4 optimizations (DeviceRouter, etc.)
 
 For new code, prefer importing from backend.core.optimized:
-    from backend.core.optimized import DeviceRouter, UnifiedRateLimiter
+    from backend.core.optimized import DeviceRouter
 """
 
 from .config import Settings, get_settings, settings
@@ -43,7 +43,7 @@ from .exceptions import (
     ModelTimeoutError,
     PipelineError,
     RetryConfig,
-    ShikshaSetuException,
+    OryonException,
     SimplificationError,
     TranslationError,
     with_retry,
@@ -60,7 +60,6 @@ from .optimized import (
     PerformanceConfig,
     PerformanceOptimizer,
     TaskType,
-    UnifiedRateLimiter,
 )
 from .optimized import (
     # Model manager from optimized
@@ -69,14 +68,15 @@ from .optimized import (
 from .optimized import (
     get_model_manager as get_model_registry,
 )
-# Canonical types
-from .types import ModelTier, ModelType
 from .storage import (
     HybridStorage,
     get_conversation_storage,
     get_rate_limit_storage,
     get_storage,
 )
+
+# Canonical types
+from .types import ModelTier, ModelType
 
 __all__ = [
     "DEFAULT_COMPLEXITY",
@@ -105,11 +105,10 @@ __all__ = [
     "PipelineError",
     "RetryConfig",
     "Settings",
-    "ShikshaSetuException",
+    "OryonException",
     "SimplificationError",
     "TaskType",
     "TranslationError",
-    "UnifiedRateLimiter",
     "get_conversation_storage",
     "get_model_registry",
     "get_rate_limit_storage",

@@ -14,6 +14,8 @@ import os
 import threading
 from functools import lru_cache
 
+from backend.utils.lock_factory import create_lock
+
 logger = logging.getLogger(__name__)
 
 # ============================================================================
@@ -30,14 +32,12 @@ COMPUTE_THREADS = M4_P_CORES  # Heavy compute on P-cores only
 IO_THREADS = M4_TOTAL_CORES  # I/O can use all cores
 BATCH_THREADS = M4_P_CORES  # Batch inference on P-cores
 
-
 # ============================================================================
 # METAL SHADER OPTIMIZATION
 # ============================================================================
 
 _metal_warmed_up = False
-_metal_warmup_lock = threading.Lock()
-
+_metal_warmup_lock = create_lock()
 
 def warmup_metal_shaders() -> None:
     """
@@ -85,16 +85,14 @@ def warmup_metal_shaders() -> None:
             _metal_warmed_up = True
             logger.debug("Metal shaders pre-compiled")
 
-        except Exception as e:
-            logger.debug(f"Metal warmup skipped: {e}")
-
+        except (RuntimeError, OSError) as e:
+            logger.debug("Metal warmup skipped: %s", e)
 
 # ============================================================================
 # THREAD CONFIGURATION
 # ============================================================================
 
 _threading_configured = False
-
 
 def configure_optimal_threading() -> None:
     """
@@ -129,13 +127,11 @@ def configure_optimal_threading() -> None:
         pass
 
     _threading_configured = True
-    logger.debug(f"Threading configured: compute={COMPUTE_THREADS}, I/O={IO_THREADS}")
-
+    logger.debug("Threading configured: compute=%s, I/O=%s", COMPUTE_THREADS, IO_THREADS)
 
 # ============================================================================
 # MPS MEMORY MANAGEMENT
 # ============================================================================
-
 
 def clear_mps_cache() -> None:
     """Clear MPS memory cache to free unused memory."""
@@ -144,9 +140,8 @@ def clear_mps_cache() -> None:
 
         if torch.backends.mps.is_available():
             torch.mps.empty_cache()
-    except Exception:
+    except (ImportError, RuntimeError):
         pass
-
 
 def sync_mps() -> None:
     """Synchronize MPS operations (wait for GPU to finish)."""
@@ -155,9 +150,8 @@ def sync_mps() -> None:
 
         if torch.backends.mps.is_available():
             torch.mps.synchronize()
-    except Exception:
+    except (ImportError, RuntimeError):
         pass
-
 
 @lru_cache(maxsize=1)
 def get_mps_memory_info() -> dict:
@@ -185,14 +179,12 @@ def get_mps_memory_info() -> dict:
             "unified_memory": True,
             "recommended_max_model_gb": total_gb * 0.6,  # 60% for models
         }
-    except Exception:
+    except (RuntimeError, OSError):
         return {}
-
 
 # ============================================================================
 # MLX OPTIMIZATIONS
 # ============================================================================
-
 
 def configure_mlx_memory() -> None:
     """Configure MLX memory settings for optimal M4 performance."""
@@ -201,20 +193,18 @@ def configure_mlx_memory() -> None:
 
         # Enable memory caching for buffer reuse
         # This reduces allocation overhead significantly
-        mx.set_default_device(mx.gpu)
+        mx.set_default_device(mx.gpu)  # type: ignore[arg-type]
 
         logger.debug("MLX configured for GPU with memory caching")
 
     except ImportError:
         pass
-    except Exception as e:
-        logger.debug(f"MLX configuration skipped: {e}")
-
+    except (RuntimeError, OSError) as e:
+        logger.debug("MLX configuration skipped: %s", e)
 
 # ============================================================================
 # INITIALIZATION
 # ============================================================================
-
 
 def initialize_apple_silicon_optimizations() -> None:
     """
@@ -227,7 +217,6 @@ def initialize_apple_silicon_optimizations() -> None:
 
     # Defer Metal warmup (do it async at first inference)
     logger.info("Apple Silicon optimizations initialized")
-
 
 # Auto-configure on import if on Apple Silicon
 try:

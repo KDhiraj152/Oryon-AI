@@ -12,13 +12,13 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${BLUE}   ShikshaSetu PostgreSQL Setup${NC}"
+echo -e "${BLUE}   Oryon PostgreSQL Setup${NC}"
 echo -e "${BLUE}   High-Performance Database Configuration${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 
 # Configuration
-DB_NAME="shiksha_setu"
+DB_NAME="oryon"
 DB_USER="postgres"
 DB_PASSWORD="postgres123"
 DB_PORT="5432"
@@ -120,7 +120,7 @@ MAINTENANCE_WORK_MEM=$((TOTAL_RAM_MB / 16))
 WORK_MEM=$((TOTAL_RAM_MB / 64))
 
 cat > /tmp/postgresql_performance.conf <<EOF
-# ShikshaSetu PostgreSQL Performance Configuration
+# Oryon PostgreSQL Performance Configuration
 # Generated on $(date)
 
 # Memory Configuration (Optimized for ${TOTAL_RAM_MB}MB RAM)

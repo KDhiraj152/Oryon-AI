@@ -13,6 +13,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from backend.utils.lock_factory import create_lock
+
 from .types import ModelTier, TaskType
 
 logger = logging.getLogger(__name__)
@@ -20,7 +22,6 @@ logger = logging.getLogger(__name__)
 # Default config file path
 CONFIG_DIR = Path(__file__).parent
 DEFAULT_CONFIG_FILE = CONFIG_DIR / "models.json"
-
 
 @dataclass
 class ModelConfig:
@@ -43,7 +44,6 @@ class ModelConfig:
         # Convert string tier to enum
         if isinstance(self.tier, str):
             self.tier = ModelTier(self.tier)
-
 
 class ModelConfigLoader:
     """
@@ -118,8 +118,8 @@ class ModelConfigLoader:
                             avg_latency_ms=config.get("avg_latency_ms", 100),
                             task_types=config.get("task_types", ["chat"]),
                         )
-                    except Exception as e:
-                        logger.error(f"Failed to parse model config '{name}': {e}")
+                    except (ValueError, TypeError, KeyError) as e:
+                        logger.error("Failed to parse model config '%s': %s", name, e)
 
                 # Parse complexity keywords
                 keywords = data.get("complexity_keywords", {})
@@ -137,12 +137,12 @@ class ModelConfigLoader:
                 try:
                     callback(self._models.copy())
                 except Exception as e:
-                    logger.error(f"Config reload callback error: {e}")
+                    logger.error("Config reload callback error: %s", e)
 
             return True
 
-        except Exception as e:
-            logger.error(f"Failed to load model config: {e}")
+        except (OSError, ValueError) as e:
+            logger.error("Failed to load model config: %s", e)
             self._load_defaults()
             return False
 
@@ -172,14 +172,14 @@ class ModelConfigLoader:
                     if self._shutdown_event.wait(timeout=self._reload_interval):
                         break  # Shutdown requested
                     self._load_config()
-                except Exception as e:
-                    logger.error(f"Config watcher error: {e}")
+                except (OSError, ValueError) as e:
+                    logger.error("Config watcher error: %s", e)
 
         self._watcher_thread = threading.Thread(
             target=watcher, daemon=True, name="ConfigWatcher"
         )
         self._watcher_thread.start()
-        logger.info(f"Started config watcher (interval: {self._reload_interval}s)")
+        logger.info("Started config watcher (interval: %ss)", self._reload_interval)
 
     def reload(self) -> bool:
         """Manually trigger config reload. Returns True if config was updated."""
@@ -205,11 +205,9 @@ class ModelConfigLoader:
         """Register a callback for when config is reloaded."""
         self._callbacks.append(callback)
 
-
 # Global singleton
 _config_loader: ModelConfigLoader | None = None
-_config_loader_lock = threading.Lock()
-
+_config_loader_lock = create_lock()
 
 def get_model_config_loader() -> ModelConfigLoader:
     """Get the global model config loader (thread-safe singleton)."""
@@ -220,11 +218,9 @@ def get_model_config_loader() -> ModelConfigLoader:
                 _config_loader = ModelConfigLoader()
     return _config_loader
 
-
 def reload_model_config() -> bool:
     """Reload model configuration. Returns True if updated."""
     return get_model_config_loader().reload()
-
 
 __all__ = [
     "ModelConfig",

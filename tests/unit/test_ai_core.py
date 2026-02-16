@@ -17,31 +17,31 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from backend.services.ai_core.citations import Citation, CitationManager, SourceType
+from backend.services.chat.citations import Citation, CitationManager, SourceType
 
 # Import AI core modules - using actual class names
-from backend.services.ai_core.context import (
+from backend.services.chat.context import (
     ContextManager,
     ContextRole,
     ConversationContext,
     Message,
 )
-from backend.services.ai_core.explainer import ExplainabilityReport, Explainer
-from backend.services.ai_core.exports import ExportFormat, ExportService
-from backend.services.ai_core.formatter import OutputFormat, ResponseFormatter
-from backend.services.ai_core.prompts import PromptRegistry, PromptVersion
-from backend.services.ai_core.router import (
+from backend.services.chat.explainer import ExplainabilityReport, Explainer
+from backend.services.chat.exports import ExportFormat, ExportService
+from backend.services.chat.formatter import OutputFormat, ResponseFormatter
+from backend.services.chat.prompts import PromptRegistry, PromptVersion
+from backend.services.chat.router import (
     ModelRouter,
     ModelTier,
     RoutingDecision,
     TaskType,
 )
-from backend.services.ai_core.safety import (
+from backend.services.chat.safety import (
     SafetyCheckResult,
     SafetyGuard,
     SecretScanner,
 )
-from backend.services.ai_core.sandbox import (
+from backend.services.chat.sandbox import (
     MathCalculator,
     PythonCodeRunner,
     ResourceLimits,

@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """
-ShikshaSetu System Status Checker
+Oryon System Status Checker
 Complete health check for all system components
 """
 
-import sys
 import subprocess
-import requests
+import sys
 from pathlib import Path
+
+import requests  # type: ignore
+
 
 def check_service(name: str, check_func) -> bool:
     """Check a service and print status"""
@@ -20,12 +22,12 @@ def check_service(name: str, check_func) -> bool:
             print(f"❌ {name} - NOT RUNNING")
             return False
     except Exception as e:
-        print(f"❌ {name} - ERROR: {str(e)}")
+        print(f"❌ {name} - ERROR: {e!s}")
         return False
 
 def main():
     print("\n" + "="*60)
-    print("SHIKSHA SETU SYSTEM STATUS CHECK")
+    print("ORYON AI SYSTEM STATUS CHECK")
     print("="*60 + "\n")
     
     checks_passed = 0
@@ -43,7 +45,7 @@ def main():
             response = requests.get("http://localhost:8000/health", timeout=5)
             data = response.json()
             print(f"   Status: {data.get('status')}")
-        except:
+        except Exception:
             pass
     
     # Frontend Check
@@ -62,7 +64,7 @@ def main():
             import redis
             r = redis.Redis(host='localhost', port=6379, db=0, socket_connect_timeout=2)
             return r.ping()
-        except:
+        except Exception:
             return False
     
     if check_service("Redis Server (Port 6379)", check_redis):
@@ -72,9 +74,10 @@ def main():
     total_checks += 1
     def check_postgres():
         try:
-            from sqlalchemy import create_engine
             import os
+
             from dotenv import load_dotenv
+            from sqlalchemy import create_engine
             load_dotenv()
             
             db_url = os.getenv("DATABASE_URL")
@@ -85,7 +88,7 @@ def main():
             conn = engine.connect()
             conn.close()
             return True
-        except:
+        except Exception:
             return False
     
     if check_service("PostgreSQL Database", check_postgres):
@@ -107,9 +110,9 @@ def main():
     if check_service("Celery Workers", check_celery):
         checks_passed += 1
         result = subprocess.run(['ps', 'aux'], capture_output=True, text=True)
-        worker_count = len([l for l in result.stdout.split('\n') 
-                           if 'celery' in l.lower() and 'worker' in l.lower() 
-                           and 'grep' not in l])
+        worker_count = len([line for line in result.stdout.split('\n') 
+                           if 'celery' in line.lower() and 'worker' in line.lower() 
+                           and 'grep' not in line])
         print(f"   Active workers: {worker_count}")
     
     # File Structure Check

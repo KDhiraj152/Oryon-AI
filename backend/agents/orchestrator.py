@@ -16,6 +16,7 @@ Emits to: ModelExecutionAgent (tasks), EvaluationAgent (quality feedback),
 """
 
 import asyncio
+import contextlib
 import logging
 import time
 import uuid
@@ -28,7 +29,6 @@ from .base import AgentMessage, AgentRegistry, BaseAgent, MessageType
 
 logger = logging.getLogger(__name__)
 
-
 class RequestPriority(int, Enum):
     """Request priority levels."""
     CRITICAL = 0   # Health checks, admin
@@ -36,7 +36,6 @@ class RequestPriority(int, Enum):
     NORMAL = 2     # Standard API requests
     LOW = 3        # Background tasks, batch processing
     BACKGROUND = 4 # Analytics, pre-warming
-
 
 @dataclass
 class PendingRequest:
@@ -56,7 +55,6 @@ class PendingRequest:
     def elapsed_ms(self) -> float:
         return (time.time() - self.start_time) * 1000
 
-
 class OrchestratorAgent(BaseAgent):
     """
     Central coordinator that decomposes user requests into agent tasks
@@ -67,6 +65,7 @@ class OrchestratorAgent(BaseAgent):
     - Priority-aware: high-priority requests preempt low-priority
     - Timeout-aware: shed load when queue depth exceeds thresholds
     - Observable: every request is tracked end-to-end
+    - Middleware-aware: delegates to MiddlewareOrchestrator when available
     """
 
     def __init__(self):
@@ -80,11 +79,21 @@ class OrchestratorAgent(BaseAgent):
         self._total_timeouts: int = 0
         self._total_shed: int = 0
         self._registry: AgentRegistry | None = None
+        self._middleware: Any | None = None  # MiddlewareOrchestrator ref
 
     async def initialize(self) -> None:
-        """Get agent registry reference."""
+        """Get agent registry reference and connect middleware."""
         self._registry = AgentRegistry()
-        logger.info(f"OrchestratorAgent initialized, max_pending={self._max_pending}")
+        # Try to connect to the middleware orchestrator
+        try:
+            from ..middleware.orchestrator import get_middleware
+            self._middleware = get_middleware()
+        except (ImportError, RuntimeError):
+            self._middleware = None
+        logger.info(
+            f"OrchestratorAgent initialized, max_pending={self._max_pending}, "
+            f"middleware={'connected' if self._middleware else 'standalone'}"
+        )
 
     async def handle_message(self, message: AgentMessage) -> AgentMessage | None:
         """Process incoming requests and sub-task results."""
@@ -129,14 +138,14 @@ class OrchestratorAgent(BaseAgent):
         timeout_s = message.payload.get("timeout_s", 30.0)
 
         # Load shedding check
-        if len(self._pending) >= self._max_pending:
+        if (len(self._pending) >= self._max_pending
+                and priority.value >= RequestPriority.LOW.value):
             # Shed lowest priority first
-            if priority.value >= RequestPriority.LOW.value:
-                self._total_shed += 1
-                return message.reply({
-                    "error": "Server overloaded, request shed",
-                    "pending_count": len(self._pending),
-                })
+            self._total_shed += 1
+            return message.reply({
+                "error": "Server overloaded, request shed",
+                "pending_count": len(self._pending),
+            })
 
         request_id = str(uuid.uuid4())[:12]
         pending = PendingRequest(
@@ -161,7 +170,7 @@ class OrchestratorAgent(BaseAgent):
                 "result": result,
                 "latency_ms": round(pending.elapsed_ms, 1),
             })
-        except asyncio.TimeoutError:
+        except TimeoutError:
             self._total_timeouts += 1
             self._complete_request(request_id, None, "timeout")
             return message.reply({
@@ -169,7 +178,7 @@ class OrchestratorAgent(BaseAgent):
                 "request_id": request_id,
                 "timeout_s": timeout_s,
             })
-        except Exception as e:
+        except Exception as e:  # top-level handler — intentionally broad
             self._total_errors += 1
             self._complete_request(request_id, None, str(e))
             return message.reply({
@@ -178,9 +187,40 @@ class OrchestratorAgent(BaseAgent):
             })
 
     async def _execute_request(self, pending: PendingRequest) -> Any:
-        """Decompose and execute a request via sub-agents."""
+        """Decompose and execute a request via sub-agents.
+
+        When the middleware orchestrator is available, chat requests are
+        routed through it for classification, memory, latency control,
+        and self-evaluation.  All other tasks fall back to direct agent
+        dispatch.
+        """
         task_type = pending.task_type
         payload = pending.payload
+
+        # Delegate to middleware for chat/question tasks when available
+        if self._middleware and task_type == "chat":
+            try:
+                prompt = payload.get("prompt", payload.get("message", ""))
+                session_id = payload.get("conversation_id") or payload.get("session_id")
+                response = await self._middleware.process(
+                    prompt=prompt,
+                    session_id=session_id,
+                    payload=payload,
+                    timeout_ms=pending.timeout_s * 1000,
+                    priority=pending.priority.value,
+                )
+                return {
+                    "text": response.result.get("response_text", ""),
+                    "model": response.model_used,
+                    "intent": response.intent,
+                    "quality": response.evaluation_quality,
+                    "latency_ms": response.total_latency_ms,
+                    "from_cache": response.from_cache,
+                    "middleware": True,
+                }
+            except Exception as e:  # top-level handler — intentionally broad
+                logger.warning("Middleware delegation failed, falling back: %s", e)
+                return await self._execute_chat(pending)
 
         if task_type == "chat":
             return await self._execute_chat(pending)
@@ -219,15 +259,15 @@ class OrchestratorAgent(BaseAgent):
                 # RAG retrieval would use embed_result in production
                 # For now, include query for LLM context
                 rag_context = f"[RAG context for: {query[:100]}]"
-            except Exception as e:
-                logger.warning(f"RAG retrieval failed: {e}, proceeding without context")
+            except (RuntimeError, ValueError, OSError) as e:
+                logger.warning("RAG retrieval failed: %s, proceeding without context", e)
 
         # Build prompt with context
         prompt = payload.get("prompt", payload.get("message", ""))
         if rag_context:
             prompt = f"Context: {rag_context}\n\nUser: {prompt}"
 
-        system_prompt = payload.get("system_prompt", "You are ShikshaSetu, an AI education assistant.")
+        system_prompt = payload.get("system_prompt", "You are Oryon, an AI education assistant.")
 
         result = await self._send_to_model_execution("generate", {
             "prompt": prompt,
@@ -281,9 +321,9 @@ class OrchestratorAgent(BaseAgent):
         if tasks:
             coros = [t[1] for t in tasks]
             results = await asyncio.gather(*coros, return_exceptions=True)
-            for (label, _), res in zip(tasks, results):
+            for (label, _), res in zip(tasks, results, strict=False):
                 if isinstance(res, Exception):
-                    logger.warning(f"Sub-task {label} failed: {res}")
+                    logger.warning("Sub-task %s failed: %s", label, res)
                     result[f"{label}_error"] = str(res)
                 elif isinstance(res, dict):
                     if label == "translate":
@@ -349,14 +389,14 @@ class OrchestratorAgent(BaseAgent):
                 self._completed_log.popitem(last=False)
 
     def _get_stats(self) -> dict[str, Any]:
-        """Get orchestrator statistics."""
+        """Get orchestrator statistics including middleware metrics."""
         completed = list(self._completed_log.values())
         successful = [r for r in completed if r["success"]]
         avg_latency = (
             sum(r["latency_ms"] for r in successful) / len(successful)
             if successful else 0.0
         )
-        return {
+        stats = {
             "total_requests": self._total_requests,
             "pending": len(self._pending),
             "completed": len(self._completed_log),
@@ -365,7 +405,13 @@ class OrchestratorAgent(BaseAgent):
             "shed": self._total_shed,
             "avg_latency_ms": round(avg_latency, 1),
             "error_rate": round(self._total_errors / max(1, self._total_requests), 4),
+            "middleware_connected": self._middleware is not None,
         }
+        # Include middleware classifier stats when available
+        if self._middleware:
+            with contextlib.suppress(RuntimeError, AttributeError, KeyError):
+                stats["middleware_classifier"] = self._middleware.classifier.get_stats()
+        return stats
 
     # ─── Public convenience API ─────────────────────────────────────
 

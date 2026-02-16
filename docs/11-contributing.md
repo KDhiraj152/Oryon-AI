@@ -11,7 +11,7 @@
 
 ## About the Author
 
-I am K Dhiraj, the architect and primary developer of Shiksha Setu. This project represents my vision for making AI accessible to multilingual users through AI technology. Every architectural decision, model selection, and optimization reflects lessons learned from building production AI systems at scale.
+I am K Dhiraj, the architect and primary developer of Oryon AI. This project represents my vision for making AI accessible to multilingual users through AI technology. Every architectural decision, model selection, and optimization reflects lessons learned from building production AI systems at scale.
 
 **Contact:**
 - **Email:** k.dhiraj.srihari@gmail.com

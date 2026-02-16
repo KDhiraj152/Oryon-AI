@@ -27,22 +27,14 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from enum import Enum
 from functools import wraps
-from typing import (
-    Any,
-    Dict,
-    Generic,
-    List,
-    Optional,
-    Set,
-    Tuple,
-    TypeVar,
-)
+from typing import Any, Generic, TypeVar
+
+from backend.utils.lock_factory import create_lock
 
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 R = TypeVar("R")
-
 
 class TaskPriority(Enum):
     """Task priority levels for scheduling."""
@@ -52,7 +44,6 @@ class TaskPriority(Enum):
     NORMAL = 2  # Standard tasks
     LOW = 3  # Background tasks
     BACKGROUND = 4  # Can be delayed
-
 
 @dataclass
 class AsyncTaskResult(Generic[T]):
@@ -68,7 +59,6 @@ class AsyncTaskResult(Generic[T]):
     def ok(self) -> bool:
         return self.success and self.error is None
 
-
 @dataclass
 class AsyncPoolConfig:
     """Configuration for async connection pools."""
@@ -78,7 +68,6 @@ class AsyncPoolConfig:
     max_idle_time: float = 60.0  # seconds
     acquire_timeout: float = 5.0  # seconds
     health_check_interval: float = 30.0
-
 
 class AsyncTaskRunner:
     """
@@ -180,7 +169,8 @@ class AsyncTaskRunner:
 
         # Use gather for parallel execution - this is the 10.86x speedup
         wrapped = [wrapped_task(t, i) for i, t in enumerate(tasks)]
-        results = await asyncio.gather(*wrapped, return_exceptions=return_exceptions)
+        gather_results: list[Any] = await asyncio.gather(*wrapped, return_exceptions=return_exceptions)
+        results = [r for r in gather_results if isinstance(r, AsyncTaskResult)]
 
         return results
 
@@ -214,17 +204,23 @@ class AsyncTaskRunner:
         """
         if chunk_size > 0:
             # Process in chunks to manage memory
-            results = []
+            all_results: list[R] = []
             for i in range(0, len(items), chunk_size):
                 chunk = items[i : i + chunk_size]
                 chunk_coros = [func(item) for item in chunk]
                 chunk_results = await self.run_parallel(chunk_coros)
-                results.extend([r.value for r in chunk_results if r.success])
-            return results
+                for r in chunk_results:
+                    if r.success and r.value is not None:
+                        all_results.append(r.value)
+            return all_results
         else:
             coroutines = [func(item) for item in items]
-            results = await self.run_parallel(coroutines)
-            return [r.value for r in results if r.success]
+            task_results = await self.run_parallel(coroutines)
+            final: list[R] = []
+            for r in task_results:
+                if r.success and r.value is not None:
+                    final.append(r.value)
+            return final
 
     def get_stats(self) -> dict[str, Any]:
         """Get runner statistics."""
@@ -239,7 +235,6 @@ class AsyncTaskRunner:
             "max_concurrent": self.max_concurrent,
             "active_tasks": len(self._active_tasks),
         }
-
 
 class AsyncConnectionPool(Generic[T]):
     """
@@ -285,7 +280,7 @@ class AsyncConnectionPool(Generic[T]):
             return True
         try:
             return await self.validator(conn)
-        except Exception:
+        except (RuntimeError, OSError):
             return False
 
     @asynccontextmanager
@@ -365,7 +360,6 @@ class AsyncConnectionPool(Generic[T]):
     @property
     def available(self) -> int:
         return self._pool.qsize()
-
 
 class AsyncBatchProcessor(Generic[T, R]):
     """
@@ -451,7 +445,7 @@ class AsyncBatchProcessor(Generic[T, R]):
                         for future, result in zip(futures, results, strict=False):
                             if not future.done():
                                 future.set_result(result)
-                    except Exception as e:
+                    except (RuntimeError, ValueError, OSError) as e:
                         for future in futures:
                             if not future.done():
                                 future.set_exception(e)
@@ -499,8 +493,7 @@ class AsyncBatchProcessor(Generic[T, R]):
             "running": self._running,
         }
 
-
-class AsyncPipelineStage(ABC, Generic[T, R]):
+class AsyncPipelineStage(Generic[T, R], ABC):
     """Abstract base for pipeline stages."""
 
     @abstractmethod
@@ -511,7 +504,6 @@ class AsyncPipelineStage(ABC, Generic[T, R]):
     @abstractmethod
     def name(self) -> str:
         pass
-
 
 class AsyncPipelineExecutor:
     """
@@ -587,9 +579,7 @@ class AsyncPipelineExecutor:
             }
         return stats
 
-
 # ==================== UTILITY FUNCTIONS ====================
-
 
 def async_retry(
     max_attempts: int = 3,
@@ -625,12 +615,13 @@ def async_retry(
                         f"Retry {attempt + 1}/{max_attempts} for {func.__name__}: {e}"
                     )
 
-            raise last_exception
+            if last_exception is not None:
+                raise last_exception
+            raise RuntimeError(f"All {max_attempts} attempts failed for {func.__name__}")
 
         return wrapper
 
     return decorator
-
 
 def run_sync(coro: Coroutine[Any, Any, T]) -> T:
     """
@@ -648,7 +639,6 @@ def run_sync(coro: Coroutine[Any, Any, T]) -> T:
     except RuntimeError:
         # No running loop, create one
         return asyncio.run(coro)
-
 
 async def gather_with_concurrency(
     n: int,
@@ -668,16 +658,15 @@ async def gather_with_concurrency(
 
     async def limited_coro(coro: Coroutine) -> T:
         async with semaphore:
-            return await coro
+            result: T = await coro
+            return result
 
     return await asyncio.gather(*[limited_coro(c) for c in coros])
-
 
 # ==================== SINGLETON INSTANCES ====================
 
 _task_runner: AsyncTaskRunner | None = None
-_task_runner_lock = threading.Lock()
-
+_task_runner_lock = create_lock()
 
 def get_async_task_runner(max_concurrent: int = 10) -> AsyncTaskRunner:
     """Get global async task runner instance."""
@@ -687,7 +676,6 @@ def get_async_task_runner(max_concurrent: int = 10) -> AsyncTaskRunner:
             if _task_runner is None:
                 _task_runner = AsyncTaskRunner(max_concurrent=max_concurrent)
     return _task_runner
-
 
 __all__ = [
     "AsyncBatchProcessor",

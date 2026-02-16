@@ -5,7 +5,7 @@ Tasks for text simplification using Qwen3-8B.
 """
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 from .celery_config import celery_app
 
@@ -14,16 +14,14 @@ logger = logging.getLogger(__name__)
 # Lazy-loaded model
 _simplifier = None
 
-
 def get_simplifier():
     """Get or initialize simplifier (lazy loading)."""
     global _simplifier
     if _simplifier is None:
-        from backend.services.simplifier import TextSimplifier
+        from backend.services.content.simplifier import TextSimplifier
 
         _simplifier = TextSimplifier()
     return _simplifier
-
 
 @celery_app.task(
     name="simplify.text",
@@ -79,7 +77,7 @@ def simplify_text(
         }
 
     except Exception as e:
-        logger.error(f"Simplification failed: {e}")
+        logger.error("Simplification failed: %s", e)
 
         # Retry on transient errors
         if self.request.retries < self.max_retries:
@@ -90,7 +88,6 @@ def simplify_text(
             "error": str(e),
             "original_text": text,
         }
-
 
 @celery_app.task(
     name="simplify.batch",
@@ -138,12 +135,11 @@ def simplify_batch(
         }
 
     except Exception as e:
-        logger.error(f"Batch simplification failed: {e}")
+        logger.error("Batch simplification failed: %s", e)
         return {
             "success": False,
             "error": str(e),
         }
-
 
 @celery_app.task(
     name="simplify.document",
@@ -174,7 +170,7 @@ def simplify_document(
     try:
         import asyncio
 
-        from backend.services.pipeline import SentenceLevelProcessor
+        from backend.ml.pipeline import SentenceLevelProcessor
 
         # Load document
         # document = load_document(document_id)
@@ -201,7 +197,7 @@ def simplify_document(
         }
 
     except Exception as e:
-        logger.error(f"Document simplification failed: {e}")
+        logger.error("Document simplification failed: %s", e)
         return {
             "success": False,
             "error": str(e),

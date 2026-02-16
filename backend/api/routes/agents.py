@@ -24,25 +24,41 @@ router = APIRouter(tags=["agents"])
 
 _EVAL_AGENT_UNAVAILABLE = "EvaluationAgent not available"
 
-
 def _get_registry():
     """Get the agent registry singleton."""
     try:
         from ...agents.base import AgentRegistry
         return AgentRegistry()
-    except Exception:
+    except (ImportError, RuntimeError):
         raise HTTPException(status_code=503, detail="Agent system not initialized")
-
 
 @router.get("/status")
 async def agent_status():
-    """Get status of all registered agents."""
+    """Get status of all registered agents including middleware orchestrator."""
     registry = _get_registry()
-    return {
+
+    # Core agent stats
+    result = {
         "agents": registry.get_all_stats(),
         "count": len(registry._agents),
     }
 
+    # Include middleware stats when available
+    try:
+        from ...middleware.orchestrator import get_middleware
+        mw = get_middleware()
+        if mw and mw._initialized:
+            result["middleware"] = {
+                "status": "connected",
+                "total_requests": mw._total_requests,
+                "total_errors": mw._total_errors,
+                "total_cache_hits": mw._total_cache_hits,
+                "classifier_stats": mw.classifier.get_stats(),
+            }
+    except (ImportError, RuntimeError):
+        result["middleware"] = {"status": "unavailable"}
+
+    return result
 
 @router.get("/metrics")
 async def agent_metrics():
@@ -63,7 +79,6 @@ async def agent_metrics():
     response = await eval_agent.handle_message(msg)
     return response.payload if response else {}
 
-
 @router.get("/sla")
 async def sla_status():
     """Get SLA compliance status per model."""
@@ -82,7 +97,6 @@ async def sla_status():
     )
     response = await eval_agent.handle_message(msg)
     return response.payload if response else {}
-
 
 @router.get("/regressions")
 async def regressions():
@@ -103,7 +117,6 @@ async def regressions():
     response = await eval_agent.handle_message(msg)
     return response.payload if response else {}
 
-
 @router.get("/optimizations")
 async def optimization_log():
     """Get self-improvement optimization proposals and their outcomes."""
@@ -122,7 +135,6 @@ async def optimization_log():
     )
     response = await si_agent.handle_message(msg)
     return response.payload if response else {}
-
 
 @router.get("/model-stats")
 async def model_execution_stats():
@@ -143,7 +155,6 @@ async def model_execution_stats():
     response = await me_agent.handle_message(msg)
     return response.payload if response else {}
 
-
 @router.get("/hardware-config")
 async def hardware_config():
     """Get current hardware optimizer configuration."""
@@ -162,7 +173,6 @@ async def hardware_config():
     )
     response = await hw_agent.handle_message(msg)
     return response.payload if response else {}
-
 
 @router.post("/optimize")
 async def force_optimize(target: str = "all"):

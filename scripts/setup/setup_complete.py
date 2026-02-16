@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Complete setup script for ShikshaSetu production environment."""
+"""Complete setup script for Oryon production environment."""
 
 import logging
 import os
@@ -170,7 +170,7 @@ class SetupManager:
 
         # Create database
         self.run_command(
-            ["createdb", "-h", "localhost", "-U", "postgres", "shiksha_setu"],
+            ["createdb", "-h", "localhost", "-U", "postgres", "oryon"],
             "Create database",
             critical=False,
         )
@@ -239,13 +239,13 @@ except Exception as e:
             logger.info("⚠️  .env file already exists, skipping")
             return False
 
-        env_template = """# ShikshaSetu Environment Configuration
+        env_template = """# Oryon Environment Configuration
 
 # Database
-DATABASE_URL=postgresql://postgres:CHANGE_ME@localhost:5432/shiksha_setu
+DATABASE_URL=postgresql://postgres:CHANGE_ME@localhost:5432/oryon
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=CHANGE_ME
-POSTGRES_DB=shiksha_setu
+POSTGRES_DB=oryon
 POSTGRES_PORT=5432
 
 # Redis
@@ -325,7 +325,7 @@ CACHE_DIR=data/cache
 
     def run_full_setup(self):
         """Run complete setup process."""
-        print("🚀 ShikshaSetu Production Setup")
+        print("🚀 Oryon Production Setup")
         print("=" * 60)
 
         steps = [

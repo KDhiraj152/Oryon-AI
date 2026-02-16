@@ -11,7 +11,7 @@
 
 ## Overview
 
-The Shiksha Setu API follows RESTful conventions with streaming support via Server-Sent Events. All endpoints are versioned under `/api/v2/` and require authentication unless otherwise noted.
+The Oryon AI API follows RESTful conventions with streaming support via Server-Sent Events. All endpoints are versioned under `/api/v2/` and require authentication unless otherwise noted.
 
 **Base URL:** `http://localhost:8000/api/v2`
 **Interactive Docs:** `http://localhost:8000/docs` (Swagger UI)
@@ -606,7 +606,7 @@ X-RateLimit-Reset: 1733400000
 ```python
 import requests
 
-class ShikshaSetuClient:
+class OryonClient:
     def __init__(self, base_url: str, token: str):
         self.base_url = base_url
         self.headers = {"Authorization": f"Bearer {token}"}
@@ -620,7 +620,7 @@ class ShikshaSetuClient:
         return response.json()
 
 # Usage
-client = ShikshaSetuClient("http://localhost:8000/api/v2", "your_token")
+client = OryonClient("http://localhost:8000/api/v2", "your_token")
 result = client.ask("What is photosynthesis?")
 print(result["answer"])
 ```

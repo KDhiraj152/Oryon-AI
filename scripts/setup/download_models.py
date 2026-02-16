@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Download and cache required ML models for the ShikshaSetu platform.
+"""Download and cache required ML models for the Oryon platform.
 
 2025 Optimal Model Stack:
 - Simplification + Validation: Qwen3-8B (MLX 4-bit)
@@ -17,9 +17,9 @@ from pathlib import Path
 
 
 def download_models():
-    """Download required AI models for the ShikshaSetu platform."""
+    """Download required AI models for the Oryon platform."""
     print("=" * 60)
-    print("ShikshaSetu Model Downloader - 2025 Optimal Stack")
+    print("Oryon Model Downloader - 2025 Optimal Stack")
     print("=" * 60)
 
     # Set cache directory

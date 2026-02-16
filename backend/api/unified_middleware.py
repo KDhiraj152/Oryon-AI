@@ -81,7 +81,6 @@ _RATE_LIMIT_EXEMPT = frozenset(
 # Check production once at module load
 _IS_PRODUCTION = settings.ENVIRONMENT == "production"
 
-
 class UnifiedMiddleware:
     """
     Single ASGI middleware that handles everything.
@@ -207,9 +206,9 @@ class UnifiedMiddleware:
         # Process request
         try:
             await self.app(scope, receive, send_wrapper)
-        except Exception as e:
+        except Exception as e:  # middleware handler
             # Log error
-            logger.exception(f"Request error for {path}: {e}")
+            logger.exception("Request error for %s: %s", path, e)
 
             # Send error response if not started
             if not response_started:
@@ -238,12 +237,12 @@ class UnifiedMiddleware:
         # Check X-Forwarded-For header
         for header_name, header_value in scope.get("headers", []):
             if header_name == b"x-forwarded-for":
-                return header_value.decode().split(",")[0].strip()
+                return str(header_value.decode().split(",")[0].strip())
 
         # Fall back to client address
         client = scope.get("client")
         if client:
-            return client[0]
+            return str(client[0])
         return "unknown"
 
     def _check_rate_limit(self, client_ip: str) -> bool:
@@ -289,7 +288,6 @@ class UnifiedMiddleware:
         ]
         for key in stale_keys[:500]:  # Limit cleanup batch size
             del self._rate_limit_store[key]
-
 
 def setup_unified_middleware(app: FastAPI) -> None:
     """

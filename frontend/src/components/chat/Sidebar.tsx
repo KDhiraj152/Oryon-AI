@@ -171,7 +171,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             <span className={`text-[15px] font-semibold tracking-tight
               ${isDark ? 'text-white' : 'text-gray-900'}`}
             >
-              Shiksha Setu
+              Oryon AI
             </span>
           </div>
         </div>

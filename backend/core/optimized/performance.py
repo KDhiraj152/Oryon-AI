@@ -15,12 +15,13 @@ import struct
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 
-logger = logging.getLogger(__name__)
+from backend.utils.lock_factory import create_lock
 
+logger = logging.getLogger(__name__)
 
 @dataclass
 class PerformanceConfig:
@@ -48,7 +49,6 @@ class PerformanceConfig:
     # M4-specific optimizations
     use_metal_optimizations: bool = True
     use_ane_offload: bool = True
-
 
 class MemoryMappedEmbeddings:
     """
@@ -140,7 +140,7 @@ class MemoryMappedEmbeddings:
         if not self.path.exists():
             raise FileNotFoundError(f"Embedding file not found: {self.path}")
 
-        self._file = open(self.path, "r+b")
+        self._file = open(self.path, "r+b")  # noqa: SIM115
         self._mmap = mmap.mmap(self._file.fileno(), 0)
 
         # Read header
@@ -152,7 +152,7 @@ class MemoryMappedEmbeddings:
         # Load keys
         self._load_keys()
 
-        logger.info(f"[MMap] Opened: {self._count} embeddings, dim={self.dimension}")
+        logger.info("[MMap] Opened: %s embeddings, dim=%s", self._count, self.dimension)
 
     def get(self, key: str) -> np.ndarray | None:
         """Get embedding by key (zero-copy)."""
@@ -210,7 +210,6 @@ class MemoryMappedEmbeddings:
 
     def __exit__(self, *args):
         self.close()
-
 
 class QuantizedAttention:
     """
@@ -298,7 +297,6 @@ class QuantizedAttention:
 
         return keys, values
 
-
 @dataclass
 class SpeculativeDecodingConfig:
     """
@@ -323,11 +321,9 @@ class SpeculativeDecodingConfig:
     # Fall back to normal decoding after N rejections
     max_rejections: int = 3
 
-
 # ============================================================================
 # SPECULATIVE DECODING FOR METAL/ANE
 # ============================================================================
-
 
 @dataclass
 class SpeculativeDecodingStats:
@@ -370,7 +366,6 @@ class SpeculativeDecodingStats:
             "avg_accepted_per_speculation": self.avg_accepted_per_speculation,
             "speedup_factor": self.speedup_factor,
         }
-
 
 class MetalSpeculativeDecoder:
     """
@@ -572,8 +567,8 @@ class MetalSpeculativeDecoder:
 
                 return tokens, probs
 
-        except Exception as e:
-            logger.error(f"Draft generation failed: {e}")
+        except (RuntimeError, ValueError, OSError) as e:
+            logger.error("Draft generation failed: %s", e)
             return [], []
 
     async def _verify_tokens(
@@ -625,8 +620,8 @@ class MetalSpeculativeDecoder:
 
             return accepted, main_probs
 
-        except Exception as e:
-            logger.error(f"Verification failed: {e}")
+        except (RuntimeError, ValueError, OSError) as e:
+            logger.error("Verification failed: %s", e)
             return [], []
 
     async def _normal_generate(
@@ -643,8 +638,8 @@ class MetalSpeculativeDecoder:
                 )
                 return result, self._stats
             return "", self._stats
-        except Exception as e:
-            logger.error(f"Normal generation failed: {e}")
+        except (RuntimeError, ValueError, OSError) as e:
+            logger.error("Normal generation failed: %s", e)
             return "", self._stats
 
     def _single_token_generate(
@@ -712,11 +707,9 @@ class MetalSpeculativeDecoder:
         with self._lock:
             self._stats = SpeculativeDecodingStats()
 
-
 # Singleton instance
 _speculative_decoder: MetalSpeculativeDecoder | None = None
-_decoder_lock = threading.Lock()
-
+_decoder_lock = create_lock()
 
 def get_speculative_decoder(
     config: SpeculativeDecodingConfig | None = None,
@@ -733,7 +726,6 @@ def get_speculative_decoder(
                 logger.info("Created MetalSpeculativeDecoder singleton")
 
     return _speculative_decoder
-
 
 class PerformanceOptimizer:
     """
@@ -816,8 +808,8 @@ class PerformanceOptimizer:
 
             return settings
 
-        except Exception as e:
-            logger.warning(f"Could not detect device: {e}")
+        except (ImportError, RuntimeError) as e:
+            logger.warning("Could not detect device: %s", e)
             return {
                 "batch_size": 32,
                 "use_mmap": True,
@@ -836,11 +828,9 @@ class PerformanceOptimizer:
             },
         }
 
-
 # ==================== Global Instances ====================
 
 _optimizer: PerformanceOptimizer | None = None
-
 
 def get_performance_optimizer(
     config: PerformanceConfig | None = None,
@@ -852,7 +842,6 @@ def get_performance_optimizer(
         _optimizer = PerformanceOptimizer(config)
 
     return _optimizer
-
 
 __all__ = [
     # Memory-mapped embeddings

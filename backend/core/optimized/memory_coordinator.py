@@ -44,12 +44,13 @@ from collections.abc import Callable
 from contextlib import asynccontextmanager, contextmanager, suppress
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, ClassVar
 
 import psutil
 
-logger = logging.getLogger(__name__)
+from backend.utils.lock_factory import create_lock
 
+logger = logging.getLogger(__name__)
 
 class MemoryPressure(Enum):
     """Memory pressure levels."""
@@ -59,7 +60,6 @@ class MemoryPressure(Enum):
     CRITICAL = "critical"  # 85-95% used
     EMERGENCY = "emergency"  # > 95% used
 
-
 class ModelState(Enum):
     """Model lifecycle states."""
 
@@ -68,7 +68,6 @@ class ModelState(Enum):
     READY = "ready"  # Loaded and ready
     EVICTING = "evicting"  # Being evicted
     UNLOADED = "unloaded"  # Memory released
-
 
 @dataclass
 class MemoryBudgetConfig:
@@ -106,7 +105,6 @@ class MemoryBudgetConfig:
         )
         return used <= self.total_gb
 
-
 @dataclass
 class ModelRegistration:
     """Registration info for a managed model."""
@@ -136,7 +134,6 @@ class ModelRegistration:
         """Time since last use."""
         return time.time() - self.last_used
 
-
 class GlobalMemoryCoordinator:
     """
     Singleton coordinator for all model memory management.
@@ -154,7 +151,7 @@ class GlobalMemoryCoordinator:
     """
 
     _instance = None
-    _creation_lock = threading.Lock()
+    _creation_lock = create_lock()
 
     def __new__(cls):
         if cls._instance is None:
@@ -231,7 +228,7 @@ class GlobalMemoryCoordinator:
         try:
             mem = psutil.virtual_memory()
             total_gb = mem.total / (1024**3)
-        except Exception:
+        except (RuntimeError, OSError):
             total_gb = 16.0  # Default for M4
 
         # Scale config based on available memory
@@ -317,7 +314,7 @@ class GlobalMemoryCoordinator:
         try:
             mem = psutil.virtual_memory()
             used_ratio = mem.percent / 100.0
-        except Exception:
+        except (RuntimeError, OSError):
             # Fallback to our internal tracking
             used_ratio = (
                 self._allocated_gb + self._pending_gb
@@ -342,7 +339,7 @@ class GlobalMemoryCoordinator:
         try:
             mem = psutil.virtual_memory()
             return (mem.used / (1024**3), mem.total / (1024**3))
-        except Exception:
+        except (RuntimeError, OSError):
             return (self._allocated_gb, self.config.total_gb)
 
     # =========================================================================
@@ -629,8 +626,8 @@ class GlobalMemoryCoordinator:
             try:
                 loop = asyncio.get_running_loop()
                 await loop.run_in_executor(None, reg.unload_fn)
-            except Exception as e:
-                logger.error(f"Error unloading {model_name}: {e}")
+            except (RuntimeError, OSError, ValueError) as e:
+                logger.error("Error unloading %s: %s", model_name, e)
 
         with self._lock:
             self._allocated_gb = max(0, self._allocated_gb - reg.memory_gb)
@@ -652,8 +649,8 @@ class GlobalMemoryCoordinator:
         if reg.unload_fn:
             try:
                 reg.unload_fn()
-            except Exception as e:
-                logger.error(f"Error unloading {model_name}: {e}")
+            except (RuntimeError, OSError, ValueError) as e:
+                logger.error("Error unloading %s: %s", model_name, e)
 
         with self._lock:
             self._allocated_gb = max(0, self._allocated_gb - reg.memory_gb)
@@ -673,8 +670,8 @@ class GlobalMemoryCoordinator:
         for callback in self._pressure_callbacks:
             try:
                 callback(pressure)
-            except Exception as e:
-                logger.error(f"Pressure callback error: {e}")
+            except (RuntimeError, OSError, ValueError) as e:
+                logger.error("Pressure callback error: %s", e)
 
     # =========================================================================
     # Background Monitor
@@ -692,7 +689,7 @@ class GlobalMemoryCoordinator:
                     pressure = self.get_memory_pressure()
 
                     if pressure != last_pressure:
-                        logger.info(f"[MemoryCoordinator] Pressure: {pressure.value}")
+                        logger.info("[MemoryCoordinator] Pressure: %s", pressure.value)
                         self._notify_pressure_change(pressure)
                         last_pressure = pressure
 
@@ -705,8 +702,8 @@ class GlobalMemoryCoordinator:
                         # Python's generational GC handles this automatically.
                         pass
 
-                except Exception as e:
-                    logger.error(f"Monitor error: {e}")
+                except (RuntimeError, OSError, ValueError) as e:
+                    logger.error("Monitor error: %s", e)
 
                 await asyncio.sleep(interval)
 
@@ -825,7 +822,7 @@ class GlobalMemoryCoordinator:
     # =========================================================================
 
     # Model name -> budget mapping (must match what's in rag.py and other services)
-    MODEL_BUDGETS = {
+    MODEL_BUDGETS: ClassVar[dict] = {
         "llm": 4.5,
         "embedder": 2.0,
         "reranker": 1.5,
@@ -860,7 +857,7 @@ class GlobalMemoryCoordinator:
 
         while True:
             if time.time() - start_time > timeout:
-                logger.warning(f"Timeout acquiring memory for {model_name}")
+                logger.warning("Timeout acquiring memory for %s", model_name)
                 return False
 
             async with async_lock:
@@ -940,7 +937,7 @@ class GlobalMemoryCoordinator:
                 )
                 return True
 
-        logger.warning(f"Could not acquire {memory_gb:.1f}GB for {model_name}")
+        logger.warning("Could not acquire %.1fGB for %s", memory_gb, model_name)
         return False
 
     def release(self, model_name: str):
@@ -978,7 +975,7 @@ class GlobalMemoryCoordinator:
         """
         with self._lock:
             if model_name not in self._models:
-                logger.warning(f"Cannot mark_ready: {model_name} not in models")
+                logger.warning("Cannot mark_ready: %s not in models", model_name)
                 return
 
             reg = self._models[model_name]
@@ -1010,19 +1007,17 @@ class GlobalMemoryCoordinator:
 
             if torch.backends.mps.is_available():
                 torch.mps.empty_cache()
-        except Exception:
+        except (ImportError, RuntimeError):
             pass
 
         logger.info("[MemoryCoordinator] Force cleanup completed")
-
 
 # ============================================================================
 # Global Instance
 # ============================================================================
 
 _coordinator: GlobalMemoryCoordinator | None = None
-_coordinator_lock = threading.Lock()
-
+_coordinator_lock = create_lock()
 
 def get_memory_coordinator() -> GlobalMemoryCoordinator:
     """Get global memory coordinator singleton."""
@@ -1033,11 +1028,9 @@ def get_memory_coordinator() -> GlobalMemoryCoordinator:
                 _coordinator = GlobalMemoryCoordinator()
     return _coordinator
 
-
 # ============================================================================
 # Convenience Decorator
 # ============================================================================
-
 
 def managed_model(model_name: str, memory_gb: float, priority: int = 0):
     """
@@ -1072,7 +1065,6 @@ def managed_model(model_name: str, memory_gb: float, priority: int = 0):
         return wrapper
 
     return decorator
-
 
 async def managed_model_async(
     model_name: str,
@@ -1110,7 +1102,6 @@ async def managed_model_async(
 
         coordinator.register_model(model_name, model, unload_fn)
         return model
-
 
 # ============================================================================
 # Exports

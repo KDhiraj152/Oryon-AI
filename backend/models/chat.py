@@ -10,21 +10,19 @@ from sqlalchemy import TIMESTAMP, Column, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
 
-from ..database import Base
+from backend.db.database import Base
 
 
 def utcnow():
     """Get current UTC time as naive datetime (for TIMESTAMP WITHOUT TIME ZONE)."""
     return datetime.utcnow()
 
-
-class MessageRole(str, enum.Enum):
+class MessageRole(enum.StrEnum):
     """Message role enumeration."""
 
     USER = "user"
     ASSISTANT = "assistant"
     SYSTEM = "system"
-
 
 class Conversation(Base):
     """Stores chat conversations for users."""
@@ -63,7 +61,6 @@ class Conversation(Base):
             "metadata": self.extra_data or {},
         }
 
-
 class Message(Base):
     """Stores individual messages within conversations."""
 
@@ -96,7 +93,6 @@ class Message(Base):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "metadata": self.extra_data or {},
         }
-
 
 class FileUpload(Base):
     """Stores file upload metadata."""

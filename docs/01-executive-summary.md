@@ -11,9 +11,9 @@
 
 ## Project Overview
 
-**Shiksha Setu v4.0** is a production-grade AI education platform engineered to deliver world-class AI capabilities to every user. This is not a wrapper around existing APIs—it is a complete, vertically integrated system designed from first principles to solve real problems in multilingual AI.
+**Oryon AI v4.0** is a production-grade, domain-agnostic ML-driven orchestration and decision automation framework. This is not a wrapper around existing APIs—it is a complete, vertically integrated system designed from first principles to solve real problems in multilingual AI inference.
 
-The platform achieves what cloud-based solutions cannot: **full local deployment with zero data transmission, native multilingual support across 10 Indian languages, and hardware-optimized inference that runs on consumer devices.**
+The platform achieves what cloud-based solutions cannot: **full local deployment with zero data transmission, native multilingual support across 10+ languages, and hardware-optimized inference that runs on consumer devices.**
 
 The architecture prioritizes three non-negotiables:
 1. **Privacy**: All AI processing occurs on-device. No user data leaves the local network.
@@ -24,25 +24,25 @@ The architecture prioritizes three non-negotiables:
 
 ## The Market Gap
 
-Three systemic failures define the current EdTech landscape in India:
+Three systemic failures define the current AI infrastructure landscape:
 
 ### 1. Language Exclusion
 
-India has 22 officially recognized languages. The overwhelming majority of quality content AI operates exclusively in English, creating an artificial barrier for 800+ million non-English-speaking users. A student in rural Tamil Nadu has the same intellectual capacity as one in Mumbai—they simply lack access to tools that understand their language.
+The overwhelming majority of AI tools operate exclusively in English, excluding billions of non-English-speaking users globally. Organizations operating in multilingual environments need native-quality AI in their working languages.
 
-Shiksha Setu integrates **IndicTrans2**, the state-of-the-art Indian language translation model, directly into the inference pipeline. The system provides native-quality responses in Hindi, Tamil, Telugu, Bengali, Marathi, Gujarati, Kannada, Malayalam, Punjabi, and Odia.
+Oryon AI integrates **IndicTrans2** and pluggable translation backends directly into the inference pipeline. The system provides native-quality responses across 10+ supported languages.
 
 ### 2. Infrastructure Constraints
 
-Cloud-based AI solutions require consistent high-speed internet and charge per-API-call fees. This model is fundamentally incompatible with Tier 2/3 cities and rural areas where connectivity is unreliable and cost-prohibitive.
+Cloud-based AI solutions require consistent high-speed internet and charge per-API-call fees. This model is fundamentally incompatible with air-gapped environments, edge deployments, and cost-sensitive operations.
 
-Shiksha Setu eliminates this dependency entirely. After a one-time ~10GB model download, the system operates fully offline. A user in a remote area runs the same powerful AI stack as urban institutions.
+Oryon AI eliminates this dependency entirely. After a one-time ~10GB model download, the system operates fully offline. Any deployment environment runs the same powerful AI stack as cloud-connected infrastructure.
 
-### 3. Pedagogical Misalignment
+### 3. Context Misalignment
 
-General-purpose language models produce technically accurate but pedagogically inappropriate responses. They lack understanding of content structure, complexity-appropriate complexity, and the specific context users require.
+General-purpose language models produce technically accurate but contextually inappropriate responses. They lack understanding of domain-specific structure, complexity-appropriate output, and the specific context operators require.
 
-Shiksha Setu is purpose-built for AI. The system understands complexity levels, aligns with content domain standards, and adapts explanations based on the student's learning profile.
+Oryon AI is purpose-built for domain-aware inference. The system understands complexity levels, aligns with domain standards, and adapts output based on the operator's configuration profile.
 
 ---
 
@@ -55,7 +55,7 @@ The platform combines multiple specialized AI models with custom infrastructure 
 | Component | Model | Purpose |
 |-----------|-------|---------|
 | **Reasoning** | Qwen3-8B (MLX 4-bit) | Text generation, explanation, Q&A, validation |
-| **Translation** | IndicTrans2-1B | Indian language translation |
+| **Translation** | IndicTrans2-1B | Multilingual translation |
 | **Embeddings** | BGE-M3 | Multilingual semantic search |
 | **Reranking** | BGE-Reranker-v2-M3 | Retrieval accuracy optimization |
 | **Speech-to-Text** | Whisper V3 Turbo | Multilingual transcription |
@@ -127,15 +127,15 @@ End-to-end latency for a voice-to-voice query (transcription → RAG → generat
 
 ## Strategic Positioning
 
-Shiksha Setu occupies a unique position in the market:
+Oryon AI occupies a unique position in the market:
 
-| Capability | Cloud Solutions | Shiksha Setu |
+| Capability | Cloud Solutions | Oryon AI |
 |------------|-----------------|--------------|
-| Data Privacy | Data transmitted to foreign servers | All processing local |
+| Data Privacy | Data transmitted to external servers | All processing local |
 | Offline Operation | Requires internet | Full offline capability |
 | Language Support | English-first, translation as afterthought | Native multilingual from ground up |
 | Cost Structure | Subscription/per-call | One-time setup, zero ongoing cost |
-| Curriculum Alignment | Generic responses | domain-aligned, grade-aware |
+| Domain Alignment | Generic responses | Domain-aligned, context-aware |
 
 ---
 

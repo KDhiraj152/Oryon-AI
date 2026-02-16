@@ -4,13 +4,13 @@ import os
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
-OUTPUT = os.path.join(PROJECT_ROOT, "download_models.sh")
+OUTPUT = os.path.join(PROJECT_ROOT, "scripts", "download_models.sh")
 
 BASH_SCRIPT = r"""#!/bin/bash
 # ============================================================================
-# SHIKSHA SETU - AI MODEL DOWNLOADER
+# ORYON AI - AI MODEL DOWNLOADER
 # ============================================================================
-# Download and cache ALL required AI models for the ShikshaSetu platform.
+# Download and cache ALL required AI models for the Oryon platform.
 #
 # Models downloaded:
 #   Essential:
@@ -50,7 +50,7 @@ step()  { echo -e "\n${BLUE}▸${NC} $1"; }
 ok()    { echo -e "  ${GREEN}✓${NC} $1"; }
 warn()  { echo -e "  ${YELLOW}⚠${NC} $1"; }
 fail()  { echo -e "  ${RED}✗${NC} $1"; }
-info()  { echo -e "  ${CYAN}ℹ${NC} $1"; }
+info()  { echo -e "  ${CYAN}(i)${NC} $1"; }
 
 IS_MACOS=false; IS_APPLE_SILICON=false
 if [[ "$(uname -s)" == "Darwin" ]]; then
@@ -97,7 +97,7 @@ done
 clear
 echo -e "${CYAN}${BOLD}"
 echo "   ════════════════════════════════════════════════════════"
-echo "   ॐ  SHIKSHA SETU - AI MODEL DOWNLOADER  ॐ"
+echo "   ॐ  ORYON AI - AI MODEL DOWNLOADER  ॐ"
 echo "   ════════════════════════════════════════════════════════"
 echo -e "${NC}"
 echo -e "   Mode: ${GREEN}${BOLD}${DOWNLOAD_MODE}${NC}"

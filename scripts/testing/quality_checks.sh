@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================================
-# SHIKSHA SETU - COMPREHENSIVE TEST & QUALITY RUNNER
+# ORYON AI - COMPREHENSIVE TEST & QUALITY RUNNER
 # ============================================================================
 # Run all tests, linting, security scans, and generate reports
 #
@@ -274,7 +274,7 @@ with open('$REPORT_DIR/bandit.json') as f:
 main() {
     echo -e "${BLUE}"
     echo "╔═══════════════════════════════════════════════════════════════╗"
-    echo "║          SHIKSHA SETU - QUALITY CHECK SUITE                   ║"
+    echo "║          ORYON AI - QUALITY CHECK SUITE                   ║"
     echo "╚═══════════════════════════════════════════════════════════════╝"
     echo -e "${NC}"
 

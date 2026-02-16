@@ -2,7 +2,7 @@
 Manual Test Scripts
 ===================
 
-Scripts for manual testing and debugging of ShikshaSetu components.
+Scripts for manual testing and debugging of Oryon components.
 
 Files:
 - test_api.py: API endpoint testing

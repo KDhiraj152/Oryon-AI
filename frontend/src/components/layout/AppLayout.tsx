@@ -1,12 +1,14 @@
-import { useState, useEffect, useCallback, memo } from 'react';
+import { useEffect, useCallback, memo } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from '../chat/Sidebar';
 import Header from '../chat/Header';
 import { useChatStore } from '../../store';
+import { useUIStore } from '../../store/uiStore';
 
 // Memoized AppLayout to prevent unnecessary re-renders
 const AppLayout = memo(function AppLayout() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const sidebarOpen = useUIStore((s) => s.sidebarOpen);
+  const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
   const createConversation = useChatStore((state) => state.createConversation);
   const location = useLocation();
 
@@ -22,29 +24,29 @@ const AppLayout = memo(function AppLayout() {
 
     // Initial check
     handleResize();
-  }, []);
+  }, [setSidebarOpen]);
 
   // Close sidebar on route change (mobile only)
   useEffect(() => {
     if (globalThis.innerWidth < 1024) {
       setSidebarOpen(false);
     }
-  }, [location.pathname]);
+  }, [location.pathname, setSidebarOpen]);
 
   const handleNewChat = useCallback(() => {
     createConversation();
     if (globalThis.innerWidth < 1024) {
       setSidebarOpen(false);
     }
-  }, [createConversation]);
+  }, [createConversation, setSidebarOpen]);
 
   const toggleSidebar = useCallback(() => {
-    setSidebarOpen(prev => !prev);
-  }, []);
+    setSidebarOpen(!sidebarOpen);
+  }, [sidebarOpen, setSidebarOpen]);
 
   const closeSidebar = useCallback(() => {
     setSidebarOpen(false);
-  }, []);
+  }, [setSidebarOpen]);
 
   const isSettings = location.pathname === '/settings';
 

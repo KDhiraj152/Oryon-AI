@@ -5,7 +5,7 @@ Tasks for RAG (Retrieval-Augmented Generation) operations.
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from .celery_config import celery_app
 
@@ -15,26 +15,23 @@ logger = logging.getLogger(__name__)
 _rag_engine = None
 _reranker = None
 
-
 def get_rag_engine():
     """Get or initialize RAG engine (lazy loading)."""
     global _rag_engine
     if _rag_engine is None:
-        from backend.services.rag import RAGEngine
+        from backend.services.chat.rag import RAGEngine
 
         _rag_engine = RAGEngine()
     return _rag_engine
-
 
 def get_reranker():
     """Get shared reranker singleton (lazy loading)."""
     global _reranker
     if _reranker is None:
-        from backend.services.rag import get_reranker as _get_singleton
+        from backend.services.chat.rag import get_reranker as _get_singleton
 
         _reranker = _get_singleton()  # Use singleton instead of creating new instance
     return _reranker
-
 
 @celery_app.task(
     name="rag.query",
@@ -90,7 +87,7 @@ def query(
         }
 
     except Exception as e:
-        logger.error(f"RAG query failed: {e}")
+        logger.error("RAG query failed: %s", e)
 
         if self.request.retries < self.max_retries:
             raise self.retry(exc=e)
@@ -100,7 +97,6 @@ def query(
             "error": str(e),
             "question": question,
         }
-
 
 @celery_app.task(
     name="rag.retrieve",
@@ -156,12 +152,11 @@ def retrieve(
         }
 
     except Exception as e:
-        logger.error(f"Retrieval failed: {e}")
+        logger.error("Retrieval failed: %s", e)
         return {
             "success": False,
             "error": str(e),
         }
-
 
 @celery_app.task(
     name="rag.rerank",
@@ -209,12 +204,11 @@ def rerank(
         }
 
     except Exception as e:
-        logger.error(f"Reranking failed: {e}")
+        logger.error("Reranking failed: %s", e)
         return {
             "success": False,
             "error": str(e),
         }
-
 
 @celery_app.task(
     name="rag.ingest_document",
@@ -275,13 +269,12 @@ def ingest_document(
         }
 
     except Exception as e:
-        logger.error(f"Document ingestion failed: {e}")
+        logger.error("Document ingestion failed: %s", e)
         return {
             "success": False,
             "error": str(e),
             "document_id": document_id,
         }
-
 
 @celery_app.task(
     name="rag.delete_document",
@@ -322,13 +315,12 @@ def delete_document(
         }
 
     except Exception as e:
-        logger.error(f"Document deletion failed: {e}")
+        logger.error("Document deletion failed: %s", e)
         return {
             "success": False,
             "error": str(e),
             "document_id": document_id,
         }
-
 
 @celery_app.task(
     name="rag.content_domain_qa",
@@ -392,7 +384,7 @@ def content_domain_qa(
         }
 
     except Exception as e:
-        logger.error(f"Curriculum QA failed: {e}")
+        logger.error("Curriculum QA failed: %s", e)
         return {
             "success": False,
             "error": str(e),

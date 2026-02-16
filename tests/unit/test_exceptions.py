@@ -6,14 +6,14 @@ from backend.core.exceptions import (
     AuthenticationError,
     ContentNotFoundError,
     RateLimitError,
-    ShikshaSetuException,
+    OryonException,
     ValidationError,
 )
 
 
 def test_base_exception():
-    """Test base ShikshaSetuException."""
-    exc = ShikshaSetuException("Test error", status_code=500, error_code="TEST_ERROR")
+    """Test base OryonException."""
+    exc = OryonException("Test error", status_code=500, error_code="TEST_ERROR")
 
     assert exc.detail == "Test error"
     assert exc.status_code == 500

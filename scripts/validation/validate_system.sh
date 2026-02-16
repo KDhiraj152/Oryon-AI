@@ -5,7 +5,7 @@
 # set -e
 
 echo "=========================================="
-echo "ShikshaSetu System Validation"
+echo "Oryon System Validation"
 echo "=========================================="
 echo ""
 
@@ -34,7 +34,7 @@ test_warn() {
 
 # Test 1: PostgreSQL Database
 echo "Testing Database Connection..."
-if docker exec shiksha-postgres psql -U shiksha_user -d shiksha_setu -c "SELECT 1" > /dev/null 2>&1; then
+if docker exec oryon-postgres psql -U oryon_user -d oryon -c "SELECT 1" > /dev/null 2>&1; then
     test_pass "PostgreSQL is running and accessible"
 else
     test_fail "PostgreSQL connection failed"
@@ -74,7 +74,7 @@ fi
 
 # Test 6: Database Tables
 echo "Testing Database Schema..."
-TABLES=$(docker exec shiksha-postgres psql -U shiksha_user -d shiksha_setu -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public'" 2>/dev/null | tr -d ' ')
+TABLES=$(docker exec oryon-postgres psql -U oryon_user -d oryon -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public'" 2>/dev/null | tr -d ' ')
 if [ "$TABLES" -gt 10 ]; then
     test_pass "Database schema created ($TABLES tables)"
 else
@@ -83,7 +83,7 @@ fi
 
 # Test 7: pgvector Extension
 echo "Testing pgvector Extension..."
-if docker exec shiksha-postgres psql -U shiksha_user -d shiksha_setu -t -c "SELECT 1 FROM pg_extension WHERE extname='vector'" 2>/dev/null | grep -q 1; then
+if docker exec oryon-postgres psql -U oryon_user -d oryon -t -c "SELECT 1 FROM pg_extension WHERE extname='vector'" 2>/dev/null | grep -q 1; then
     test_pass "pgvector extension enabled"
 else
     test_fail "pgvector extension not enabled"

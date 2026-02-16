@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Create demo accounts for ShikshaSetu
+Create demo accounts for Oryon
 """
 
 import sys
@@ -9,7 +9,7 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from backend.database import SessionLocal
+from backend.database import SessionLocal, get_db_session
 from backend.models import User
 from backend.utils.auth import get_password_hash
 
@@ -19,24 +19,24 @@ def create_demo_accounts():
 
     demo_users = [
         {
-            "email": "demo@shiksha.com",
+            "email": "demo@oryon.com",
             "password": "demo123",
             "full_name": "Demo User",
-            "organization": "ShikshaSetu Demo",
+            "organization": "Oryon Demo",
             "role": "user",
         },
         {
-            "email": "reviewer@shiksha.com",
+            "email": "reviewer@oryon.com",
             "password": "teacher123",
             "full_name": "Reviewer Demo",
             "organization": "Demo Org",
             "role": "user",
         },
         {
-            "email": "admin@shiksha.com",
+            "email": "admin@oryon.com",
             "password": "admin123",
             "full_name": "Admin User",
-            "organization": "ShikshaSetu",
+            "organization": "Oryon",
             "role": "admin",
         },
         {
@@ -87,15 +87,15 @@ def create_demo_accounts():
 
     print("📋 LOGIN CREDENTIALS:\n")
     print("1. Regular User:")
-    print("   Email: demo@shiksha.com")
+    print("   Email: demo@oryon.com")
     print("   Password: demo123\n")
 
     print("2. Teacher Account:")
-    print("   Email: reviewer@shiksha.com")
+    print("   Email: reviewer@oryon.com")
     print("   Password: teacher123\n")
 
     print("3. Admin Account:")
-    print("   Email: admin@shiksha.com")
+    print("   Email: admin@oryon.com")
     print("   Password: admin123\n")
 
     print("4. Test Account:")

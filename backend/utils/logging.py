@@ -1,9 +1,8 @@
-"""Centralized logging configuration for ShikshaSetu."""
+"""Centralized logging configuration for Oryon."""
 
 import logging
 import sys
 from logging.handlers import RotatingFileHandler
-from typing import Optional
 
 from ..core.config import settings
 
@@ -64,8 +63,8 @@ def setup_logging(
         file_handler.setFormatter(detailed_formatter)
         file_handler.setLevel(logging.DEBUG)
         logger.addHandler(file_handler)
-    except Exception as e:
-        logger.warning(f"Could not create file handler: {e}")
+    except OSError as e:
+        logger.warning("Could not create file handler: %s", e)
 
     # Error file handler (errors only)
     try:
@@ -78,11 +77,10 @@ def setup_logging(
         error_handler.setFormatter(detailed_formatter)
         error_handler.setLevel(logging.ERROR)
         logger.addHandler(error_handler)
-    except Exception as e:
-        logger.warning(f"Could not create error handler: {e}")
+    except OSError as e:
+        logger.warning("Could not create error handler: %s", e)
 
     return logger
-
 
 def get_logger(name: str) -> logging.Logger:
     """
@@ -95,7 +93,6 @@ def get_logger(name: str) -> logging.Logger:
         Logger instance
     """
     return logging.getLogger(name)
-
 
 # Initialize root logger on import
 root_logger = setup_logging()

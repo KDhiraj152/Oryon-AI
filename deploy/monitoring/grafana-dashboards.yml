@@ -1,0 +1,27 @@
+# Grafana Dashboard Provisioning
+# /etc/grafana/provisioning/dashboards/dashboards.yml
+
+apiVersion: 1
+
+providers:
+  - name: 'Oryon'
+    orgId: 1
+    folder: 'Oryon'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards
+      foldersFromFilesStructure: false
+
+  - name: 'Oryon Custom'
+    orgId: 1
+    folder: 'Oryon/Custom'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards/custom
+      foldersFromFilesStructure: false

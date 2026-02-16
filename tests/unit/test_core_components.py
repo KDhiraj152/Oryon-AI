@@ -434,13 +434,13 @@ class TestIntegration:
             InvalidFileError,
             ProcessingError,
             RateLimitError,
-            ShikshaSetuException,
+            OryonException,
             TaskNotFoundError,
             ValidationError,
         )
 
         # Test base exception
-        exc = ShikshaSetuException("test", 500, "TEST_ERROR")
+        exc = OryonException("test", 500, "TEST_ERROR")
         result = exc.to_dict()
         assert result["error"] == "TEST_ERROR"
         assert result["status_code"] == 500

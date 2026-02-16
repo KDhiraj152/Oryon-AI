@@ -1,4 +1,4 @@
-"""Custom exception classes for ShikshaSetu.
+"""Custom exception classes for Oryon.
 
 Includes:
 - Base exceptions for API errors
@@ -15,14 +15,13 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional, Type, TypeVar
+from typing import Any, TypeVar
 
 logger = logging.getLogger(__name__)
 F = TypeVar("F", bound=Callable[..., Any])
 
-
-class ShikshaSetuException(Exception):
-    """Base exception for all ShikshaSetu errors."""
+class OryonException(Exception):
+    """Base exception for all Oryon errors."""
 
     def __init__(
         self, detail: str, status_code: int = 500, error_code: str = "INTERNAL_ERROR"
@@ -42,8 +41,7 @@ class ShikshaSetuException(Exception):
             "timestamp": self.timestamp,
         }
 
-
-class ContentNotFoundError(ShikshaSetuException):
+class ContentNotFoundError(OryonException):
     """Raised when content is not found."""
 
     def __init__(self, content_id: str):
@@ -53,8 +51,7 @@ class ContentNotFoundError(ShikshaSetuException):
             error_code="CONTENT_NOT_FOUND",
         )
 
-
-class DocumentNotFoundError(ShikshaSetuException):
+class DocumentNotFoundError(OryonException):
     """Raised when document is not found."""
 
     def __init__(self, document_id: str):
@@ -64,8 +61,7 @@ class DocumentNotFoundError(ShikshaSetuException):
             error_code="DOCUMENT_NOT_FOUND",
         )
 
-
-class InvalidFileError(ShikshaSetuException):
+class InvalidFileError(OryonException):
     """Raised when uploaded file is invalid."""
 
     def __init__(self, reason: str):
@@ -73,8 +69,7 @@ class InvalidFileError(ShikshaSetuException):
             detail=f"Invalid file: {reason}", status_code=400, error_code="INVALID_FILE"
         )
 
-
-class TaskNotFoundError(ShikshaSetuException):
+class TaskNotFoundError(OryonException):
     """Raised when task is not found."""
 
     def __init__(self, task_id: str):
@@ -84,8 +79,7 @@ class TaskNotFoundError(ShikshaSetuException):
             error_code="TASK_NOT_FOUND",
         )
 
-
-class AuthenticationError(ShikshaSetuException):
+class AuthenticationError(OryonException):
     """Raised when authentication fails."""
 
     def __init__(self, detail: str = "Authentication failed"):
@@ -93,8 +87,7 @@ class AuthenticationError(ShikshaSetuException):
             detail=detail, status_code=401, error_code="AUTHENTICATION_FAILED"
         )
 
-
-class AuthorizationError(ShikshaSetuException):
+class AuthorizationError(OryonException):
     """Raised when user is not authorized."""
 
     def __init__(self, detail: str = "Not authorized to access this resource"):
@@ -102,15 +95,13 @@ class AuthorizationError(ShikshaSetuException):
             detail=detail, status_code=403, error_code="AUTHORIZATION_FAILED"
         )
 
-
-class ValidationError(ShikshaSetuException):
+class ValidationError(OryonException):
     """Raised when input validation fails."""
 
     def __init__(self, detail: str):
         super().__init__(detail=detail, status_code=422, error_code="VALIDATION_ERROR")
 
-
-class RateLimitError(ShikshaSetuException):
+class RateLimitError(OryonException):
     """Raised when rate limit is exceeded."""
 
     def __init__(self, detail: str = "Rate limit exceeded"):
@@ -118,8 +109,7 @@ class RateLimitError(ShikshaSetuException):
             detail=detail, status_code=429, error_code="RATE_LIMIT_EXCEEDED"
         )
 
-
-class ProcessingError(ShikshaSetuException):
+class ProcessingError(OryonException):
     """Raised when content processing fails."""
 
     def __init__(self, detail: str):
@@ -129,8 +119,7 @@ class ProcessingError(ShikshaSetuException):
             error_code="PROCESSING_ERROR",
         )
 
-
-class DatabaseError(ShikshaSetuException):
+class DatabaseError(OryonException):
     """Raised when database operation fails."""
 
     def __init__(self, detail: str):
@@ -140,13 +129,11 @@ class DatabaseError(ShikshaSetuException):
             error_code="DATABASE_ERROR",
         )
 
-
 # =============================================================================
 # PIPELINE EXCEPTIONS (with retry support)
 # =============================================================================
 
-
-class PipelineError(ShikshaSetuException):
+class PipelineError(OryonException):
     """Base exception for all pipeline errors with retry metadata."""
 
     def __init__(
@@ -176,7 +163,6 @@ class PipelineError(ShikshaSetuException):
         )
         return base
 
-
 class SimplificationError(PipelineError):
     """Error during text simplification."""
 
@@ -192,7 +178,6 @@ class SimplificationError(PipelineError):
             original_error=original_error,
             context={"complexity_level": complexity_level} if complexity_level else {},
         )
-
 
 class TranslationError(PipelineError):
     """Error during translation."""
@@ -211,7 +196,6 @@ class TranslationError(PipelineError):
             context={"source_lang": source_lang, "target_lang": target_lang},
         )
 
-
 class AudioGenerationError(PipelineError):
     """Error during TTS audio generation."""
 
@@ -228,7 +212,6 @@ class AudioGenerationError(PipelineError):
             context={"language": language} if language else {},
         )
 
-
 class TranscriptionError(PipelineError):
     """Error during STT transcription."""
 
@@ -236,7 +219,6 @@ class TranscriptionError(PipelineError):
         super().__init__(
             detail=detail, stage="transcription", original_error=original_error
         )
-
 
 class OCRError(PipelineError):
     """Error during OCR text extraction."""
@@ -254,7 +236,6 @@ class OCRError(PipelineError):
             context={"file_path": file_path} if file_path else {},
         )
 
-
 class EmbeddingError(PipelineError):
     """Error during text embedding."""
 
@@ -262,7 +243,6 @@ class EmbeddingError(PipelineError):
         super().__init__(
             detail=detail, stage="embedding", original_error=original_error
         )
-
 
 class ModelLoadError(PipelineError):
     """Error loading a model."""
@@ -277,7 +257,6 @@ class ModelLoadError(PipelineError):
             context={"model_id": model_id},
             retryable=False,
         )
-
 
 class ModelTimeoutError(PipelineError):
     """Model inference timed out."""
@@ -297,7 +276,6 @@ class ModelTimeoutError(PipelineError):
             retryable=True,
         )
 
-
 class CollaborationError(PipelineError):
     """Error during multi-model collaboration."""
 
@@ -315,11 +293,9 @@ class CollaborationError(PipelineError):
             context={"pattern": pattern, "models": participating_models},
         )
 
-
 # =============================================================================
 # RETRY CONFIGURATION & DECORATOR
 # =============================================================================
-
 
 @dataclass
 class RetryConfig:
@@ -348,7 +324,6 @@ class RetryConfig:
         )
     )
 
-
 DEFAULT_RETRY_CONFIG = RetryConfig()
 TRANSLATION_RETRY_CONFIG = RetryConfig(
     max_attempts=3, initial_delay=1.0, max_delay=10.0
@@ -359,7 +334,6 @@ SIMPLIFICATION_RETRY_CONFIG = RetryConfig(
 TTS_RETRY_CONFIG = RetryConfig(max_attempts=2, initial_delay=1.0, max_delay=10.0)
 EMBEDDING_RETRY_CONFIG = RetryConfig(max_attempts=3, initial_delay=0.5, max_delay=5.0)
 
-
 def _compute_retry_delay(cfg: RetryConfig, attempt: int) -> float:
     """Compute delay for a retry attempt with optional jitter."""
     delay = min(
@@ -369,7 +343,6 @@ def _compute_retry_delay(cfg: RetryConfig, attempt: int) -> float:
     if cfg.jitter:
         delay += delay * cfg.jitter_factor * random.random()
     return delay
-
 
 def _raise_if_wrapped(
     last_exc: Exception | None,
@@ -385,18 +358,16 @@ def _raise_if_wrapped(
     if last_exc:
         raise last_exc
 
-
 def _handle_non_retryable(
     exc: Exception,
     func_name: str,
     wrapper: type[PipelineError] | None,
 ) -> None:
     """Handle a non-retryable exception by wrapping and re-raising."""
-    logger.warning(f"[Retry] Non-retryable in {func_name}: {exc}")
+    logger.warning("[Retry] Non-retryable in %s: %s", func_name, exc)
     if wrapper:
         raise wrapper(detail=str(exc), original_error=exc) from exc
     raise
-
 
 def with_retry(
     config: RetryConfig | None = None,
@@ -428,7 +399,6 @@ def with_retry(
 
     return decorator
 
-
 async def _handle_retryable_async(
     exc: Exception,
     func_name: str,
@@ -445,7 +415,6 @@ async def _handle_retryable_async(
     if on_retry:
         on_retry(attempt, exc, delay)
     await asyncio.sleep(delay)
-
 
 async def _run_async_with_retry(
     func: Callable,
@@ -473,12 +442,10 @@ async def _run_async_with_retry(
                 await asyncio.sleep(cfg.initial_delay)
     _raise_if_wrapped(last_exception, wrapper, cfg.max_attempts)
 
-
 def _check_non_retryable_pipeline_error(exc: Exception) -> None:
     """Re-raise if exception is a non-retryable PipelineError."""
     if isinstance(exc, PipelineError) and not exc.retryable:
         raise exc
-
 
 def _run_sync_with_retry(
     func: Callable,
@@ -501,7 +468,6 @@ def _run_sync_with_retry(
             delay = cfg.initial_delay * (cfg.exponential_base ** (attempt - 1))
             time.sleep(delay)
     _raise_if_wrapped(last_exception, wrapper, cfg.max_attempts)
-
 
 # =============================================================================
 # CIRCUIT BREAKER — Canonical implementation in core/circuit_breaker.py

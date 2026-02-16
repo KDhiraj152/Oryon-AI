@@ -409,8 +409,10 @@ export const LogoLoop = React.memo<LogoLoopProps>(
             className={cx('flex items-center', isVertical && 'flex-col')}
             key={`copy-${copyIndex}`}
             ref={el => {
-              if (copyIndex === 0 && typeof seqRef === 'function') seqRef(el);
-              else if (copyIndex === 0 && seqRef) (seqRef as React.MutableRefObject<HTMLUListElement | null>).current = el;
+              if (copyIndex === 0 && seqRef) {
+                if (typeof seqRef === 'function') (seqRef as (el: HTMLUListElement | null) => void)(el);
+                else (seqRef as React.MutableRefObject<HTMLUListElement | null>).current = el;
+              }
               if (el && copyIndex > 0) el.setAttribute('aria-hidden', 'true');
             }}
           >
@@ -438,7 +440,7 @@ export const LogoLoop = React.memo<LogoLoopProps>(
     );
 
     return (
-      <section ref={el => { (containerRef as React.MutableRefObject<HTMLDivElement | null>).current = el; if (el) Object.entries(containerStyle).forEach(([k, v]) => el.style.setProperty(k, String(v))); }} className={rootClasses} aria-label={ariaLabel}>
+      <section ref={el => { (containerRef as React.MutableRefObject<HTMLDivElement | null>).current = el as HTMLDivElement | null; if (el) Object.entries(containerStyle).forEach(([k, v]) => el.style.setProperty(k, String(v))); }} className={rootClasses} aria-label={ariaLabel}>
         {fadeOut && (
           <>
             {isVertical ? (

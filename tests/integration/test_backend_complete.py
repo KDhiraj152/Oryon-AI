@@ -1,5 +1,5 @@
 """
-Comprehensive Backend Tests for ShikshaSetu Platform
+Comprehensive Backend Tests for Oryon Platform
 Tests all critical backend functionality including:
 - Authentication & Authorization
 - File Upload & Processing

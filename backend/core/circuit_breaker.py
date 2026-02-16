@@ -25,20 +25,18 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timezone
 from enum import Enum
-from typing import Any, Dict, Optional, TypeVar
+from typing import Any, ClassVar, TypeVar
 
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
-
-class CircuitState(str, Enum):
+class CircuitState(Enum):
     """Circuit breaker states."""
 
     CLOSED = "closed"
     OPEN = "open"
     HALF_OPEN = "half_open"
-
 
 @dataclass
 class CircuitBreakerConfig:
@@ -49,7 +47,6 @@ class CircuitBreakerConfig:
     timeout_seconds: float = 30.0  # Time before attempting recovery
     half_open_max_calls: int = 3  # Max calls allowed in half-open state
     excluded_exceptions: tuple = ()  # Exceptions that don't count as failures
-
 
 @dataclass
 class CircuitStats:
@@ -83,7 +80,6 @@ class CircuitStats:
             "recent_failures": list(self.recent_failures),
         }
 
-
 class CircuitBreakerError(Exception):
     """Raised when circuit breaker is open."""
 
@@ -93,7 +89,6 @@ class CircuitBreakerError(Exception):
         super().__init__(
             f"Circuit breaker open for {service_name}. Retry after {retry_after:.1f}s"
         )
-
 
 class CircuitBreaker:
     """
@@ -111,7 +106,7 @@ class CircuitBreaker:
     """
 
     # Global registry of all circuit breakers
-    _registry: dict[str, "CircuitBreaker"] = {}
+    _registry: ClassVar[dict[str, "CircuitBreaker"]] = {}
 
     def __init__(self, name: str, config: CircuitBreakerConfig | None = None):
         self.name = name
@@ -124,7 +119,7 @@ class CircuitBreaker:
         CircuitBreaker._registry[name] = self
 
     @classmethod
-    def get(cls, name: str) -> Optional["CircuitBreaker"]:
+    def get(cls, name: str) -> "CircuitBreaker | None":
         """Get a circuit breaker by name."""
         return cls._registry.get(name)
 
@@ -146,7 +141,7 @@ class CircuitBreaker:
             ):
                 self.stats.state = CircuitState.HALF_OPEN
                 self._half_open_calls = 0
-                logger.info(f"Circuit breaker '{self.name}' transitioning to HALF_OPEN")
+                logger.info("Circuit breaker '%s' transitioning to HALF_OPEN", self.name)
                 return True
             return False
 
@@ -165,12 +160,11 @@ class CircuitBreaker:
         self.stats.total_successes += 1
         self.stats.last_success_time = time.time()
 
-        if self.stats.state == CircuitState.HALF_OPEN:
-            if self.stats.success_count >= self.config.success_threshold:
+        if self.stats.state == CircuitState.HALF_OPEN and self.stats.success_count >= self.config.success_threshold:
                 self.stats.state = CircuitState.CLOSED
                 self.stats.failure_count = 0
                 self.stats.success_count = 0
-                logger.info(f"Circuit breaker '{self.name}' CLOSED (recovered)")
+                logger.info("Circuit breaker '%s' CLOSED (recovered)", self.name)
 
     def _record_failure(self, error: Exception) -> None:
         """Record a failed call."""
@@ -186,7 +180,7 @@ class CircuitBreaker:
             self.stats.state = CircuitState.OPEN
             self.stats.opened_at = time.time()
             self.stats.success_count = 0
-            logger.warning(f"Circuit breaker '{self.name}' OPEN (failed in half-open)")
+            logger.warning("Circuit breaker '%s' OPEN (failed in half-open)", self.name)
 
         elif self.stats.state == CircuitState.CLOSED:
             if self.stats.failure_count >= self.config.failure_threshold:
@@ -196,7 +190,7 @@ class CircuitBreaker:
                     f"Circuit breaker '{self.name}' OPEN (threshold reached)"
                 )
 
-    async def execute(self, func: Callable[..., T], *args, **kwargs) -> T:
+    async def execute(self, func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         """Execute a function with circuit breaker protection (async)."""
         async with self._lock:
             if not self._should_allow_request():
@@ -226,7 +220,7 @@ class CircuitBreaker:
                 self._record_failure(e)
             raise
 
-    def call_sync(self, func: Callable[..., T], *args, **kwargs) -> T:
+    def call_sync(self, func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         """Execute a function with circuit breaker protection (sync version).
 
         Thread-safe synchronous circuit breaker execution for embedding/sync code paths.
@@ -250,11 +244,11 @@ class CircuitBreaker:
             self._record_failure(e)
             raise
 
-    def __call__(self, func: Callable[..., T]) -> Callable[..., T]:
+    def __call__(self, func: Callable[..., Any]) -> Callable[..., Any]:
         """Decorator for protecting a function with circuit breaker."""
 
         @functools.wraps(func)
-        async def wrapper(*args, **kwargs) -> T:
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
             return await self.execute(func, *args, **kwargs)
 
         return wrapper
@@ -263,8 +257,7 @@ class CircuitBreaker:
         """Manually reset the circuit breaker to closed state."""
         self.stats = CircuitStats()
         self._half_open_calls = 0
-        logger.info(f"Circuit breaker '{self.name}' manually reset to CLOSED")
-
+        logger.info("Circuit breaker '%s' manually reset to CLOSED", self.name)
 
 # Pre-configured circuit breakers for common services
 def get_database_breaker() -> CircuitBreaker:
@@ -278,7 +271,6 @@ def get_database_breaker() -> CircuitBreaker:
         )
     return CircuitBreaker._registry["database"]
 
-
 def get_redis_breaker() -> CircuitBreaker:
     """Get or create the Redis circuit breaker."""
     if "redis" not in CircuitBreaker._registry:
@@ -289,7 +281,6 @@ def get_redis_breaker() -> CircuitBreaker:
             ),
         )
     return CircuitBreaker._registry["redis"]
-
 
 def get_ml_breaker() -> CircuitBreaker:
     """Get or create the ML model circuit breaker."""
@@ -302,7 +293,6 @@ def get_ml_breaker() -> CircuitBreaker:
         )
     return CircuitBreaker._registry["ml_model"]
 
-
 def get_external_api_breaker() -> CircuitBreaker:
     """Get or create the external API circuit breaker."""
     if "external_api" not in CircuitBreaker._registry:
@@ -313,7 +303,6 @@ def get_external_api_breaker() -> CircuitBreaker:
             ),
         )
     return CircuitBreaker._registry["external_api"]
-
 
 # Convenience decorator
 def circuit_breaker(service_name: str, config: CircuitBreakerConfig | None = None):
@@ -326,13 +315,13 @@ def circuit_breaker(service_name: str, config: CircuitBreakerConfig | None = Non
             return await redis.get(key)
     """
 
-    def decorator(func: Callable[..., T]) -> Callable[..., T]:
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         breaker = CircuitBreaker.get(service_name)
         if not breaker:
             breaker = CircuitBreaker(service_name, config)
 
         @functools.wraps(func)
-        async def wrapper(*args, **kwargs) -> T:
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
             return await breaker.execute(func, *args, **kwargs)
 
         return wrapper

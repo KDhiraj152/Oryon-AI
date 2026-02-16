@@ -29,10 +29,11 @@ from typing import Any
 
 import numpy as np
 
+from backend.utils.lock_factory import create_lock
+
 from ..types import ModelType
 
 logger = logging.getLogger(__name__)
-
 
 @dataclass
 class HardwareModelConfig:
@@ -51,10 +52,8 @@ class HardwareModelConfig:
     keep_loaded: bool = True  # Keep in memory
     cache_dir: str | None = None
 
-
 # Backward-compatible alias
 ModelConfig = HardwareModelConfig
-
 
 @dataclass
 class LoadedModel:
@@ -74,7 +73,6 @@ class LoadedModel:
         if self.inference_count == 0:
             return 0.0
         return self.total_inference_time / self.inference_count
-
 
 class ModelWarmupMixin:
     """Mixin providing model warmup functionality."""
@@ -196,10 +194,9 @@ class ModelWarmupMixin:
                 f"LLM warmup: {num_iterations} iterations in {warmup_time * 1000:.0f}ms"
             )
             return warmup_time
-        except Exception as e:
-            logger.warning(f"LLM warmup failed: {e}")
+        except (RuntimeError, ValueError, OSError) as e:
+            logger.warning("LLM warmup failed: %s", e)
             return 0.0
-
 
 class HighPerformanceModelManager(ModelWarmupMixin):
     """
@@ -214,7 +211,7 @@ class HighPerformanceModelManager(ModelWarmupMixin):
     """
 
     _instance = None
-    _lock = threading.Lock()
+    _lock = create_lock()
 
     def __new__(cls):
         if cls._instance is None:
@@ -237,7 +234,7 @@ class HighPerformanceModelManager(ModelWarmupMixin):
         self._apply_global_optimizations()
 
         self._initialized = True
-        logger.info(f"HighPerformanceModelManager initialized (device: {self._device})")
+        logger.info("HighPerformanceModelManager initialized (device: %s)", self._device)
 
     def _check_mps(self) -> bool:
         """Check if MPS is available."""
@@ -245,7 +242,7 @@ class HighPerformanceModelManager(ModelWarmupMixin):
             import torch
 
             return torch.backends.mps.is_available()
-        except Exception:
+        except (ImportError, RuntimeError):
             return False
 
     def _apply_global_optimizations(self):
@@ -266,7 +263,7 @@ class HighPerformanceModelManager(ModelWarmupMixin):
             import torch
 
             torch.set_num_threads(4)
-        except Exception:
+        except (ImportError, RuntimeError):
             pass
 
     def _get_model_lock(self, model_key: str) -> threading.Lock:
@@ -391,7 +388,7 @@ class HighPerformanceModelManager(ModelWarmupMixin):
             from transformers import AutoTokenizer, VitsModel
 
             model_id = "facebook/mms-tts-hin"
-            logger.info(f"Loading TTS model ({model_id})...")
+            logger.info("Loading TTS model (%s)...", model_id)
             start = time.perf_counter()
 
             tokenizer = AutoTokenizer.from_pretrained(
@@ -444,7 +441,7 @@ class HighPerformanceModelManager(ModelWarmupMixin):
             from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 
             model_id = "openai/whisper-large-v3-turbo"
-            logger.info(f"Loading STT model ({model_id})...")
+            logger.info("Loading STT model (%s)...", model_id)
             start = time.perf_counter()
 
             model = (
@@ -508,7 +505,7 @@ class HighPerformanceModelManager(ModelWarmupMixin):
             import mlx_lm
 
             model_id = "mlx-community/Qwen3-8B-4bit"
-            logger.info(f"Loading LLM model ({model_id})...")
+            logger.info("Loading LLM model (%s)...", model_id)
             start = time.perf_counter()
 
             _loaded = mlx_lm.load(model_id)
@@ -563,7 +560,7 @@ class HighPerformanceModelManager(ModelWarmupMixin):
         total = time.perf_counter() - start
         times["total"] = total
 
-        logger.info(f"=== All models preloaded in {total:.1f}s ===")
+        logger.info("=== All models preloaded in %.1fs ===", total)
         return times
 
     def encode_texts(
@@ -730,15 +727,13 @@ class HighPerformanceModelManager(ModelWarmupMixin):
 
             if torch.backends.mps.is_available():
                 torch.mps.empty_cache()
-        except Exception:
+        except (ImportError, RuntimeError):
             pass
         gc.collect()
 
-
 # Thread-safe singleton accessor with double-checked locking
 _model_manager: HighPerformanceModelManager | None = None
-_model_manager_lock = threading.Lock()
-
+_model_manager_lock = create_lock()
 
 def get_model_manager() -> HighPerformanceModelManager:
     """Get global model manager instance (thread-safe with double-checked locking)."""
@@ -749,7 +744,6 @@ def get_model_manager() -> HighPerformanceModelManager:
             if _model_manager is None:
                 _model_manager = HighPerformanceModelManager()
     return _model_manager
-
 
 __all__ = [
     "HighPerformanceModelManager",

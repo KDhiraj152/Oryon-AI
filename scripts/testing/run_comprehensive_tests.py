@@ -10,14 +10,15 @@ Runs all tests and provides detailed metrics including:
 - Feature-specific test results
 """
 
-import sys
-import os
 import json
-import time
+import os
 import subprocess
+import sys
+import time
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Any
+
 import pytest
 
 
@@ -40,7 +41,7 @@ class TestMetricsCollector:
     def run_tests(self) -> int:
         """Run all tests with coverage and collect metrics."""
         print("=" * 80)
-        print("ShikshaSetu Comprehensive Test Suite")
+        print("Oryon Comprehensive Test Suite")
         print("=" * 80)
         print(f"Started: {self.results['timestamp']}")
         print()
@@ -102,7 +103,7 @@ class TestMetricsCollector:
                     for testcase in root.findall('.//testcase'):
                         classname = testcase.get('classname', '')
                         name = testcase.get('name', '')
-                        time_taken = float(testcase.get('time', 0))
+                        float(testcase.get('time', 0))
                         
                         # Check for failures
                         failure = testcase.find('failure')
@@ -127,7 +128,7 @@ class TestMetricsCollector:
         coverage_path = Path("test-results/coverage.json")
         if coverage_path.exists():
             try:
-                with open(coverage_path, 'r') as f:
+                with open(coverage_path) as f:
                     coverage_data = json.load(f)
                 
                 totals = coverage_data.get('totals', {})

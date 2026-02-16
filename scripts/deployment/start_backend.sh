@@ -1,6 +1,6 @@
 #!/bin/bash
 # ===================================================================
-# ShikshaSetu - Backend Only (v2.0)
+# Oryon - Backend Only (v2.0)
 # Starts Backend API and AI/ML Pipeline without Frontend
 #
 # V2 API Endpoints:
@@ -28,7 +28,7 @@ NC='\033[0m'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR/../.."
 
-PID_DIR="/tmp/shiksha_setu"
+PID_DIR="/tmp/oryon"
 mkdir -p "$PID_DIR"
 
 print_header() {
@@ -59,7 +59,7 @@ if [ ! -f "requirements.txt" ]; then
     exit 1
 fi
 
-print_header "🔧 SHIKSHA SETU - BACKEND ONLY"
+print_header "🔧 ORYON AI - BACKEND ONLY"
 
 # ===================================================================
 # Checks

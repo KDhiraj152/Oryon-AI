@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 """
-ShikshaSetu Setup Validation Script
+Oryon Setup Validation Script
 Validates environment configuration, dependencies, and connections
 """
 
 import os
 import sys
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 # Add project root to path
 project_root = Path(__file__).parent.parent
@@ -178,7 +177,7 @@ def check_frontend() -> tuple[bool, str]:
 def main():
     """Main validation function"""
     print("\n" + "=" * 70)
-    print("  🎓 SHIKSHA SETU - SETUP VALIDATION")
+    print("  🎓 ORYON AI - SETUP VALIDATION")
     print("=" * 70)
 
     all_checks_passed = True
@@ -232,7 +231,7 @@ def main():
     print_status("Frontend", status, msg)
     # Don't fail if frontend is not set up
     if not status:
-        print("  ℹ️  INFO: Frontend not required for backend-only development")
+        print("  (i) INFO: Frontend not required for backend-only development")
 
     # Final summary
     print("\n" + "=" * 70)

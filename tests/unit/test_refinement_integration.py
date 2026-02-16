@@ -82,17 +82,17 @@ class TestSimplifierRefinementIntegration:
         mock_refinement_task.SIMPLIFICATION = "simplification"
 
         with (
-            patch("backend.services.simplifier.REFINEMENT_AVAILABLE", True),
+            patch("backend.services.content.simplifier.REFINEMENT_AVAILABLE", True),
             patch(
-                "backend.services.simplifier.RefinementTask",
+                "backend.services.content.simplifier.RefinementTask",
                 mock_refinement_task,
             ),
             patch(
-                "backend.services.simplifier.TextSimplifier._get_refinement_pipeline",
+                "backend.services.content.simplifier.TextSimplifier._get_refinement_pipeline",
                 return_value=mock_pipeline,
             ),
         ):
-            from backend.services.simplifier import TextSimplifier
+            from backend.services.content.simplifier import TextSimplifier
 
             simplifier = TextSimplifier(
                 client=mock_llm_client,
@@ -114,8 +114,8 @@ class TestSimplifierRefinementIntegration:
     @pytest.mark.asyncio
     async def test_simplifier_without_refinement(self, mock_llm_client):
         """Test simplification without refinement (single-pass)."""
-        with patch("backend.services.simplifier.REFINEMENT_AVAILABLE", False):
-            from backend.services.simplifier import TextSimplifier
+        with patch("backend.services.content.simplifier.REFINEMENT_AVAILABLE", False):
+            from backend.services.content.simplifier import TextSimplifier
 
             simplifier = TextSimplifier(client=mock_llm_client, enable_refinement=False)
 
@@ -140,17 +140,17 @@ class TestSimplifierRefinementIntegration:
         mock_refinement_task.SIMPLIFICATION = "simplification"
 
         with (
-            patch("backend.services.simplifier.REFINEMENT_AVAILABLE", True),
+            patch("backend.services.content.simplifier.REFINEMENT_AVAILABLE", True),
             patch(
-                "backend.services.simplifier.RefinementTask",
+                "backend.services.content.simplifier.RefinementTask",
                 mock_refinement_task,
             ),
             patch(
-                "backend.services.simplifier.TextSimplifier._get_refinement_pipeline",
+                "backend.services.content.simplifier.TextSimplifier._get_refinement_pipeline",
                 return_value=mock_pipeline,
             ),
         ):
-            from backend.services.simplifier import TextSimplifier
+            from backend.services.content.simplifier import TextSimplifier
 
             simplifier = TextSimplifier(client=mock_llm_client, enable_refinement=True)
 
@@ -164,8 +164,8 @@ class TestSimplifierRefinementIntegration:
 
     def test_simplifier_init_without_refinement_module(self):
         """Test that simplifier works when refinement module is not available."""
-        with patch("backend.services.simplifier.REFINEMENT_AVAILABLE", False):
-            from backend.services.simplifier import TextSimplifier
+        with patch("backend.services.content.simplifier.REFINEMENT_AVAILABLE", False):
+            from backend.services.content.simplifier import TextSimplifier
 
             # Should initialize without error
             simplifier = TextSimplifier(enable_refinement=True)
@@ -226,8 +226,8 @@ class TestTranslationEngineRefinementIntegration:
 
     def test_translation_engine_init_with_refinement(self, mock_model_client):
         """Test TranslationEngine initialization with refinement enabled."""
-        with patch("backend.services.translate.engine.REFINEMENT_AVAILABLE", True):
-            from backend.services.translate.engine import TranslationEngine
+        with patch("backend.ml.translate.engine.REFINEMENT_AVAILABLE", True):
+            from backend.ml.translate.engine import TranslationEngine
 
             engine = TranslationEngine(
                 model_client=mock_model_client,
@@ -240,8 +240,8 @@ class TestTranslationEngineRefinementIntegration:
 
     def test_translation_single_pass(self, mock_model_client):
         """Test translation without refinement."""
-        with patch("backend.services.translate.engine.REFINEMENT_AVAILABLE", False):
-            from backend.services.translate.engine import TranslationEngine
+        with patch("backend.ml.translate.engine.REFINEMENT_AVAILABLE", False):
+            from backend.ml.translate.engine import TranslationEngine
 
             engine = TranslationEngine(
                 model_client=mock_model_client, enable_refinement=False
@@ -263,7 +263,7 @@ class TestRefinementPipelineUnit:
     def test_refinement_config_defaults(self):
         """Test RefinementConfig default values (M4-optimized)."""
         try:
-            from backend.services.evaluation.refinement_pipeline import RefinementConfig
+            from backend.ml.evaluation.refinement_pipeline import RefinementConfig
 
             config = RefinementConfig()
 
@@ -281,7 +281,7 @@ class TestRefinementPipelineUnit:
     def test_refinement_task_enum(self):
         """Test RefinementTask enum values."""
         try:
-            from backend.services.evaluation.refinement_pipeline import RefinementTask
+            from backend.ml.evaluation.refinement_pipeline import RefinementTask
 
             assert RefinementTask.SIMPLIFICATION.value == "simplification"
             assert RefinementTask.TRANSLATION.value == "translation"
@@ -293,7 +293,7 @@ class TestRefinementPipelineUnit:
     def test_task_aware_weights(self):
         """Test that different tasks use different evaluation weights."""
         try:
-            from backend.services.evaluation.refinement_pipeline import (
+            from backend.ml.evaluation.refinement_pipeline import (
                 RefinementConfig,
                 RefinementTask,
             )
@@ -324,7 +324,7 @@ class TestEndToEndRefinement:
         # 1. Qwen3-8B loaded (MLX)
         # 2. BGE-M3 embeddings loaded
 
-        from backend.services.simplifier import TextSimplifier
+        from backend.services.content.simplifier import TextSimplifier
 
         simplifier = TextSimplifier(enable_refinement=True, target_semantic_score=8.2)
 

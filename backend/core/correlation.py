@@ -12,7 +12,7 @@ import uuid
 from collections.abc import Callable
 from contextvars import ContextVar
 from functools import wraps
-from typing import Any, Dict, Optional, TypeVar
+from typing import Any, cast
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -24,45 +24,37 @@ request_context_var: ContextVar[dict[str, Any] | None] = ContextVar(
     "request_context", default=None
 )
 
-F = TypeVar("F", bound=Callable[..., Any])
-
+Scope = dict[str, Any]
 
 # =============================================================================
 # CONTEXT MANAGEMENT
 # =============================================================================
 
-
 def get_request_id() -> str | None:
     """Get current request ID from context."""
     return request_id_var.get()
-
 
 def get_request_context() -> dict[str, Any]:
     """Get current request context."""
     ctx = request_context_var.get()
     return ctx if ctx is not None else {}
 
-
 def set_request_id(request_id: str) -> str:
     """Set request ID in context."""
     request_id_var.set(request_id)
     return request_id
 
-
 def set_request_context(context: dict[str, Any]):
     """Set request context."""
     request_context_var.set(context)
-
 
 def generate_request_id() -> str:
     """Generate a new unique request ID."""
     return str(uuid.uuid4())[:12]  # Short but unique enough
 
-
 # =============================================================================
 # CORRELATION LOGGING FILTER
 # =============================================================================
-
 
 class CorrelationLogFilter(logging.Filter):
     """
@@ -76,7 +68,6 @@ class CorrelationLogFilter(logging.Filter):
         record.request_id = request_id_var.get() or "-"
         record.context = request_context_var.get() or {}
         return True
-
 
 class CorrelationLogFormatter(logging.Formatter):
     """
@@ -96,7 +87,6 @@ class CorrelationLogFormatter(logging.Formatter):
         if not hasattr(record, "request_id"):
             record.request_id = "-"
         return super().format(record)
-
 
 def setup_correlation_logging(logger_name: str | None = None):
     """
@@ -120,11 +110,9 @@ def setup_correlation_logging(logger_name: str | None = None):
         handler.setFormatter(CorrelationLogFormatter())
         logger.addHandler(handler)
 
-
 # =============================================================================
 # FASTAPI MIDDLEWARE
 # =============================================================================
-
 
 class CorrelationIdMiddleware(BaseHTTPMiddleware):
     """
@@ -136,7 +124,7 @@ class CorrelationIdMiddleware(BaseHTTPMiddleware):
 
     HEADER_NAME = "X-Request-ID"
 
-    async def dispatch(self, request: Request, call_next) -> Response:
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
         # Get or generate request ID
         request_id = request.headers.get(self.HEADER_NAME) or generate_request_id()
 
@@ -154,20 +142,18 @@ class CorrelationIdMiddleware(BaseHTTPMiddleware):
         request.state.request_id = request_id
 
         # Process request
-        response = await call_next(request)
+        response: Response = cast(Response, await call_next(request))
 
         # Add to response headers
         response.headers[self.HEADER_NAME] = request_id
 
         return response
 
-
 # =============================================================================
 # DECORATOR FOR PROPAGATING CONTEXT
 # =============================================================================
 
-
-def with_correlation(func: F) -> F:
+def with_correlation(func: Callable) -> Callable:
     """
     Decorator to ensure correlation ID is logged with function execution.
 
@@ -179,7 +165,7 @@ def with_correlation(func: F) -> F:
     """
 
     @wraps(func)
-    async def async_wrapper(*args, **kwargs):
+    async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
         request_id = get_request_id()
         logger = logging.getLogger(func.__module__)
 
@@ -199,17 +185,17 @@ def with_correlation(func: F) -> F:
             raise
 
     @wraps(func)
-    def sync_wrapper(*args, **kwargs):
+    def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
         # request_id available via get_request_id() if needed for logging
         logger = logging.getLogger(func.__module__)
 
-        logger.debug(f"Entering {func.__name__}")
+        logger.debug("Entering %s", func.__name__)
 
         try:
             result = func(*args, **kwargs)
             return result
         except Exception as e:
-            logger.error(f"Error in {func.__name__}: {e}")
+            logger.error("Error in %s: %s", func.__name__, e)
             raise
 
     import asyncio
@@ -218,11 +204,9 @@ def with_correlation(func: F) -> F:
         return async_wrapper
     return sync_wrapper
 
-
 # =============================================================================
 # STRUCTURED LOG HELPER
 # =============================================================================
-
 
 class CorrelatedLogger:
     """
@@ -264,7 +248,6 @@ class CorrelatedLogger:
 
     def exception(self, msg: str, **kwargs):
         self._logger.exception(msg, extra={"request_id": get_request_id(), **kwargs})
-
 
 # =============================================================================
 # EXPORTS

@@ -1,4 +1,4 @@
-"""Pydantic schemas for ShikshaSetu API."""
+"""Pydantic schemas for Oryon API."""
 
 from .auth import (
     RefreshTokenRequest,

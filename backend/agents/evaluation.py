@@ -14,6 +14,7 @@ Emits to: SelfImprovementAgent (regression alerts), Orchestrator (quality report
 """
 
 import asyncio
+import contextlib
 import logging
 import math
 import time
@@ -25,7 +26,6 @@ from .base import AgentMessage, BaseAgent, MessageType
 
 logger = logging.getLogger(__name__)
 
-
 # SLA targets per task type (P95 latency in milliseconds)
 SLA_TARGETS: dict[str, float] = {
     "llm": 5000.0,          # 5s for full generation
@@ -36,7 +36,6 @@ SLA_TARGETS: dict[str, float] = {
     "stt": 8000.0,           # 8s for transcription
     "ocr": 6000.0,           # 6s for OCR processing
 }
-
 
 @dataclass
 class MetricWindow:
@@ -95,7 +94,6 @@ class MetricWindow:
     def count(self) -> int:
         return len(self.values)
 
-
 @dataclass
 class SLAStatus:
     """Current SLA compliance status for a model."""
@@ -115,7 +113,6 @@ class SLAStatus:
             "headroom_pct": round(self.headroom_pct, 1),
             "samples": self.samples,
         }
-
 
 @dataclass
 class RegressionAlert:
@@ -138,7 +135,6 @@ class RegressionAlert:
             "severity": self.severity,
             "timestamp": self.timestamp,
         }
-
 
 class EvaluationAgent(BaseAgent):
     """
@@ -190,10 +186,8 @@ class EvaluationAgent(BaseAgent):
         """Stop evaluation loop and base agent."""
         if self._eval_task:
             self._eval_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._eval_task
-            except asyncio.CancelledError:  # NOSONAR
-                pass  # Expected after task.cancel() during shutdown
         await super().stop()
 
     async def handle_message(self, message: AgentMessage) -> AgentMessage | None:
@@ -244,8 +238,8 @@ class EvaluationAgent(BaseAgent):
             except asyncio.CancelledError:
                 logger.debug("Evaluation loop cancelled")
                 raise
-            except Exception as e:
-                logger.error(f"Evaluation loop error: {e}", exc_info=True)
+            except Exception as e:  # top-level handler
+                logger.error("Evaluation loop error: %s", e, exc_info=True)
             await asyncio.sleep(self._eval_interval)
 
     async def _run_evaluation(self) -> None:

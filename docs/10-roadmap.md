@@ -30,12 +30,12 @@ The development roadmap focuses on three core objectives:
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: shiksha-setu-hpa
+  name: oryon-ai-hpa
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: shiksha-setu-backend
+    name: oryon-ai-backend
   minReplicas: 3
   maxReplicas: 50
   metrics:
@@ -64,7 +64,7 @@ spec:
 **Objective:** Transition from single Redis to clustered deployment.
 
 ```python
-# backend/cache/redis_cluster.py
+# backend/infra/cache/redis_cluster.py
 from redis.cluster import RedisCluster
 
 class ClusteredCacheService:
@@ -106,7 +106,7 @@ class ClusteredCacheService:
 **Objective:** Scale read operations for analytics and reporting.
 
 ```python
-# backend/database.py
+# backend/db/database.py
 class DatabaseManager:
     def __init__(self):
         self.write_engine = create_async_engine(

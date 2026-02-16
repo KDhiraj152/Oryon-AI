@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================================
-# ShikshaSetu - Python 3.11 Environment Setup Script (v1.1)
+# Oryon - Python 3.11 Environment Setup Script (v1.1)
 # ============================================================================
 # This script sets up Python 3.11 virtual environment for optimal compatibility
 # with all ML/AI packages including MLX, Transformers, and verovio.
@@ -56,7 +56,7 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$PROJECT_ROOT"
 
 echo -e "${BLUE}============================================================================${NC}"
-echo -e "${BLUE}   ShikshaSetu - Python 3.11 Environment Setup${NC}"
+echo -e "${BLUE}   Oryon - Python 3.11 Environment Setup${NC}"
 echo -e "${BLUE}============================================================================${NC}"
 echo ""
 

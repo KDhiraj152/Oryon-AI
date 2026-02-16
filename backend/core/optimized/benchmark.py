@@ -18,7 +18,6 @@ import os
 import sys
 import time
 from collections.abc import Callable
-from typing import Tuple
 
 import numpy as np
 
@@ -26,7 +25,6 @@ import numpy as np
 sys.path.insert(
     0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 )
-
 
 def benchmark(name: str, func: Callable, iterations: int = 100) -> tuple[float, float]:
     """
@@ -50,8 +48,7 @@ def benchmark(name: str, func: Callable, iterations: int = 100) -> tuple[float, 
 
     mean = np.mean(times)
     std = np.std(times)
-    return mean, std
-
+    return float(mean), float(std)
 
 def print_result(
     name: str, mean: float, std: float, baseline_mean: float | None = None
@@ -62,7 +59,6 @@ def print_result(
         ratio = baseline_mean / mean
         speedup = f" ({ratio:.2f}x vs baseline)"
     print(f"  {name}: {mean:.3f} ± {std:.3f} ms{speedup}")
-
 
 def benchmark_simd():
     """Benchmark SIMD operations."""
@@ -144,7 +140,6 @@ def benchmark_simd():
     print_result("Baseline normalize", base_mean, base_std)
     print_result("Optimized normalize", opt_mean, opt_std, base_mean)
 
-
 def benchmark_hnsw():
     """Benchmark HNSW search."""
     print("\n=== HNSW Search ===")
@@ -195,79 +190,14 @@ def benchmark_hnsw():
     stats = searcher.get_stats()
     print(f"  GPU ratio: {stats['gpu_ratio']:.1%}")
 
-
-def benchmark_zero_copy():
-    """Benchmark zero-copy operations."""
-    print("\n=== Zero-Copy Memory ===")
-
-    from backend.core.optimized.zero_copy import (
-        NumpyBufferPool,
-        ZeroCopyBuffer,
-        bytes_to_numpy_zerocopy,
-        numpy_to_bytes_zerocopy,
-    )
-
-    # Test data
-    arr = np.random.randn(1024, 1024).astype(np.float32)
-    data = arr.tobytes()
-
-    # Serialization benchmark
-    def baseline_tobytes():
-        return arr.tobytes()
-
-    def optimized_tobytes():
-        return numpy_to_bytes_zerocopy(arr)
-
-    base_mean, base_std = benchmark("Baseline tobytes", baseline_tobytes, 100)
-    opt_mean, opt_std = benchmark("Optimized tobytes", optimized_tobytes, 100)
-    print_result("Baseline tobytes", base_mean, base_std)
-    print_result("Optimized tobytes", opt_mean, opt_std, base_mean)
-
-    # Deserialization
-    def baseline_frombuffer():
-        return np.frombuffer(data, dtype=np.float32).reshape(1024, 1024).copy()
-
-    def optimized_frombuffer():
-        return bytes_to_numpy_zerocopy(data, np.float32, (1024, 1024))
-
-    base_mean, base_std = benchmark("Baseline frombuffer", baseline_frombuffer, 100)
-    opt_mean, opt_std = benchmark("Optimized frombuffer", optimized_frombuffer, 100)
-    print_result("Baseline frombuffer", base_mean, base_std)
-    print_result("Optimized frombuffer", opt_mean, opt_std, base_mean)
-
-    # Buffer pool
-    pool = NumpyBufferPool()
-    shape = (256, 1024)
-
-    def direct_alloc():
-        arr = np.empty(shape, dtype=np.float32)
-        return arr
-
-    def pooled_alloc():
-        arr = pool.acquire(shape, np.float32)
-        pool.release(arr)
-        return arr
-
-    # Warmup pool
-    for _ in range(10):
-        a = pool.acquire(shape, np.float32)
-        pool.release(a)
-
-    base_mean, base_std = benchmark("Direct alloc", direct_alloc, 1000)
-    opt_mean, opt_std = benchmark("Pooled alloc", pooled_alloc, 1000)
-    print_result("Direct allocation", base_mean, base_std)
-    print_result("Pooled allocation", opt_mean, opt_std, base_mean)
-    print(f"  Pool stats: {pool.get_stats()}")
-
-
 def benchmark_embedding_cache():
     """Benchmark embedding cache operations."""
     print("\n=== Embedding Cache ===")
 
     # Skip if database not available
     try:
-        from backend.cache.embedding_cache import EmbeddingCache
-    except Exception as e:
+        from backend.infra.cache.embedding_cache import EmbeddingCache
+    except (ImportError, RuntimeError) as e:
         print(f"  Skipped: {e}")
         return
 
@@ -314,7 +244,6 @@ def benchmark_embedding_cache():
     finally:
         os.unlink(db_path)
 
-
 def main():
     """Run all benchmarks."""
     print("=" * 60)
@@ -340,22 +269,20 @@ def main():
 
     # Run benchmarks
     benchmark_simd()
-    benchmark_zero_copy()
 
     try:
         benchmark_hnsw()
-    except Exception as e:
+    except (RuntimeError, OSError, ValueError) as e:
         print(f"\n=== HNSW Search ===\n  Skipped: {e}")
 
     try:
         benchmark_embedding_cache()
-    except Exception as e:
+    except (RuntimeError, OSError, ValueError) as e:
         print(f"\n=== Embedding Cache ===\n  Skipped: {e}")
 
     print("\n" + "=" * 60)
     print("Benchmark complete")
     print("=" * 60)
-
 
 if __name__ == "__main__":
     main()

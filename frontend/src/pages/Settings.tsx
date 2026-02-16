@@ -20,180 +20,17 @@ import {
 import { useThemeStore, useAuthStore, useChatStore, useProfileStore } from '../store';
 import { OmLogo } from '../components/landing/OmLogo';
 import { useSystemStatus } from '../context/SystemStatusContext';
-
-const VOICE_TYPES = [
-  { value: 'female', label: 'Female', Icon: User },
-  { value: 'male', label: 'Male', Icon: UserCircle },
-];
-
-const SPEECH_SPEEDS = [
-  { value: 0.75, label: '0.75×', desc: 'Slow' },
-  { value: 1, label: '1×', desc: 'Normal' },
-  { value: 1.25, label: '1.25×', desc: 'Fast' },
-  { value: 1.5, label: '1.5×', desc: 'Faster' },
-];
-
-// Settings store (persisted)
-interface UserSettings {
-  voiceType: string;
-  speechSpeed: number;
-  autoReadResponses: boolean;
-}
-
-const DEFAULT_SETTINGS: UserSettings = {
-  voiceType: 'female',
-  speechSpeed: 1,
-  autoReadResponses: false,
-};
-
-function loadSettings(): UserSettings {
-  try {
-    const saved = localStorage.getItem('user-settings');
-    return saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS;
-  } catch {
-    return DEFAULT_SETTINGS;
-  }
-}
-
-function saveSettings(settings: UserSettings) {
-  localStorage.setItem('user-settings', JSON.stringify(settings));
-}
-
-// Style constants to avoid conditional branches
-const DARK_FOCUS = 'focus-visible:ring-white focus-visible:ring-offset-[#0a0a0a]';
-const LIGHT_FOCUS = 'focus-visible:ring-gray-400 focus-visible:ring-offset-gray-50';
-
-const FOCUS_STYLES = { dark: DARK_FOCUS, light: LIGHT_FOCUS } as const;
-
-function getFocusStyle(isDark: boolean): string {
-  return FOCUS_STYLES[isDark ? 'dark' : 'light'];
-}
-
-/** Get toggle button style based on selection and theme */
-function getToggleStyle(isDark: boolean, isSelected: boolean): string {
-  if (isSelected) return isDark ? 'bg-white text-black' : 'bg-gray-900 text-white';
-  return isDark ? 'bg-white/5 text-white/60 hover:bg-white/10' : 'bg-gray-50 text-gray-600 hover:bg-gray-100';
-}
-
-// Delete Confirmation Modal Component
-interface DeleteModalProps {
-  readonly isOpen: boolean;
-  readonly onClose: () => void;
-  readonly onConfirm: () => void;
-  readonly conversationCount: number;
-  readonly isDark: boolean;
-}
-
-function DeleteConfirmModal({ isOpen, onClose, onConfirm, conversationCount, isDark }: DeleteModalProps) {
-  const dialogRef = useRef<HTMLDialogElement>(null);
-
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-
-    if (isOpen) {
-      if (!dialog.open) {
-        dialog.showModal();
-      }
-    } else if (dialog.open) {
-      dialog.close();
-    }
-  }, [isOpen]);
-
-  const handleClose = useCallback(() => {
-    onClose();
-  }, [onClose]);
-
-  const pluralSuffix = conversationCount === 1 ? '' : 's';
-
-  return (
-    <dialog
-      ref={dialogRef}
-      onClose={handleClose}
-      className="fixed inset-0 z-modal flex items-center justify-center p-4 bg-transparent backdrop:bg-black/60 backdrop:backdrop-blur-md m-auto open:flex"
-    >
-      <div
-        className={`w-full max-w-md rounded-modal p-6 shadow-2xl animate-scaleIn
-          ${isDark ? 'bg-[#0a0a0a] border border-white/10' : 'bg-white'}`}
-      >
-        <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-4 ${isDark ? 'bg-red-500/10' : 'bg-red-50'}`}>
-          <Trash2 className={`w-5 h-5 ${isDark ? 'text-red-400' : 'text-red-600'}`} aria-hidden="true" />
-        </div>
-
-        <h3 id="delete-modal-title" className={`text-title font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-          Clear All Chat History?
-        </h3>
-        <p className={`text-body-sm mb-6 ${isDark ? 'text-white/60' : 'text-gray-600'}`}>
-          This will permanently delete all {conversationCount} conversation{pluralSuffix}. This action cannot be undone.
-        </p>
-
-        <div className="flex gap-3">
-          <button
-            onClick={onClose}
-            autoFocus
-            className={`flex-1 px-4 min-h-touch py-2.5 rounded-btn text-body-sm font-medium
-              transition-all duration-fast active:scale-[0.98]
-              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2
-              ${isDark
-                ? 'bg-white/10 text-white hover:bg-white/15 focus-visible:ring-white focus-visible:ring-offset-[#0a0a0a]'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200 focus-visible:ring-gray-400 focus-visible:ring-offset-white'}`}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            className="flex-1 px-4 min-h-touch py-2.5 rounded-btn text-body-sm font-medium
-              bg-red-500 text-white hover:bg-red-600
-              transition-all duration-fast active:scale-[0.98]
-              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0a]"
-          >
-            Delete All
-          </button>
-        </div>
-      </div>
-    </dialog>
-  );
-}
-
-// Policy Mode Types
-type PolicyMode = 'OPEN' | 'MODERATED' | 'RESEARCH' | 'RESTRICTED';
-
-const POLICY_MODES: {
-  value: PolicyMode;
-  label: string;
-  desc: string;
-  icon: typeof Sparkles;
-  color: string;
-}[] = [
-  {
-    value: 'OPEN',
-    label: 'Open',
-    desc: 'General AI with essential safety',
-    icon: Sparkles,
-    color: 'emerald'
-  },
-  {
-    value: 'MODERATED',
-    label: 'Education',
-    desc: 'content domain aligned',
-    icon: BookOpen,
-    color: 'blue'
-  },
-  {
-    value: 'RESEARCH',
-    label: 'Research',
-    desc: 'Maximum freedom for academics',
-    icon: FlaskConical,
-    color: 'purple'
-  },
-  {
-    value: 'RESTRICTED',
-    label: 'Restricted',
-    desc: 'Full policy enforcement',
-    icon: Lock,
-    color: 'amber'
-  },
-];
+import {
+  VOICE_TYPES,
+  SPEECH_SPEEDS,
+  POLICY_MODES,
+  getFocusStyle,
+  getToggleStyle,
+  loadSettings,
+  saveSettings,
+  DeleteConfirmModal,
+} from './settings';
+import type { PolicyMode, UserSettings } from './settings';
 
 // Policy Mode Section Component
 function PolicyModeSection({ isDark }: Readonly<{ isDark: boolean }>) {
@@ -630,7 +467,7 @@ export default function Settings() {
         </section>
 
         <footer className={`text-center py-8 ${isDark ? 'text-white/20' : 'text-gray-400'}`}>
-          <p className="text-xs">Shiksha Setu v1.0.0</p>
+          <p className="text-xs">Oryon AI v1.0.0</p>
           <p className="text-xs mt-1">Made with ❤️ for AI</p>
         </footer>
       </main>

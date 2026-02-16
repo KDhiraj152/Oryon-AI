@@ -148,7 +148,7 @@ export const SettingsSkeleton = memo(function SettingsSkeleton() {
           <Skeleton variant="text" width={120} height={20} />
           <div className="space-y-3">
             {Array.from({ length: 4 }).map((_, j) => (
-              <div key={`settings-row-${i}-${j}`} className="flex items-center justify-between p-4 rounded-xl border border-[var(--border-color)]">
+              <div key={`settings-row-${sectionNum}-${j}`} className="flex items-center justify-between p-4 rounded-xl border border-[var(--border-color)]">
                 <div className="flex items-center gap-3">
                   <Skeleton variant="circular" width={40} height={40} />
                   <div className="space-y-1">

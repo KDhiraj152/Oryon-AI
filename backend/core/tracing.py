@@ -29,7 +29,7 @@ import os
 from collections.abc import Callable
 from contextlib import contextmanager
 from datetime import UTC, datetime, timezone
-from typing import Any, Dict, Optional, TypeVar, Union
+from typing import Any, TypeVar
 
 from ..core.config import settings
 
@@ -55,7 +55,6 @@ except ImportError:
     logger.info(
         "OpenTelemetry not installed. Tracing disabled. Install with: pip install opentelemetry-api opentelemetry-sdk"
     )
-
 
 class NoOpSpan:
     """No-op span when tracing is disabled. All methods are intentionally empty/no-op."""
@@ -97,7 +96,6 @@ class NoOpSpan:
         """No-op: Context exit when tracing disabled."""
         # Intentionally empty - NoOp pattern for disabled tracing
 
-
 class NoOpTracer:
     """No-op tracer when OpenTelemetry is not available."""
 
@@ -111,7 +109,6 @@ class NoOpTracer:
     def start_as_current_span_context(self, name: str, **kwargs):
         yield NoOpSpan(name)
 
-
 class TracingManager:
     """
     Manages OpenTelemetry tracing configuration and lifecycle.
@@ -121,7 +118,7 @@ class TracingManager:
     - OTLP (production - Jaeger, Zipkin, etc.)
     """
 
-    _instance: Optional["TracingManager"] = None
+    _instance: "TracingManager | None" = None
     _initialized: bool = False
 
     def __new__(cls) -> "TracingManager":
@@ -139,7 +136,7 @@ class TracingManager:
 
     def initialize(
         self,
-        service_name: str = "shiksha-setu",
+        service_name: str = "oryon-ai",
         environment: str = "production",
         otlp_endpoint: str | None = None,
         _sample_rate: float = 1.0,  # Reserved for future sampling configuration
@@ -181,11 +178,11 @@ class TracingManager:
                 try:
                     from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
                         OTLPSpanExporter,
-                    )  # type: ignore[import-untyped]
+                    )
 
                     otlp_exporter = OTLPSpanExporter(endpoint=otlp_endpoint)
                     provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
-                    logger.info(f"OTLP exporter configured: {otlp_endpoint}")
+                    logger.info("OTLP exporter configured: %s", otlp_endpoint)
                 except ImportError:
                     logger.warning(
                         "OTLP exporter not available. Install opentelemetry-exporter-otlp"
@@ -201,23 +198,23 @@ class TracingManager:
             self._tracer = trace.get_tracer(service_name, "2.0.0")
             self._enabled = True
 
-            logger.info(f"OpenTelemetry tracing initialized for {service_name}")
+            logger.info("OpenTelemetry tracing initialized for %s", service_name)
 
-        except Exception as e:
-            logger.error(f"Failed to initialize tracing: {e}")
+        except (RuntimeError, OSError) as e:
+            logger.error("Failed to initialize tracing: %s", e)
             self._tracer = NoOpTracer()
 
     @property
-    def tracer(self) -> Union["trace.Tracer", NoOpTracer]:
+    def tracer(self) -> "trace.Tracer" | NoOpTracer:
         """Get the tracer instance."""
         return self._tracer
 
     @property
     def enabled(self) -> bool:
         """Check if tracing is enabled."""
-        return self._enabled
+        return bool(self._enabled)
 
-    def get_current_span(self) -> Union["trace.Span", NoOpSpan]:
+    def get_current_span(self) -> "trace.Span" | NoOpSpan:
         """Get the current active span."""
         if not OTEL_AVAILABLE or not self._enabled:
             return NoOpSpan()
@@ -226,22 +223,20 @@ class TracingManager:
     def inject_context(self, carrier: dict[str, str]) -> None:
         """Inject trace context into a carrier (headers)."""
         if OTEL_AVAILABLE and self._enabled:
-            from opentelemetry.propagate import inject  # type: ignore[import-untyped]
+            from opentelemetry.propagate import inject
 
             inject(carrier)
 
     def extract_context(self, carrier: dict[str, str]):
         """Extract trace context from a carrier (headers)."""
         if OTEL_AVAILABLE and self._enabled:
-            from opentelemetry.propagate import extract  # type: ignore[import-untyped]
+            from opentelemetry.propagate import extract
 
             return extract(carrier)
         return None
 
-
 # Global tracing manager instance
 _tracing_manager: TracingManager | None = None
-
 
 def get_tracing_manager() -> TracingManager:
     """Get or create the global tracing manager."""
@@ -250,18 +245,15 @@ def get_tracing_manager() -> TracingManager:
         _tracing_manager = TracingManager()
     return _tracing_manager
 
-
-def get_tracer() -> Union["trace.Tracer", NoOpTracer]:
+def get_tracer() -> "trace.Tracer" | NoOpTracer:
     """Get the global tracer instance."""
     return get_tracing_manager().tracer
-
 
 # Convenience alias
 tracer = property(lambda self: get_tracer())
 
-
 def _configure_span(
-    span: NoOpSpan, func: Callable, attributes: dict[str, Any] | None
+    span: "NoOpSpan | Any", func: Callable, attributes: dict[str, Any] | None
 ) -> None:
     """Configure span with function info and custom attributes."""
     if attributes:
@@ -270,17 +262,15 @@ def _configure_span(
     span.set_attribute("code.function", func.__name__)
     span.set_attribute("code.namespace", func.__module__)
 
-
-def _finalize_span_success(span: NoOpSpan, start_time: datetime) -> None:
+def _finalize_span_success(span: "NoOpSpan | Any", start_time: datetime) -> None:
     """Finalize span on successful execution."""
     duration_ms = (datetime.now(UTC) - start_time).total_seconds() * 1000
     span.set_attribute("duration_ms", duration_ms)
     if OTEL_AVAILABLE:
         span.set_status(Status(StatusCode.OK))
 
-
 def _finalize_span_error(
-    span: NoOpSpan, exception: Exception, record_exception: bool
+    span: "NoOpSpan | Any", exception: Exception, record_exception: bool
 ) -> None:
     """Finalize span on error."""
     if record_exception:
@@ -288,12 +278,11 @@ def _finalize_span_error(
         if OTEL_AVAILABLE:
             span.set_status(Status(StatusCode.ERROR, str(exception)))
 
-
 def trace_span(
     name: str,
     attributes: dict[str, Any] | None = None,
     record_exception: bool = True,
-) -> Callable[[Callable[..., T]], Callable[..., T]]:
+) -> Callable:
     """
     Decorator to trace a function.
 
@@ -303,9 +292,9 @@ def trace_span(
             ...
     """
 
-    def decorator(func: Callable[..., T]) -> Callable[..., T]:
+    def decorator(func: Callable[..., Any]) -> Callable:
         @functools.wraps(func)
-        async def async_wrapper(*args, **kwargs) -> T:
+        async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
             tracer = get_tracer()
             with tracer.start_as_current_span(name) as span:
                 _configure_span(span, func, attributes)
@@ -319,7 +308,7 @@ def trace_span(
                     raise
 
         @functools.wraps(func)
-        def sync_wrapper(*args, **kwargs) -> T:
+        def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
             tracer = get_tracer()
             with tracer.start_as_current_span(name) as span:
                 _configure_span(span, func, attributes)
@@ -340,7 +329,6 @@ def trace_span(
 
     return decorator
 
-
 def add_span_attributes(attributes: dict[str, Any]) -> None:
     """Add attributes to the current span."""
     span = get_tracing_manager().get_current_span()
@@ -348,13 +336,11 @@ def add_span_attributes(attributes: dict[str, Any]) -> None:
         for key, value in attributes.items():
             span.set_attribute(key, value)
 
-
 def add_span_event(name: str, attributes: dict[str, Any] | None = None) -> None:
     """Add an event to the current span."""
     span = get_tracing_manager().get_current_span()
     if span:
         span.add_event(name, attributes or {})
-
 
 # Initialize tracing on module load if enabled
 def init_tracing():
@@ -366,12 +352,11 @@ def init_tracing():
     sample_rate = float(os.getenv("OTEL_SAMPLE_RATE", "1.0"))
 
     manager.initialize(
-        service_name=getattr(settings, "APP_NAME", "shiksha-setu"),
+        service_name=getattr(settings, "APP_NAME", "oryon-ai"),
         environment=getattr(settings, "ENVIRONMENT", "development"),
         otlp_endpoint=otlp_endpoint,
         _sample_rate=sample_rate,
     )
-
 
 # Export commonly used items
 __all__ = [

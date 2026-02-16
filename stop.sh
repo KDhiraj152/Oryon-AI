@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================================
-# SHIKSHA SETU - FAST STOP SCRIPT (v4.0)
+# ORYON AI - FAST STOP SCRIPT (v4.0)
 # ============================================================================
 # Parallel shutdown for speed. Stops everything in ~2 seconds.
 #
@@ -66,8 +66,8 @@ done
 # ============================================================================
 BACKEND_PORT="${BACKEND_PORT:-8000}"
 FRONTEND_PORT="${FRONTEND_PORT:-3000}"
-POSTGRES_CONTAINERS="shikshasetu_postgres shiksha_postgres shiksha_postgres_dev"
-REDIS_CONTAINERS="shikshasetu_redis shiksha_redis shiksha_redis_dev"
+POSTGRES_CONTAINERS="oryon_postgres oryon_postgres oryon_postgres_dev"
+REDIS_CONTAINERS="oryon_redis oryon_redis oryon_redis_dev"
 
 # ============================================================================
 # COLORS & HELPERS
@@ -140,7 +140,7 @@ container_stop() {
 if ! $QUIET; then
     echo ""
     echo -e "${RED}   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${RED}   ⚠  ${WHITE}${BOLD}SHIKSHA SETU - SHUTDOWN${NC}${RED}  ⚠${NC}"
+    echo -e "${RED}   ⚠  ${WHITE}${BOLD}ORYON AI - SHUTDOWN${NC}${RED}  ⚠${NC}"
     $FORCE_KILL && echo -e "${YELLOW}   ⚡ FORCE MODE${NC}"
     $STOP_DOCKER && echo -e "${YELLOW}   🐳 INCLUDING DOCKER${NC}"
     echo -e "${RED}   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"

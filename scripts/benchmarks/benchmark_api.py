@@ -14,7 +14,7 @@ import os
 import sys
 import time
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Optional
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -224,7 +224,7 @@ async def run_concurrent_benchmarks():
 async def main():
     """Run all benchmarks."""
     print("\n" + "#" * 60)
-    print("# SHIKSHA SETU API PERFORMANCE BENCHMARKS")
+    print("# ORYON AI API PERFORMANCE BENCHMARKS")
     print("#" * 60)
 
     # Device info

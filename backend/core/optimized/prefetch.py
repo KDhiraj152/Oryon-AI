@@ -25,18 +25,18 @@ import time
 from collections import defaultdict, deque
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple
+from enum import Enum, StrEnum
+from typing import Any
+
+from backend.utils.lock_factory import create_lock
 
 logger = logging.getLogger(__name__)
-
 
 # ============================================================================
 # PREFETCH STRATEGIES
 # ============================================================================
 
-
-class PrefetchStrategy(str, Enum):
+class PrefetchStrategy(StrEnum):
     """Prefetch strategies."""
 
     ADJACENT = "adjacent"  # Sequential items
@@ -44,11 +44,9 @@ class PrefetchStrategy(str, Enum):
     TEMPORAL = "temporal"  # Time-based patterns
     SESSION = "session"  # User behavior
 
-
 # ============================================================================
 # ACCESS PATTERN TRACKER
 # ============================================================================
-
 
 @dataclass
 class AccessRecord:
@@ -58,7 +56,6 @@ class AccessRecord:
     timestamp: float
     session_id: str | None = None
     context: dict[str, Any] | None = None
-
 
 class AccessPatternTracker:
     """
@@ -74,6 +71,8 @@ class AccessPatternTracker:
     ):
         self._window_size = window_size
         self._sequence_length = sequence_length
+        self._max_transition_keys = 10_000
+        self._max_sessions = 10_000
 
         # Recent accesses (ring buffer)
         self._accesses: deque = deque(maxlen=window_size)
@@ -115,6 +114,16 @@ class AccessPatternTracker:
                     prev_id = seq[-1]
                     self._transitions[prev_id][resource_id] += 1
                 seq.append(resource_id)
+
+            # Evict oldest transition keys if exceeding limit
+            if len(self._transitions) > self._max_transition_keys:
+                oldest = next(iter(self._transitions))
+                del self._transitions[oldest]
+
+            # Evict oldest sessions if exceeding limit
+            if len(self._session_sequences) > self._max_sessions:
+                oldest = next(iter(self._session_sequences))
+                del self._session_sequences[oldest]
 
     def predict_next(
         self,
@@ -172,11 +181,9 @@ class AccessPatternTracker:
                 ]
             ]
 
-
 # ============================================================================
 # PREFETCH MANAGER
 # ============================================================================
-
 
 @dataclass
 class PrefetchRequest:
@@ -188,7 +195,6 @@ class PrefetchRequest:
 
     def __lt__(self, other):
         return self.priority > other.priority  # Max heap
-
 
 class PrefetchManager:
     """
@@ -343,8 +349,8 @@ class PrefetchManager:
 
             except asyncio.CancelledError:
                 break
-            except Exception as e:
-                logger.warning(f"Prefetch worker error: {e}")
+            except (RuntimeError, OSError) as e:
+                logger.warning("Prefetch worker error: %s", e)
                 await asyncio.sleep(1)
 
     async def _execute_prefetch(self, request: PrefetchRequest) -> None:
@@ -372,8 +378,8 @@ class PrefetchManager:
 
             self._stats["prefetches_completed"] += 1
 
-        except Exception as e:
-            logger.debug(f"Prefetch failed for {request.resource_id}: {e}")
+        except (RuntimeError, OSError) as e:
+            logger.debug("Prefetch failed for %s: %s", request.resource_id, e)
 
         finally:
             async with self._queue_lock:
@@ -388,14 +394,12 @@ class PrefetchManager:
             "hot_resources": self._tracker.get_hot_resources(5),
         }
 
-
 # ============================================================================
 # GLOBAL PREFETCH MANAGER
 # ============================================================================
 
 _prefetch_manager: PrefetchManager | None = None
-_prefetch_lock = threading.Lock()
-
+_prefetch_lock = create_lock()
 
 def get_prefetch_manager() -> PrefetchManager:
     """Get global prefetch manager singleton."""
@@ -408,11 +412,9 @@ def get_prefetch_manager() -> PrefetchManager:
 
     return _prefetch_manager
 
-
 # ============================================================================
 # DECORATOR FOR PREFETCH-AWARE FUNCTIONS
 # ============================================================================
-
 
 def with_prefetch(
     resource_type: str = "default",
@@ -428,7 +430,7 @@ def with_prefetch(
             resource_type="embedding",
             id_extractor=lambda text: f"embedding:{hash(text)}"
         )
-        async def get_embedding(text: str) -> List[float]:
+        async def get_embedding(text: str) -> list[float]:
             ...
     """
 

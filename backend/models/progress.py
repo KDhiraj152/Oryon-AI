@@ -16,13 +16,12 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 
-from ..database import Base
+from backend.db.database import Base
 
 
 def utcnow():
     """Get current UTC time as naive datetime (for TIMESTAMP WITHOUT TIME ZONE)."""
     return datetime.utcnow()
-
 
 class UserProgress(Base):
     """Track student progress on content items."""
@@ -60,7 +59,6 @@ class UserProgress(Base):
 
     def __repr__(self):
         return f"<UserProgress(user={self.user_id}, content={self.content_id}, progress={self.progress_percent}%)>"
-
 
 class QuizScore(Base):
     """Track quiz scores and attempts."""
@@ -105,7 +103,6 @@ class QuizScore(Base):
             f"<QuizScore(user={self.user_id}, quiz={self.quiz_id}, score={self.score})>"
         )
 
-
 class InteractionSession(Base):
     """Track individual learning sessions."""
 
@@ -146,7 +143,6 @@ class InteractionSession(Base):
             f"<InteractionSession(user={self.user_id}, duration={self.duration_seconds}s)>"
         )
 
-
 class UsageReport(Base):
     """Store generated parent reports."""
 
@@ -184,7 +180,6 @@ class UsageReport(Base):
 
     def __repr__(self):
         return f"<UsageReport(student={self.user_ref_id}, type={self.report_type})>"
-
 
 class Achievement(Base):
     """Track student achievements and milestones."""

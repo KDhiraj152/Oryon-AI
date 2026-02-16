@@ -7,7 +7,7 @@ Tests SIMD, GPU, and memory optimization performance
 import platform
 import sys
 import time
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Optional
 
 import numpy as np
 
@@ -58,7 +58,7 @@ def detect_hardware() -> dict[str, Any]:
 
 def benchmark_numpy_simd(
     dim: int = 1024, n_vectors: int = 10000, iterations: int = 10
-) -> dict[str, float]:
+) -> dict[str, Any]:
     """Benchmark NumPy SIMD-optimized operations."""
     print(f"\n{'='*60}")
     print("NUMPY SIMD BENCHMARK")
@@ -106,7 +106,7 @@ def benchmark_numpy_simd(
     for _ in range(iterations):
         start = time.perf_counter()
         diff = vectors - query
-        distances = np.sqrt(np.sum(diff * diff, axis=1))
+        np.sqrt(np.sum(diff * diff, axis=1))
         times.append(time.perf_counter() - start)
     avg_time = np.mean(times[1:])
     throughput = n_vectors / avg_time / 1e6
@@ -151,7 +151,7 @@ def benchmark_numpy_simd(
 
 def benchmark_mps_gpu(
     dim: int = 1024, n_vectors: int = 10000, iterations: int = 10
-) -> dict[str, float] | None:
+) -> dict[str, Any] | None:
     """Benchmark Apple MPS GPU operations."""
     try:
         import torch
@@ -206,7 +206,7 @@ def benchmark_mps_gpu(
         torch.mps.synchronize()
         start = time.perf_counter()
         scores = torch.matmul(vectors, query)
-        top_k_values, top_k_idx = torch.topk(scores, k)
+        _top_k_values, _top_k_idx = torch.topk(scores, k)
         torch.mps.synchronize()
         times.append(time.perf_counter() - start)
     avg_time = np.mean(times[1:])
@@ -265,7 +265,7 @@ def benchmark_mps_gpu(
 
 def benchmark_mlx_ane(
     dim: int = 1024, n_vectors: int = 10000, iterations: int = 10
-) -> dict[str, float] | None:
+) -> dict[str, Any] | None:
     """Benchmark MLX (Apple Neural Engine potential)."""
     try:
         import mlx.core as mx
@@ -346,7 +346,7 @@ def benchmark_mlx_ane(
 
 def benchmark_memory_operations(
     dim: int = 1024, n_vectors: int = 10000
-) -> dict[str, float]:
+) -> dict[str, Any]:
     """Benchmark memory operations and zero-copy patterns."""
     print(f"\n{'='*60}")
     print("MEMORY OPERATIONS BENCHMARK")
@@ -358,7 +358,7 @@ def benchmark_memory_operations(
     times = []
     for _ in range(10):
         start = time.perf_counter()
-        arr = np.empty((n_vectors, dim), dtype=np.float32)
+        np.empty((n_vectors, dim), dtype=np.float32)
         times.append(time.perf_counter() - start)
     avg_time = np.mean(times[1:])
     results["alloc_ms"] = avg_time * 1000
@@ -369,7 +369,7 @@ def benchmark_memory_operations(
     times = []
     for _ in range(10):
         start = time.perf_counter()
-        dst = np.copy(src)
+        np.copy(src)
         times.append(time.perf_counter() - start)
     avg_time = np.mean(times[1:])
     mb_size = src.nbytes / 1024 / 1024
@@ -384,12 +384,12 @@ def benchmark_memory_operations(
     for _ in range(100):
         # View (zero-copy)
         start = time.perf_counter()
-        view = src[: n_vectors // 2]
+        src[: n_vectors // 2]
         times_view.append(time.perf_counter() - start)
 
         # Copy
         start = time.perf_counter()
-        copied = src[: n_vectors // 2].copy()
+        src[: n_vectors // 2].copy()
         times_copy.append(time.perf_counter() - start)
 
     avg_view = np.mean(times_view[10:]) * 1e6  # microseconds
@@ -431,13 +431,13 @@ def benchmark_memory_operations(
     return results
 
 
-def benchmark_quantization(dim: int = 1024, n_vectors: int = 10000) -> dict[str, float]:
+def benchmark_quantization(dim: int = 1024, n_vectors: int = 10000) -> dict[str, Any]:
     """Benchmark quantized operations."""
     print(f"\n{'='*60}")
     print("QUANTIZATION BENCHMARK")
     print(f"{'='*60}")
 
-    results = {}
+    results: dict[str, Any] = {}
 
     # Generate float32 data
     vectors_f32 = np.random.randn(n_vectors, dim).astype(np.float32)
@@ -453,7 +453,7 @@ def benchmark_quantization(dim: int = 1024, n_vectors: int = 10000) -> dict[str,
     times = []
     for _ in range(10):
         start = time.perf_counter()
-        scores = np.dot(vectors_f32, query_f32)
+        np.dot(vectors_f32, query_f32)
         times.append(time.perf_counter() - start)
     avg_f32 = np.mean(times[1:])
     results["f32_ms"] = avg_f32 * 1000
@@ -463,7 +463,7 @@ def benchmark_quantization(dim: int = 1024, n_vectors: int = 10000) -> dict[str,
     times = []
     for _ in range(10):
         start = time.perf_counter()
-        scores = np.dot(vectors_f16.astype(np.float32), query_f16.astype(np.float32))
+        np.dot(vectors_f16.astype(np.float32), query_f16.astype(np.float32))
         times.append(time.perf_counter() - start)
     avg_f16 = np.mean(times[1:])
     results["f16_ms"] = avg_f16 * 1000

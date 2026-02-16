@@ -1,7 +1,7 @@
 #!/bin/bash
 # Integration test script for frontend-backend communication
 
-echo "🔍 Shiksha Setu Integration Test"
+echo "🔍 Oryon AI Integration Test"
 echo "================================"
 echo ""
 
@@ -11,7 +11,7 @@ if curl -s http://localhost:8000/health > /dev/null 2>&1; then
     echo "   ✅ Backend is running (V2 API)"
 else
     echo "   ❌ Backend is NOT running"
-    echo "   Run: cd /Users/kdhiraj_152/Downloads/shiksha_setu && ./start.sh"
+    echo "   Run: cd /Users/kdhiraj_152/Downloads/oryon && ./start.sh"
     exit 1
 fi
 
@@ -22,7 +22,7 @@ if curl -s http://localhost:5173 > /dev/null 2>&1; then
     echo "   ✅ Frontend is running"
 else
     echo "   ❌ Frontend is NOT running"
-    echo "   Run: cd /Users/kdhiraj_152/Downloads/shiksha_setu/frontend && npm run dev"
+    echo "   Run: cd /Users/kdhiraj_152/Downloads/oryon/frontend && npm run dev"
     exit 1
 fi
 

@@ -55,6 +55,8 @@ def test_simplification_model():
     print("\nTesting Qwen3-8B (simplification + validation)...")
     try:
         import mlx_lm
+        import torch
+        from transformers import AutoModelForCausalLM, AutoTokenizer
 
         model_id = "mlx-community/Qwen3-8B-4bit"
 
@@ -161,6 +163,8 @@ def test_validation_model():
     print("\nTesting Qwen3-8B (validation — shared with simplification)...")
     try:
         import mlx_lm
+        import torch
+        from transformers import AutoModelForCausalLM, AutoTokenizer
 
         model_id = "mlx-community/Qwen3-8B-4bit"
 
@@ -217,7 +221,7 @@ def test_database():
         load_dotenv()
         db_url = os.getenv(
             "DATABASE_URL",
-            "postgresql://postgres:password@localhost:5432/shiksha_setu",
+            "postgresql://postgres:password@localhost:5432/oryon",
         )
 
         engine = create_engine(db_url)
@@ -232,7 +236,7 @@ def test_database():
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("ShikshaSetu Model & Environment Test")
+    print("Oryon Model & Environment Test")
     print("=" * 60)
 
     results = {}

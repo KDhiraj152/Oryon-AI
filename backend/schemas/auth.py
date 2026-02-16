@@ -1,7 +1,5 @@
 """Authentication and authorization schemas."""
 
-from typing import Optional
-
 from pydantic import BaseModel, EmailStr, Field
 
 
@@ -12,7 +10,6 @@ class Token(BaseModel):
     refresh_token: str
     token_type: str = "bearer"
     expires_in: int = 1800  # 30 minutes in seconds
-
 
 class UserPreferences(BaseModel):
     """User preferences model."""
@@ -25,7 +22,6 @@ class UserPreferences(BaseModel):
     voice_type: str = "female"
     speech_speed: float = 1.0
 
-
 class UserData(BaseModel):
     """User data for auth response."""
 
@@ -37,7 +33,6 @@ class UserData(BaseModel):
     preferences: UserPreferences | dict = UserPreferences()
     created_at: str = ""
 
-
 class AuthResponse(BaseModel):
     """Authentication response with tokens and user data."""
 
@@ -46,14 +41,12 @@ class AuthResponse(BaseModel):
     token_type: str = "bearer"
     user: UserData
 
-
 class TokenData(BaseModel):
     """JWT token payload data."""
 
     email: str | None = None
     user_id: str | None = None  # UUID as string
     role: str | None = None
-
 
 class UserCreate(BaseModel):
     """User registration request."""
@@ -69,13 +62,11 @@ class UserCreate(BaseModel):
         """Get the user's name from either field."""
         return self.name or self.full_name or ""
 
-
 class UserLogin(BaseModel):
     """User login request."""
 
     email: EmailStr
     password: str
-
 
 class UserResponse(BaseModel):
     """User information response."""
@@ -90,12 +81,10 @@ class UserResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
 class RefreshTokenRequest(BaseModel):
     """Refresh token request."""
 
     refresh_token: str
-
 
 __all__ = [
     "AuthResponse",

@@ -50,17 +50,15 @@ except ImportError:
         CRITICAL = "critical"
         EMERGENCY = "emergency"
 
-
 def _get_coordinator():
     """Lazy get memory coordinator singleton."""
     global _coordinator
     if _COORDINATOR_AVAILABLE and _coordinator is None:
         try:
             _coordinator = get_memory_coordinator()
-        except Exception as e:
-            logger.warning(f"Failed to get memory coordinator: {e}")
+        except (ImportError, RuntimeError) as e:
+            logger.warning("Failed to get memory coordinator: %s", e)
     return _coordinator
-
 
 def get_memory_pressure() -> str:
     """
@@ -76,9 +74,8 @@ def get_memory_pressure() -> str:
     try:
         pressure = coordinator.get_memory_pressure()
         return str(pressure.value)
-    except Exception:
+    except (RuntimeError, OSError):
         return "normal"
-
 
 def check_memory_pressure(
     reject_on: tuple = ("critical", "emergency"),
@@ -97,26 +94,23 @@ def check_memory_pressure(
     pressure = get_memory_pressure()
 
     if pressure in warn_on:
-        logger.warning(f"Memory pressure is {pressure}, request may be slow")
+        logger.warning("Memory pressure is %s, request may be slow", pressure)
         return True
 
     if pressure in reject_on:
-        logger.error(f"Memory pressure is {pressure}, rejecting request")
+        logger.error("Memory pressure is %s, rejecting request", pressure)
         return False
 
     return True
 
-
 def _handle_pressure_reject(pressure: str, error_code: int, error_message: str) -> None:
     """Handle rejection action for memory pressure."""
-    logger.warning(f"Rejecting request due to memory pressure: {pressure}")
+    logger.warning("Rejecting request due to memory pressure: %s", pressure)
     raise HTTPException(status_code=error_code, detail=error_message)
-
 
 def _handle_pressure_warn(pressure: str) -> None:
     """Handle warning action for memory pressure."""
-    logger.warning(f"Memory pressure {pressure}, proceeding with caution")
-
+    logger.warning("Memory pressure %s, proceeding with caution", pressure)
 
 async def _handle_pressure_queue(
     pressure: str,
@@ -138,7 +132,6 @@ async def _handle_pressure_queue(
             detail=f"Memory pressure persisted after {max_wait}s",
         )
 
-
 def _dispatch_pressure_action(
     action: str, pressure: str, error_code: int, error_message: str
 ) -> None:
@@ -151,7 +144,6 @@ def _dispatch_pressure_action(
     if handler:
         handler()
 
-
 async def _dispatch_pressure_action_async(
     action: str, pressure: str, reject_on: tuple, error_code: int, error_message: str
 ) -> None:
@@ -160,7 +152,6 @@ async def _dispatch_pressure_action_async(
         await _handle_pressure_queue(pressure, reject_on, error_code)
     else:
         _dispatch_pressure_action(action, pressure, error_code, error_message)
-
 
 def require_memory(
     action: Literal["reject", "warn", "queue"] = "reject",
@@ -208,7 +199,6 @@ def require_memory(
 
     return decorator
 
-
 async def wait_for_memory(
     timeout: float = 30.0,  # NOSONAR
     check_interval: float = 1.0,
@@ -235,7 +225,6 @@ async def wait_for_memory(
 
     return False
 
-
 def get_memory_stats() -> dict:
     """
     Get detailed memory statistics.
@@ -259,5 +248,5 @@ def get_memory_stats() -> dict:
             "available_for_models_gb": round(available_gb, 2),
             "usage_percent": round((used_gb / total_gb) * 100, 1),
         }
-    except Exception as e:
+    except (RuntimeError, OSError) as e:
         return {"status": "error", "error": str(e)}

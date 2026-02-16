@@ -11,15 +11,16 @@ Automatically uses Redis when available, falls back to in-memory.
 """
 
 import asyncio
+import contextlib
+import functools
 import json
 import logging
-import threading
 import time
 from abc import ABC, abstractmethod
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 from dataclasses import dataclass
 from datetime import UTC, datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple, TypeVar
+from typing import Any, TypeVar, cast
 
 from .config import settings
 
@@ -27,11 +28,9 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
-
 # =============================================================================
 # ABSTRACT STORAGE INTERFACE
 # =============================================================================
-
 
 class StorageBackend(ABC):
     """Abstract storage backend interface."""
@@ -116,15 +115,14 @@ class StorageBackend(ABC):
         """Check if backend is available."""
         pass
 
+    @abstractmethod
     async def close(self) -> None:
         """Close connections and release resources. Override in subclasses."""
         pass
 
-
 # =============================================================================
 # REDIS BACKEND
 # =============================================================================
-
 
 class RedisBackend(StorageBackend):
     """Redis storage backend using aioredis."""
@@ -132,7 +130,7 @@ class RedisBackend(StorageBackend):
     def __init__(self, url: str | None = None):
         self.url = url or settings.REDIS_URL
         self._client = None
-        self._available = None
+        self._available: bool | None = None
         self._lock = asyncio.Lock()
 
     async def _get_client(self):
@@ -162,9 +160,9 @@ class RedisBackend(StorageBackend):
                 )
                 return self._client
 
-            except Exception as e:
+            except (ImportError, OSError, ConnectionError) as e:
                 self._available = False
-                logger.warning(f"[RedisBackend] Failed to connect to Redis: {e}")
+                logger.warning("[RedisBackend] Failed to connect to Redis: %s", e)
                 return None
 
     def is_available(self) -> bool:
@@ -178,7 +176,7 @@ class RedisBackend(StorageBackend):
             r = redis.from_url(self.url, socket_connect_timeout=2)
             r.ping()
             self._available = True
-        except Exception:
+        except (ImportError, OSError, ConnectionError):
             self._available = False
 
         return self._available
@@ -188,9 +186,10 @@ class RedisBackend(StorageBackend):
         if not client:
             return None
         try:
-            return await client.get(key)
-        except Exception as e:
-            logger.error(f"[Redis] GET failed: {e}")
+            result = await client.get(key)
+            return cast("str | None", result)
+        except (ConnectionError, TimeoutError, OSError) as e:
+            logger.error("[Redis] GET failed: %s", e)
             return None
 
     async def set(self, key: str, value: str, ttl: int | None = None) -> bool:
@@ -203,8 +202,8 @@ class RedisBackend(StorageBackend):
             else:
                 await client.set(key, value)
             return True
-        except Exception as e:
-            logger.error(f"[Redis] SET failed: {e}")
+        except (ConnectionError, TimeoutError, OSError) as e:
+            logger.error("[Redis] SET failed: %s", e)
             return False
 
     async def delete(self, key: str) -> bool:
@@ -214,8 +213,8 @@ class RedisBackend(StorageBackend):
         try:
             await client.delete(key)
             return True
-        except Exception as e:
-            logger.error(f"[Redis] DELETE failed: {e}")
+        except (ConnectionError, TimeoutError, OSError) as e:
+            logger.error("[Redis] DELETE failed: %s", e)
             return False
 
     async def exists(self, key: str) -> bool:
@@ -223,8 +222,8 @@ class RedisBackend(StorageBackend):
         if not client:
             return False
         try:
-            return await client.exists(key) > 0
-        except Exception:
+            return cast(bool, await client.exists(key) > 0)
+        except (ConnectionError, TimeoutError, OSError):
             return False
 
     async def incr(self, key: str, amount: int = 1) -> int:
@@ -232,9 +231,9 @@ class RedisBackend(StorageBackend):
         if not client:
             return 0
         try:
-            return await client.incrby(key, amount)
-        except Exception as e:
-            logger.error(f"[Redis] INCR failed: {e}")
+            return cast(int, await client.incrby(key, amount))
+        except (ConnectionError, TimeoutError, OSError) as e:
+            logger.error("[Redis] INCR failed: %s", e)
             return 0
 
     async def expire(self, key: str, ttl: int) -> bool:
@@ -242,8 +241,8 @@ class RedisBackend(StorageBackend):
         if not client:
             return False
         try:
-            return await client.expire(key, ttl)
-        except Exception:
+            return cast(bool, await client.expire(key, ttl))
+        except (ConnectionError, TimeoutError, OSError):
             return False
 
     async def ttl(self, key: str) -> int:
@@ -251,8 +250,8 @@ class RedisBackend(StorageBackend):
         if not client:
             return -2
         try:
-            return await client.ttl(key)
-        except Exception:
+            return cast(int, await client.ttl(key))
+        except (ConnectionError, TimeoutError, OSError):
             return -2
 
     async def keys(self, pattern: str) -> list[str]:
@@ -260,8 +259,8 @@ class RedisBackend(StorageBackend):
         if not client:
             return []
         try:
-            return await client.keys(pattern)
-        except Exception:
+            return cast("list[str]", await client.keys(pattern))
+        except (ConnectionError, TimeoutError, OSError):
             return []
 
     async def hget(self, name: str, key: str) -> str | None:
@@ -269,8 +268,9 @@ class RedisBackend(StorageBackend):
         if not client:
             return None
         try:
-            return await client.hget(name, key)
-        except Exception:
+            result = await client.hget(name, key)
+            return cast("str | None", result)
+        except (ConnectionError, TimeoutError, OSError):
             return None
 
     async def hset(self, name: str, key: str, value: str) -> bool:
@@ -280,7 +280,7 @@ class RedisBackend(StorageBackend):
         try:
             await client.hset(name, key, value)
             return True
-        except Exception:
+        except (ConnectionError, TimeoutError, OSError):
             return False
 
     async def hgetall(self, name: str) -> dict[str, str]:
@@ -288,8 +288,8 @@ class RedisBackend(StorageBackend):
         if not client:
             return {}
         try:
-            return await client.hgetall(name)
-        except Exception:
+            return cast("dict[str, str]", await client.hgetall(name))
+        except (ConnectionError, TimeoutError, OSError):
             return {}
 
     async def lpush(self, key: str, *values: str) -> int:
@@ -297,8 +297,8 @@ class RedisBackend(StorageBackend):
         if not client:
             return 0
         try:
-            return await client.lpush(key, *values)
-        except Exception:
+            return cast(int, await client.lpush(key, *values))
+        except (ConnectionError, TimeoutError, OSError):
             return 0
 
     async def rpush(self, key: str, *values: str) -> int:
@@ -306,8 +306,8 @@ class RedisBackend(StorageBackend):
         if not client:
             return 0
         try:
-            return await client.rpush(key, *values)
-        except Exception:
+            return cast(int, await client.rpush(key, *values))
+        except (ConnectionError, TimeoutError, OSError):
             return 0
 
     async def lrange(self, key: str, start: int, stop: int) -> list[str]:
@@ -315,8 +315,8 @@ class RedisBackend(StorageBackend):
         if not client:
             return []
         try:
-            return await client.lrange(key, start, stop)
-        except Exception:
+            return cast("list[str]", await client.lrange(key, start, stop))
+        except (ConnectionError, TimeoutError, OSError):
             return []
 
     async def llen(self, key: str) -> int:
@@ -324,25 +324,21 @@ class RedisBackend(StorageBackend):
         if not client:
             return 0
         try:
-            return await client.llen(key)
-        except Exception:
+            return cast(int, await client.llen(key))
+        except (ConnectionError, TimeoutError, OSError):
             return 0
 
     async def close(self) -> None:
         """Close the async Redis connection."""
         if self._client is not None:
-            try:
+            with contextlib.suppress(ConnectionError, TimeoutError, OSError):
                 await self._client.aclose()
-            except Exception:
-                pass
             self._client = None
             self._available = None
-
 
 # =============================================================================
 # IN-MEMORY BACKEND (FALLBACK)
 # =============================================================================
-
 
 @dataclass
 class MemoryEntry:
@@ -356,15 +352,16 @@ class MemoryEntry:
             return False
         return time.time() > self.expires_at
 
-
 class MemoryBackend(StorageBackend):
     """In-memory storage backend with TTL support."""
 
+    MAX_KEYS = 100_000  # Prevent unbounded memory growth
+
     def __init__(self):
-        self._data: dict[str, MemoryEntry] = {}
+        self._data: OrderedDict[str, MemoryEntry] = OrderedDict()
         self._hashes: dict[str, dict[str, str]] = defaultdict(dict)
         self._lists: dict[str, list[str]] = defaultdict(list)
-        self._lock = threading.RLock()
+        self._lock = asyncio.Lock()
 
         # Start cleanup task
         self._cleanup_interval = 60  # seconds
@@ -372,13 +369,13 @@ class MemoryBackend(StorageBackend):
 
         logger.info("[MemoryBackend] Initialized (fallback mode)")
 
-    def _cleanup_expired(self):
+    async def _cleanup_expired(self):
         """Remove expired keys."""
         now = time.time()
         if now - self._last_cleanup < self._cleanup_interval:
             return
 
-        with self._lock:
+        async with self._lock:
             expired = [k for k, v in self._data.items() if v.is_expired()]
             for k in expired:
                 del self._data[k]
@@ -387,9 +384,13 @@ class MemoryBackend(StorageBackend):
     def is_available(self) -> bool:
         return True
 
+    async def close(self) -> None:
+        """Close memory backend (no-op)."""
+        self._data.clear()
+
     async def get(self, key: str) -> str | None:
-        self._cleanup_expired()
-        with self._lock:
+        await self._cleanup_expired()
+        async with self._lock:
             entry = self._data.get(key)
             if entry is None or entry.is_expired():
                 if entry and entry.is_expired():
@@ -398,19 +399,23 @@ class MemoryBackend(StorageBackend):
             return entry.value
 
     async def set(self, key: str, value: str, ttl: int | None = None) -> bool:
-        with self._lock:
+        async with self._lock:
             expires_at = time.time() + ttl if ttl else None
             self._data[key] = MemoryEntry(value=value, expires_at=expires_at)
+            self._data.move_to_end(key)
+            # Evict LRU entries if over limit
+            while len(self._data) > self.MAX_KEYS:
+                self._data.popitem(last=False)
             return True
 
     async def delete(self, key: str) -> bool:
-        with self._lock:
+        async with self._lock:
             if key in self._data:
                 del self._data[key]
             return True
 
     async def exists(self, key: str) -> bool:
-        with self._lock:
+        async with self._lock:
             entry = self._data.get(key)
             if entry is None:
                 return False
@@ -420,7 +425,7 @@ class MemoryBackend(StorageBackend):
             return True
 
     async def incr(self, key: str, amount: int = 1) -> int:
-        with self._lock:
+        async with self._lock:
             entry = self._data.get(key)
             if entry is None or entry.is_expired():
                 self._data[key] = MemoryEntry(value=str(amount))
@@ -434,7 +439,7 @@ class MemoryBackend(StorageBackend):
                 return 0
 
     async def expire(self, key: str, ttl: int) -> bool:
-        with self._lock:
+        async with self._lock:
             entry = self._data.get(key)
             if entry is None:
                 return False
@@ -442,7 +447,7 @@ class MemoryBackend(StorageBackend):
             return True
 
     async def ttl(self, key: str) -> int:
-        with self._lock:
+        async with self._lock:
             entry = self._data.get(key)
             if entry is None:
                 return -2
@@ -454,51 +459,50 @@ class MemoryBackend(StorageBackend):
     async def keys(self, pattern: str) -> list[str]:
         import fnmatch
 
-        self._cleanup_expired()
-        with self._lock:
-            pattern = pattern.replace("*", ".*")
-            return [k for k in self._data if fnmatch.fnmatch(k, pattern)]
+        await self._cleanup_expired()
+        async with self._lock:
+            # Use fnmatchcase for case-sensitive matching (matches Redis behavior).
+            # fnmatch.fnmatch uses os.path.normcase which is case-insensitive on macOS.
+            return [k for k in self._data if fnmatch.fnmatchcase(k, pattern)]
 
     async def hget(self, name: str, key: str) -> str | None:
-        with self._lock:
+        async with self._lock:
             return self._hashes.get(name, {}).get(key)
 
     async def hset(self, name: str, key: str, value: str) -> bool:
-        with self._lock:
+        async with self._lock:
             self._hashes[name][key] = value
             return True
 
     async def hgetall(self, name: str) -> dict[str, str]:
-        with self._lock:
+        async with self._lock:
             return dict(self._hashes.get(name, {}))
 
     async def lpush(self, key: str, *values: str) -> int:
-        with self._lock:
+        async with self._lock:
             for v in reversed(values):
                 self._lists[key].insert(0, v)
             return len(self._lists[key])
 
     async def rpush(self, key: str, *values: str) -> int:
-        with self._lock:
+        async with self._lock:
             self._lists[key].extend(values)
             return len(self._lists[key])
 
     async def lrange(self, key: str, start: int, stop: int) -> list[str]:
-        with self._lock:
+        async with self._lock:
             lst = self._lists.get(key, [])
             if stop == -1:
                 return lst[start:]
             return lst[start : stop + 1]
 
     async def llen(self, key: str) -> int:
-        with self._lock:
+        async with self._lock:
             return len(self._lists.get(key, []))
-
 
 # =============================================================================
 # HYBRID STORAGE (AUTO-SELECTS BACKEND)
 # =============================================================================
-
 
 class HybridStorage:
     """
@@ -524,8 +528,8 @@ class HybridStorage:
                 await self._redis.set("__test__", "1", ttl=1)
                 self._backend = self._redis
                 logger.info("[HybridStorage] Using Redis backend")
-            except Exception as e:
-                logger.warning(f"[HybridStorage] Redis test failed, using memory: {e}")
+            except (ConnectionError, TimeoutError, OSError) as e:
+                logger.warning("[HybridStorage] Redis test failed, using memory: %s", e)
                 self._backend = self._memory
         else:
             logger.info("[HybridStorage] Redis unavailable, using memory backend")
@@ -541,81 +545,36 @@ class HybridStorage:
     def is_redis(self) -> bool:
         return isinstance(self._backend, RedisBackend)
 
-    # Delegate all methods to current backend
-    async def get(self, key: str) -> str | None:
-        await self.initialize()
-        return await self._backend.get(key)
+    def __getattr__(self, name: str) -> Any:
+        """
+        Delegate all StorageBackend methods to the active backend.
 
-    async def set(self, key: str, value: str, ttl: int | None = None) -> bool:
-        await self.initialize()
-        return await self._backend.set(key, value, ttl)
+        Wraps async methods to ensure initialize() is called before delegation.
+        This replaces 17 hand-written delegation methods with a single proxy.
+        """
+        attr = getattr(self._backend, name)
+        if callable(attr) and asyncio.iscoroutinefunction(attr):
 
-    async def delete(self, key: str) -> bool:
-        await self.initialize()
-        return await self._backend.delete(key)
+            @functools.wraps(attr)
+            async def _proxy(*args: Any, **kwargs: Any) -> Any:
+                await self.initialize()
+                return await attr(*args, **kwargs)
 
-    async def exists(self, key: str) -> bool:
-        await self.initialize()
-        return await self._backend.exists(key)
-
-    async def incr(self, key: str, amount: int = 1) -> int:
-        await self.initialize()
-        return await self._backend.incr(key, amount)
-
-    async def expire(self, key: str, ttl: int) -> bool:
-        await self.initialize()
-        return await self._backend.expire(key, ttl)
-
-    async def ttl(self, key: str) -> int:
-        await self.initialize()
-        return await self._backend.ttl(key)
-
-    async def keys(self, pattern: str) -> list[str]:
-        await self.initialize()
-        return await self._backend.keys(pattern)
-
-    async def hget(self, name: str, key: str) -> str | None:
-        await self.initialize()
-        return await self._backend.hget(name, key)
-
-    async def hset(self, name: str, key: str, value: str) -> bool:
-        await self.initialize()
-        return await self._backend.hset(name, key, value)
-
-    async def hgetall(self, name: str) -> dict[str, str]:
-        await self.initialize()
-        return await self._backend.hgetall(name)
-
-    async def lpush(self, key: str, *values: str) -> int:
-        await self.initialize()
-        return await self._backend.lpush(key, *values)
-
-    async def rpush(self, key: str, *values: str) -> int:
-        await self.initialize()
-        return await self._backend.rpush(key, *values)
-
-    async def lrange(self, key: str, start: int, stop: int) -> list[str]:
-        await self.initialize()
-        return await self._backend.lrange(key, start, stop)
-
-    async def llen(self, key: str) -> int:
-        await self.initialize()
-        return await self._backend.llen(key)
+            return _proxy
+        return attr
 
     async def close(self) -> None:
         """Close the active backend connection."""
         await self._backend.close()
 
-
 # =============================================================================
 # SPECIALIZED STORAGE SERVICES
 # =============================================================================
 
-
 class RateLimitStorage:
     """Rate limiting with sliding window using storage backend."""
 
-    def __init__(self, storage: HybridStorage = None, prefix: str = "ratelimit"):
+    def __init__(self, storage: HybridStorage | None = None, prefix: str = "ratelimit"):
         self.storage = storage or HybridStorage()
         self.prefix = prefix
 
@@ -655,11 +614,10 @@ class RateLimitStorage:
         remaining = max(0, max_requests - new_count)
         return True, remaining, reset_in
 
-
 class ConversationStorage:
     """Persistent conversation storage."""
 
-    def __init__(self, storage: HybridStorage = None, prefix: str = "conv"):
+    def __init__(self, storage: HybridStorage | None = None, prefix: str = "conv"):
         self.storage = storage or HybridStorage()
         self.prefix = prefix
         self.ttl = 86400 * 7  # 7 days
@@ -678,14 +636,15 @@ class ConversationStorage:
             "created_at": datetime.now(UTC).isoformat(),
             "metadata": metadata or {},
         }
-        return await self.storage.set(key, json.dumps(data), ttl=self.ttl)
+        result = await self.storage.set(key, json.dumps(data), ttl=self.ttl)
+        return bool(result)
 
     async def get_conversation(self, conversation_id: str) -> dict | None:
         """Get conversation metadata."""
         key = f"{self.prefix}:{conversation_id}"
         data = await self.storage.get(key)
         if data:
-            return json.loads(data)
+            return cast("dict[Any, Any]", json.loads(data))
         return None
 
     async def add_message(
@@ -707,7 +666,7 @@ class ConversationStorage:
         }
         count = await self.storage.rpush(key, json.dumps(message))
         await self.storage.expire(key, self.ttl)
-        return count > 0
+        return bool(count > 0)
 
     async def get_messages(
         self,
@@ -725,7 +684,6 @@ class ConversationStorage:
         await self.storage.delete(f"{self.prefix}:{conversation_id}:messages")
         return True
 
-
 # =============================================================================
 # SINGLETON INSTANCES (Thread-safe with double-checked locking)
 # =============================================================================
@@ -733,41 +691,31 @@ class ConversationStorage:
 _storage_instance: HybridStorage | None = None
 _rate_limit_instance: RateLimitStorage | None = None
 _conversation_instance: ConversationStorage | None = None
-_storage_lock = threading.Lock()
-_rate_limit_lock = threading.Lock()
-_conversation_lock = threading.Lock()
-
 
 def get_storage() -> HybridStorage:
-    """Get global storage instance (thread-safe)."""
+    # Lock-free benign-race singleton.
+    # Avoids threading.Lock which blocks the event loop in async context.
     global _storage_instance
-    if _storage_instance is None:
-        with _storage_lock:
-            if _storage_instance is None:
-                _storage_instance = HybridStorage()
+    if _storage_instance is not None:
+        return _storage_instance
+    _storage_instance = HybridStorage()
     return _storage_instance
-
-
 def get_rate_limit_storage() -> RateLimitStorage:
-    """Get rate limit storage instance (thread-safe)."""
+    # Lock-free benign-race singleton.
+    # Avoids threading.Lock which blocks the event loop in async context.
     global _rate_limit_instance
-    if _rate_limit_instance is None:
-        with _rate_limit_lock:
-            if _rate_limit_instance is None:
-                _rate_limit_instance = RateLimitStorage(get_storage())
+    if _rate_limit_instance is not None:
+        return _rate_limit_instance
+    _rate_limit_instance = RateLimitStorage(get_storage())
     return _rate_limit_instance
-
-
 def get_conversation_storage() -> ConversationStorage:
-    """Get conversation storage instance (thread-safe)."""
+    # Lock-free benign-race singleton.
+    # Avoids threading.Lock which blocks the event loop in async context.
     global _conversation_instance
-    if _conversation_instance is None:
-        with _conversation_lock:
-            if _conversation_instance is None:
-                _conversation_instance = ConversationStorage(get_storage())
+    if _conversation_instance is not None:
+        return _conversation_instance
+    _conversation_instance = ConversationStorage(get_storage())
     return _conversation_instance
-
-
 # Export
 __all__ = [
     "ConversationStorage",

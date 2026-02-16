@@ -2,8 +2,8 @@
 """Verify all 7 AI models are cached and loadable."""
 
 import gc
-import time
 import sys
+import time
 
 results = {}
 
@@ -31,7 +31,7 @@ def test_model(name, num, total, test_fn):
 
 
 def test_qwen3():
-    from mlx_lm import load, generate
+    from mlx_lm import generate, load
 
     t0 = time.perf_counter()
     model, tokenizer = load("mlx-community/Qwen3-8B-4bit")
@@ -125,7 +125,7 @@ def test_got_ocr():
 
 
 def test_mms_tts():
-    from transformers import VitsModel, AutoTokenizer
+    from transformers import AutoTokenizer, VitsModel
 
     model_id = "facebook/mms-tts-hin"
     t0 = time.perf_counter()
@@ -147,7 +147,7 @@ def test_mms_tts():
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("  Shiksha Setu — Full Model Verification")
+    print("  Oryon AI — Full Model Verification")
     print("  7 Models • All Local • Apple Silicon")
     print("=" * 60)
     print()

@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================================
-# ShikshaSetu - Smoke Test
+# Oryon - Smoke Test
 # ============================================================================
 # Quick verification that all services are working
 # Tests: Health → Auth → Upload → Process → Fetch
@@ -43,7 +43,7 @@ log() {
 
 echo ""
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${BLUE}  🧪 SHIKSHA SETU SMOKE TEST${NC}"
+echo -e "${BLUE}  🧪 ORYON AI SMOKE TEST${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 

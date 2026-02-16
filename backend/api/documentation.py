@@ -5,7 +5,7 @@ Issue: CODE-REVIEW-GPT #21 (LOW)
 Purpose: Comprehensive OpenAPI/Swagger documentation
 """
 
-from typing import Any, Dict
+from typing import Any
 
 from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
@@ -25,14 +25,14 @@ def custom_openapi_schema(app: FastAPI) -> dict[str, Any]:
         return app.openapi_schema
 
     openapi_schema = get_openapi(
-        title="ShikshaSetu AI Platform API",
+        title="Oryon AI Platform API",
         version="2.1.0",
         description="""
-# ShikshaSetu - Multilingual AI Education Platform
+# Oryon - Multilingual AI Education Platform
 
 ## Overview
 
-ShikshaSetu provides AI-powered content processing with:
+Oryon provides AI-powered content processing with:
 - **Multilingual Support**: Content in 22 Indian languages
 - **Grade-Level Adaptation**: Automatic complexity adjustment for grades 1-12
 - **Curriculum Alignment**: content_domain standard validation
@@ -82,8 +82,8 @@ Content processing flow:
 
 ## Support
 
-- **Documentation**: https://docs.shiksha-setu.com
-- **Email**: support@shiksha-setu.com
+- **Documentation**: https://docs.oryon-ai.com
+- **Email**: support@oryon-ai.com
 - **GitHub**: https://github.com/KDhiraj152/Siksha-Setu
         """,
         routes=app.routes,
@@ -132,9 +132,9 @@ Content processing flow:
 
     # Add servers
     openapi_schema["servers"] = [
-        {"url": "https://api.shiksha-setu.com", "description": "Production server"},
+        {"url": "https://api.oryon-ai.com", "description": "Production server"},
         {
-            "url": "https://staging-api.shiksha-setu.com",
+            "url": "https://staging-api.oryon-ai.com",
             "description": "Staging server",
         },
         {"url": "http://localhost:8000", "description": "Development server"},
@@ -142,9 +142,9 @@ Content processing flow:
 
     # Add contact info
     openapi_schema["info"]["contact"] = {
-        "name": "ShikshaSetu Support",
-        "email": "support@shiksha-setu.com",
-        "url": "https://shiksha-setu.com/support",
+        "name": "Oryon Support",
+        "email": "support@oryon-ai.com",
+        "url": "https://oryon-ai.com/support",
     }
 
     openapi_schema["info"]["license"] = {
@@ -155,12 +155,11 @@ Content processing flow:
     # Add external docs
     openapi_schema["externalDocs"] = {
         "description": "Complete Documentation",
-        "url": "https://docs.shiksha-setu.com",
+        "url": "https://docs.oryon-ai.com",
     }
 
     app.openapi_schema = openapi_schema
     return app.openapi_schema
-
 
 def configure_api_docs(app: FastAPI):
     """
@@ -182,7 +181,6 @@ def configure_api_docs(app: FastAPI):
         "showCommonExtensions": True,
         "tryItOutEnabled": True,
     }
-
 
 # Example schemas for common responses
 COMMON_RESPONSES = {

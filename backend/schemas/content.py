@@ -1,7 +1,5 @@
 """Content processing request/response schemas."""
 
-from typing import List, Optional
-
 from pydantic import BaseModel, Field
 
 
@@ -14,7 +12,6 @@ class ChunkedUploadRequest(BaseModel):
     upload_id: str
     checksum: str | None = None
 
-
 class ProcessRequest(BaseModel):
     """Full pipeline processing request."""
 
@@ -23,12 +20,10 @@ class ProcessRequest(BaseModel):
     output_format: str = Field(default="both", pattern="^(text|audio|both)$")
     validation_threshold: float = Field(default=0.80, ge=0.0, le=1.0)
 
-
 class SimplifyRequest(BaseModel):
     """Text simplification request."""
 
     text: str = Field(min_length=10, max_length=50000)
-
 
 class TranslateRequest(BaseModel):
     """Translation request."""
@@ -46,7 +41,6 @@ class TranslateRequest(BaseModel):
             return [self.target_language]
         return ["Hindi"]
 
-
 class ValidateRequest(BaseModel):
     """Content validation request."""
 
@@ -62,13 +56,11 @@ class ValidateRequest(BaseModel):
             return (self.text, self.text)
         return (self.original_text or "", self.processed_text or "")
 
-
 class TTSRequest(BaseModel):
     """Text-to-speech request."""
 
     text: str = Field(min_length=10, max_length=10000)
     language: str
-
 
 class FeedbackRequest(BaseModel):
     """User feedback request."""
@@ -78,7 +70,6 @@ class FeedbackRequest(BaseModel):
     feedback_text: str | None = None
     issue_type: str | None = None
 
-
 class TaskResponse(BaseModel):
     """Task status response."""
 
@@ -87,7 +78,6 @@ class TaskResponse(BaseModel):
     result: dict | None = None
     error: str | None = None
     progress: int | None = Field(None, ge=0, le=100)
-
 
 class ContentResponse(BaseModel):
     """Content retrieval response."""
@@ -100,7 +90,6 @@ class ContentResponse(BaseModel):
     audio_files: dict | None = None
     created_at: str
     metadata: dict | None = None
-
 
 __all__ = [
     "ChunkedUploadRequest",

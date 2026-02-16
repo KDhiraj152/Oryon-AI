@@ -1,6 +1,6 @@
 #!/bin/bash
 # ===================================================================
-# ShikshaSetu - Comprehensive Test Suite
+# Oryon - Comprehensive Test Suite
 # Tests all features and validates everything is working
 # ===================================================================
 
@@ -51,7 +51,7 @@ print_data() { echo -e "${YELLOW}  $1${NC}"; }
 echo -e "${MAGENTA}"
 echo "╔═══════════════════════════════════════════════════════════════╗"
 echo "║                                                               ║"
-echo "║           SHIKSHA SETU - COMPREHENSIVE TEST SUITE            ║"
+echo "║           ORYON AI - COMPREHENSIVE TEST SUITE            ║"
 echo "║                                                               ║"
 echo "╚═══════════════════════════════════════════════════════════════╝"
 echo -e "${NC}"

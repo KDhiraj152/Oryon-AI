@@ -96,10 +96,13 @@ export const embeddings = {
 
 /**
  * STT API - Speech-to-Text using Whisper V3 Turbo
+ *
+ * NOTE: Core STT functionality is in audio.ts (audio.speechToText).
+ * This module provides additional STT endpoints not covered there.
  */
 export const stt = {
   /**
-   * Transcribe audio to text
+   * Transcribe audio to text (delegates to shared implementation)
    * Supports all Indian languages with auto-detection
    */
   async transcribe(audioFile: File | Blob, language = 'auto'): Promise<{
@@ -109,6 +112,7 @@ export const stt = {
     segments?: Array<{ start: number; end: number; text: string }>;
     processing_time_ms: number;
   }> {
+    // Use the same endpoint as audio.speechToText for consistency
     const formData = new FormData();
     formData.append('file', audioFile, 'recording.webm');
 
@@ -135,11 +139,14 @@ export const stt = {
 };
 
 /**
- * TTS API - Text-to-Speech using MMS-TTS
+ * TTS API - Text-to-Speech
+ *
+ * NOTE: Core TTS functionality is in audio.ts (audio.textToSpeech).
+ * This module targets the /content/tts endpoint for content-related TTS.
  */
 export const tts = {
   /**
-   * Convert text to speech
+   * Convert text to speech via content endpoint
    * Uses Edge TTS (online) or MMS-TTS (offline)
    */
   async synthesize(text: string, language = 'hi', voice = 'default'): Promise<{

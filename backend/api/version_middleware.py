@@ -39,7 +39,6 @@ API_VERSIONS = {
     },
 }
 
-
 def get_api_version_info() -> dict[str, Any]:
     """
     Get API version information.
@@ -52,7 +51,6 @@ def get_api_version_info() -> dict[str, Any]:
         "versions": API_VERSIONS,
         "recommended": CURRENT_VERSION,
     }
-
 
 def check_api_version(version: str) -> dict[str, Any]:
     """
@@ -84,7 +82,6 @@ def check_api_version(version: str) -> dict[str, Any]:
             "message": f"Version {version} is not supported. Use {CURRENT_VERSION}.",
         }
 
-
 def get_version_headers(version: str = CURRENT_VERSION) -> dict[str, str]:
     """
     Get headers to include in API responses for version info.
@@ -108,7 +105,6 @@ def get_version_headers(version: str = CURRENT_VERSION) -> dict[str, str]:
             headers["X-API-Recommended-Version"] = CURRENT_VERSION
 
     return headers
-
 
 __all__ = [
     "API_VERSIONS",

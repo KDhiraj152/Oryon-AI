@@ -14,19 +14,23 @@ Usage:
 import argparse
 import json
 import sys
-from pathlib import Path
-from typing import List, Dict, Any
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
+from pathlib import Path
+from typing import Any
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+import PyPDF2
+
 from backend.database import get_db_session
-from backend.models import ProcessedContent, Document, Embedding
+from backend.models import DocumentChunk, Embedding, ProcessedContent
+
+# Alias for backward compatibility - Document model was renamed to DocumentChunk
+Document = DocumentChunk
 from backend.services.rag import RAGService
 from backend.utils.logging import get_logger
-import PyPDF2
 
 logger = get_logger(__name__)
 
@@ -77,7 +81,7 @@ class DocumentIndexer:
         logger.info(f"Processing: {json_file.name}")
         
         # Load content metadata
-        with open(json_file, 'r', encoding='utf-8') as f:
+        with open(json_file, encoding='utf-8') as f:
             content_domain = json.load(f)
         
         # Extract metadata
@@ -88,7 +92,7 @@ class DocumentIndexer:
         for book in books:
             self._index_book(book, grade, subject)
     
-    def _index_book(self, book: Dict[str, Any], grade: str, subject: str):
+    def _index_book(self, book: dict[str, Any], grade: str, subject: str):
         """Index a single textbook."""
         book_title = book.get("title", "Unknown")
         pdf_path = book.get("pdf_path")
@@ -118,7 +122,7 @@ class DocumentIndexer:
                         "subject": subject,
                         "pdf_path": pdf_path,
                         "chapter_count": len(text_chunks),
-                        "indexed_at": datetime.now(timezone.utc).isoformat()
+                        "indexed_at": datetime.now(UTC).isoformat()
                     }
                 )
                 session.add(document)
@@ -158,7 +162,7 @@ class DocumentIndexer:
             logger.error(f"Failed to index {book_title}: {e}", exc_info=True)
             self.stats["failed_books"] += 1
     
-    def _extract_pdf_text(self, pdf_path: str) -> List[str]:
+    def _extract_pdf_text(self, pdf_path: str) -> list[str]:
         """Extract text from PDF, split into chunks."""
         chunks = []
         

@@ -15,12 +15,13 @@ Optimized for:
 
 from fastapi import APIRouter
 
+from .agents import router as agents_router
 from .auth import router as auth_router
 from .batch import router as batch_router
 from .chat import router as chat_router
 from .content import router as content_router
 from .health import router as health_router
-from .agents import router as agents_router
+from .middleware import router as middleware_router
 
 # Consolidated router - replaces v2_router
 router = APIRouter()
@@ -30,6 +31,7 @@ router.include_router(content_router, prefix="/content")
 router.include_router(batch_router, prefix="/batch")
 router.include_router(health_router, prefix="/health")
 router.include_router(agents_router, prefix="/agents")
+router.include_router(middleware_router, prefix="/middleware")
 
 # Backwards compatibility alias
 v2_router = router
