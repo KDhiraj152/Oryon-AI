@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
 # Add backend to path
@@ -86,6 +86,7 @@ def test_engine():
     engine = create_engine(TEST_DATABASE_URL, echo=False)
     Base.metadata.create_all(bind=engine)
     yield engine
+    # Use CASCADE to handle foreign key dependencies
     Base.metadata.drop_all(bind=engine)
     engine.dispose()
 
@@ -108,10 +109,13 @@ def db_session(test_engine) -> Generator[Session, None, None]:
 
 @pytest.fixture
 def clean_db(db_session):
-    """Clean database before each test."""
-    for table in reversed(Base.metadata.sorted_tables):
-        db_session.execute(table.delete())
-    db_session.commit()
+    """Clean database before each test using TRUNCATE CASCADE."""
+    table_names = ", ".join(
+        f'"{t.name}"' for t in reversed(Base.metadata.sorted_tables)
+    )
+    if table_names:
+        db_session.execute(text(f"TRUNCATE TABLE {table_names} CASCADE"))
+        db_session.commit()
     return
 
 
@@ -222,20 +226,24 @@ def setup_test_environment():
 
 
 @pytest.fixture
-def clean_database():
-    """Clean database between tests."""
-    from backend.db.database import Base, engine
-
-    # Drop all tables
-    Base.metadata.drop_all(bind=engine)
-
-    # Recreate all tables
-    Base.metadata.create_all(bind=engine)
+def clean_database(test_engine):
+    """Clean database between tests (uses test engine, not production)."""
+    # Truncate all tables instead of drop/recreate to avoid FK issues
+    table_names = ", ".join(
+        f'"{t.name}"' for t in reversed(Base.metadata.sorted_tables)
+    )
+    if table_names:
+        with test_engine.connect() as conn:
+            conn.execute(text(f"TRUNCATE TABLE {table_names} CASCADE"))
+            conn.commit()
 
     yield
 
     # Cleanup after test
-    Base.metadata.drop_all(bind=engine)
+    if table_names:
+        with test_engine.connect() as conn:
+            conn.execute(text(f"TRUNCATE TABLE {table_names} CASCADE"))
+            conn.commit()
 
 
 @pytest.fixture

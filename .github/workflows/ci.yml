@@ -246,8 +246,6 @@ jobs:
             --cov-report=term-missing \
             --cov-fail-under=0 \
             --tb=short \
-            -n auto \
-            --dist loadgroup \
             -x \
             --timeout=300
 
