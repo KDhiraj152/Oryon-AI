@@ -73,7 +73,7 @@ def update_imports(content):
     return content
 
 def main():
-    os.chdir('/Users/kdhiraj/Downloads/Oryon-setu')
+    os.chdir('/Users/kdhiraj/Downloads/Oryon-AI')
     files = glob.glob('backend/**/*.py', recursive=True) + glob.glob('tests/**/*.py', recursive=True)
     files = [f for f in files if '__pycache__' not in f]
     

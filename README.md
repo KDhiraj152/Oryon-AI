@@ -153,8 +153,8 @@ A custom **Memory Coordinator** orchestrates 6+ concurrent AI models in shared m
 
 ```bash
 # Clone
-git clone https://github.com/KDhiraj152/Oryon-setu.git
-cd Oryon-setu
+git clone https://github.com/KDhiraj152/Oryon-AI.git
+cd Oryon-AI
 
 # Setup (creates venv, installs deps, downloads models, runs migrations)
 ./setup.sh
@@ -221,7 +221,7 @@ All endpoints under `/api/v2/`. Full reference in [docs/05-api-reference.md](doc
 ## Project Structure
 
 ```
-Oryon-setu/
+Oryon-AI/
 ├── backend/                 # FastAPI application
 │   ├── api/                 #   Routes, middleware, metrics
 │   │   ├── routes/          #     Auth, chat, content, health endpoints

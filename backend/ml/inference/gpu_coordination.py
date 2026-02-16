@@ -9,8 +9,8 @@ Provides thread-safe GPU resource management for concurrent inference:
 - Sync/async GPU dispatch helpers
 
 Configuration via environment variables:
-    SSETU_MPS_SEMAPHORE  — concurrent MPS operations (default 2 for M4)
-    SSETU_MLX_SEMAPHORE  — concurrent MLX/LLM operations (default 1)
+    ORYON_MPS_SEMAPHORE  — concurrent MPS operations (default 2 for M4)
+    ORYON_MLX_SEMAPHORE  — concurrent MLX/LLM operations (default 1)
 """
 
 import asyncio
@@ -24,8 +24,8 @@ from backend.utils.lock_factory import LockType, create_lock
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-MPS_SEMAPHORE_LIMIT = int(os.environ.get("SSETU_MPS_SEMAPHORE", "2"))
-MLX_SEMAPHORE_LIMIT = int(os.environ.get("SSETU_MLX_SEMAPHORE", "1"))
+MPS_SEMAPHORE_LIMIT = int(os.environ.get("ORYON_MPS_SEMAPHORE", "2"))
+MLX_SEMAPHORE_LIMIT = int(os.environ.get("ORYON_MLX_SEMAPHORE", "1"))
 
 # ---------------------------------------------------------------------------
 # Locks (thread-level synchronization)

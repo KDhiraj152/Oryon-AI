@@ -46,7 +46,7 @@ celery_app = Celery(
 # =============================================================================
 
 # Define exchanges
-default_exchange = Exchange("ssetu", type="direct")
+default_exchange = Exchange("oryon", type="direct")
 
 # Define queues - each model type gets its own queue
 # Workers subscribe to only ONE queue to ensure single-model loading
@@ -138,7 +138,7 @@ celery_app.conf.update(
     task_queues=TASK_QUEUES,
     task_routes=TASK_ROUTES,
     task_default_queue="default",
-    task_default_exchange="ssetu",
+    task_default_exchange="oryon",
     task_default_routing_key="default",
     # Worker settings (Principle N: Single model per worker)
     worker_concurrency=1,  # CRITICAL: Only 1 task at a time per worker

@@ -821,7 +821,7 @@ class L2Cache:
         self,
         redis_url: str,
         ttl_seconds: int = 900,
-        prefix: str = "ssetu:unified:",
+        prefix: str = "oryon:unified:",
         max_connections: int = 20,
         use_compression: bool = True,
     ):

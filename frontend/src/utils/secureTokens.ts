@@ -23,7 +23,7 @@ let _accessToken: string | null = null;
 let _tokenExpiry: number | null = null;
 
 // Simple obfuscation key (NOT encryption, just makes casual inspection harder)
-const OBFUSCATE_KEY = 'ssetu_2024_key';
+const OBFUSCATE_KEY = 'oryon_2024_key';
 
 /**
  * Basic obfuscation for localStorage (NOT secure encryption)

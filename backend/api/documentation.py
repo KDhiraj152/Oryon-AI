@@ -84,7 +84,7 @@ Content processing flow:
 
 - **Documentation**: https://docs.oryon-ai.com
 - **Email**: support@oryon-ai.com
-- **GitHub**: https://github.com/KDhiraj152/Siksha-Setu
+- **GitHub**: https://github.com/KDhiraj152/Oryon-AI
         """,
         routes=app.routes,
         tags=[
