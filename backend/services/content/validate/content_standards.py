@@ -11,7 +11,7 @@ import numpy as np
 
 from backend.db.database import get_db
 
-from ...models import ContentStandard
+from backend.models import ContentStandard
 
 if TYPE_CHECKING:
     from backend.services.chat.rag import BGEM3Embedder

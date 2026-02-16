@@ -124,7 +124,7 @@ COPY --chown=appuser:appuser config/alembic/ /app/config/alembic/
 COPY --chown=appuser:appuser alembic.ini /app/alembic.ini
 
 # Copy startup scripts
-COPY --chown=appuser:appuser scripts/deployment/start-backend /app/scripts/start-backend
+COPY --chown=appuser:appuser scripts/deployment/start_backend.sh /app/scripts/start-backend
 RUN chmod +x /app/scripts/start-backend
 
 # Security hardening

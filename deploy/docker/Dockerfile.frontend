@@ -22,9 +22,9 @@ WORKDIR /app
 # Copy package files for better cache utilization
 COPY frontend/package.json frontend/package-lock.json* ./
 
-# Install dependencies with clean cache
+# Install all dependencies (including devDependencies for build)
 RUN --mount=type=cache,target=/root/.npm \
-    npm ci --only=production --silent && \
+    npm ci --silent && \
     npm cache clean --force
 
 # -----------------------------------------------------------------------------

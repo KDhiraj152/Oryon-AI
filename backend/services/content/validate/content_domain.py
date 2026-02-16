@@ -10,7 +10,7 @@ from typing import Any, ClassVar
 
 import numpy as np
 
-from ...models import ContentStandard
+from backend.models import ContentStandard
 from .content_standards import ContentStandardsLoader
 
 logger = logging.getLogger(__name__)

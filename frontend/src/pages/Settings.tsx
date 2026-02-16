@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -10,12 +10,7 @@ import {
   Shield,
   Trash2,
   LogOut,
-  User,
-  UserCircle,
   Sparkles,
-  BookOpen,
-  FlaskConical,
-  Lock
 } from 'lucide-react';
 import { useThemeStore, useAuthStore, useChatStore, useProfileStore } from '../store';
 import { OmLogo } from '../components/landing/OmLogo';
@@ -29,8 +24,8 @@ import {
   loadSettings,
   saveSettings,
   DeleteConfirmModal,
-} from './settings';
-import type { PolicyMode, UserSettings } from './settings';
+} from './settings/index';
+import type { PolicyMode, UserSettings } from './settings/index';
 
 // Policy Mode Section Component
 function PolicyModeSection({ isDark }: Readonly<{ isDark: boolean }>) {
