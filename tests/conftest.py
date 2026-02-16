@@ -30,10 +30,14 @@ os.environ["JWT_SECRET_KEY"] = (
 # Disable rate limiting by default for tests (specific tests can enable it)
 os.environ["RATE_LIMIT_ENABLED"] = "false"
 
-# Use PostgreSQL test database (default works for most setups)
+# Use PostgreSQL test database: prefer TEST_DATABASE_URL, then DATABASE_URL (CI),
+# then fallback default for local development
 TEST_DATABASE_URL = os.getenv(
     "TEST_DATABASE_URL",
-    "postgresql://postgres:password@localhost:5432/oryon_test",
+    os.getenv(
+        "DATABASE_URL",
+        "postgresql://postgres:password@localhost:5432/oryon_test",
+    ),
 )
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 

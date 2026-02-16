@@ -11,6 +11,8 @@ Optimization: Groups multiple requests into single GPU operations
 for better hardware utilization and reduced overhead.
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 import time

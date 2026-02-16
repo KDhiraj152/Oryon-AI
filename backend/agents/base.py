@@ -7,6 +7,8 @@ the message types for inter-agent communication,
 and the registry for agent lifecycle management.
 """
 
+from __future__ import annotations
+
 import asyncio
 import contextlib
 import logging
