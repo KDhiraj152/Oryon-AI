@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Batch Processing Utilities for High-Throughput Optimization
 ============================================================

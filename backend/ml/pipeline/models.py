@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 AI Pipeline Models Module - Centralized model loading and management.
 

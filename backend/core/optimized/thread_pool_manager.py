@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Unified Thread Pool Manager — Consolidate All Thread Pools
 ============================================================

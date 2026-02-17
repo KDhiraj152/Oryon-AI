@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 RAG (Retrieval-Augmented Generation) Service with BGE-M3 and Reranker.
 
